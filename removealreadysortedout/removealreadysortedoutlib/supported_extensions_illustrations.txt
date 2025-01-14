@@ -1,0 +1,4 @@
+.ai
+.eps
+.svg
+.pdf

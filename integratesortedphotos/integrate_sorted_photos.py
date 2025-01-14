@@ -1,85 +1,45 @@
-import argparse
-import logging
-import shutil
 import os
-from datetime import datetime
-from tqdm import tqdm
+import logging
+import argparse
+from shared.logging_config import setup_logging
+from integratesortedphotoslib.constants import DEFAULT_SORTED_FOLDER, DEFAULT_TARGET_FOLDER, LOG_DIR
+from integratesortedphotoslib.copy_files import copy_files_with_preserved_dates  # Import the new function
+from shared.utils import get_log_filename
 
-def setup_logging(log_file, debug):
-    """Set up logging configuration to log to both the specified log file and the console if debug is True."""
-    logging.basicConfig(level=logging.DEBUG if debug else logging.INFO,
-                        format='%(asctime)s - %(levelname)s - %(message)s',
-                        filename=log_file, filemode='a')
-
-    if debug:
-        # Create a console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.DEBUG)
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        # Add the console handler to the root logger
-        logging.getLogger().addHandler(console_handler)
-
-    logging.debug('Logging has been set up.')
-
-def copy_files_with_metadata(src, dst):
-    """Copy files from src to dst while preserving metadata."""
-    files_to_copy = []
-    for root, _, files in os.walk(src):
-        for file in files:
-            src_file = os.path.join(root, file)
-            dst_file = os.path.join(dst, os.path.relpath(src_file, src))
-            files_to_copy.append((src_file, dst_file))
-
-    for src_file, dst_file in tqdm(files_to_copy, desc="Copying files", unit="file"):
-        dst_dir = os.path.dirname(dst_file)
-        # Ensure the target directory exists
-        if not os.path.exists(dst_dir):
-            os.makedirs(dst_dir)
-        try:
-            # Copy the file
-            shutil.copy2(src_file, dst_file)
-            logging.info(f'Copied {src_file} to {dst_file}')
-        except Exception as e:
-            logging.error(f'Failed to copy {src_file} to {dst_file}: {e}', exc_info=True)
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Integrate sorted photos from one directory to another.")
+    parser.add_argument('--sortedFolder', type=str, nargs='?', default=DEFAULT_SORTED_FOLDER, help="Path to the sorted folder.")
+    parser.add_argument('--targetFolder', type=str, nargs='?', default=DEFAULT_TARGET_FOLDER, help="Path to the target folder.")
+    parser.add_argument('--debug', action='store_true', help="Enable debug mode.")
+    return parser.parse_args()
 
 def main():
-    # Set up argparse to handle command-line arguments
-    parser = argparse.ArgumentParser(description='Integrate Sorted Photos')
-    parser.add_argument('SortedFolder', nargs='?', default='I:/NeRoztříděno', help='Path to the sorted folder')
-    parser.add_argument('TargetFolder', nargs='?', default='J:/FotoTest', help='Path to the target folder')
-    parser.add_argument('LogFile', nargs='?', default=f'H:/Logs/IntegrateSortedPhotosLog.{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.log', help='Path to the log file')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode to log to console')
+    args = parse_arguments()
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
 
-    args = parser.parse_args()
+    # Generate the log filename
+    LOG_FILE = get_log_filename(LOG_DIR)
 
-    # Set up logging to the specified log file
-    setup_logging(args.LogFile, args.debug)
+    # Setup logging with the log file path
+    setup_logging(args.debug, LOG_FILE)
 
-    # Verify the log file creation
-    if os.path.exists(args.LogFile):
-        logging.debug(f'Log file created: {args.LogFile}')
-    else:
-        logging.error(f'Failed to create log file: {args.LogFile}')
+    logging.info(f"SortedFolder: {args.sortedFolder}")
+    logging.info(f"TargetFolder: {args.targetFolder}")
+    logging.info(f"LogFile: {LOG_FILE}")
 
-    # Log the parsed arguments
-    logging.debug(f'Parsed arguments: SortedFolder={args.SortedFolder}, TargetFolder={args.TargetFolder}, LogFile={args.LogFile}, Debug={args.debug}')
+    # Ensure the paths are valid
+    if not os.path.exists(args.sortedFolder):
+        logging.error(f"SortedFolder does not exist: {args.SortedFolder}")
+        return
 
-    # Ensure the folders and log file path are correct
-    sorted_folder = args.SortedFolder
-    target_folder = args.TargetFolder
+    log_dir = os.path.dirname(LOG_FILE)
+    if LOG_FILE and not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+        logging.info(f"Created log directory: {log_dir}")
 
-    # Log the folders and log file path
-    logging.debug(f'Sorted folder: {sorted_folder}')
-    logging.debug(f'Target folder: {target_folder}')
-
-    # Log before calling the file copying functionality
-    logging.debug('Starting to copy files with metadata.')
-
-    # Implement the file copying functionality
-    copy_files_with_metadata(sorted_folder, target_folder)
-
-    # Log after completing the file copying functionality
-    logging.debug('Completed copying files with metadata.')
+    # Call the copy function
+    copy_files_with_preserved_dates(args.sortedFolder, args.targetFolder)
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,12 @@
+jpg
+jpeg
+png
+gif
+bmp
+tif
+tiff
+dng
+nef
+raw
+cr2
+arw
