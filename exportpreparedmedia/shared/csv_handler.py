@@ -43,7 +43,7 @@ def save_csv(csv_data, filepath, encoding):
         logging.info(f"Backup of the original file created: {backup_filepath}")
 
         df = pd.DataFrame(csv_data)
-        df.to_csv(filepath, index=False, quotechar='"', quoting=csv.QUOTE_ALL, encoding=encoding)
+        df.to_csv(filepath, index=False, quotechar='"', quoting=csv.QUOTE_ALL, encoding='utf-8')
         logging.info(f"CSV file saved successfully: {filepath}")
     except Exception as e:
         logging.error(f"Error saving CSV file: {e}", exc_info=True)
