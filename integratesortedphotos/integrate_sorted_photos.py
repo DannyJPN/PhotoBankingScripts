@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 import argparse
 from shared.logging_config import setup_logging

@@ -1,4 +1,4 @@
-# File: exportpreparedmedialib/header_mappings.py
+﻿# File: exportpreparedmedialib/header_mappings.py
 
 HEADER_MAPPINGS = {
     "ShutterStock": {

@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 from PIL import Image
 

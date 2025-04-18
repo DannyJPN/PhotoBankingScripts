@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import logging
 
 def calculate_md5(file_path):

@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 import csv
 from datetime import datetime
@@ -135,7 +135,7 @@ def create_export_object(photobank, item, all_categories):
 
         # Extract basic information
         filename = item['Soubor']
-        date_created = item['Datum vytvoření']
+        date_created = item['Datum vytvoĹ™enĂ­']
 
         # Parse date and extract year properly
         try:
@@ -147,7 +147,7 @@ def create_export_object(photobank, item, all_categories):
             year_created = datetime.now().year
             logging.warning(f"Using fallback year {year_created} for invalid date {date_created}")
 
-        editorial_status = is_editorial(item['Název'], item['Popis'], item['Klíčová slova'])
+        editorial_status = is_editorial(item['NĂˇzev'], item['Popis'], item['KlĂ­ÄŤovĂˇ slova'])
         categories = get_categories_for_photobank(item, all_categories[photobank], f'{photobank} kategorie')
 
         # Create all_fields dictionary with all possible fields
@@ -157,12 +157,12 @@ def create_export_object(photobank, item, all_categories):
             'oldfilename': filename,
             'originalfilename': filename,
             'filename_123rf': '',
-            'title': item['Název'],
-            'image_name': item['Název'],
-            'caption': item['Název'],
+            'title': item['NĂˇzev'],
+            'image_name': item['NĂˇzev'],
+            'caption': item['NĂˇzev'],
             'description': item['Popis'],
-            'keywords': item['Klíčová slova'],
-            'tags': item['Klíčová slova'],
+            'keywords': item['KlĂ­ÄŤovĂˇ slova'],
+            'tags': item['KlĂ­ÄŤovĂˇ slova'],
             'editorial': editorial_status,
             'category': categories,
             'categories': categories,
@@ -199,8 +199,8 @@ def create_export_object(photobank, item, all_categories):
             'License type': "RF" if editorial_status == "no" else "RF-E",
             'username': USERNAME,
             'Username': USERNAME,
-            'super_tags': ",".join(item['Klíčová slova'].split(",")[:10]),
-            'Super Tags': ",".join(item['Klíčová slova'].split(",")[:10]),
+            'super_tags': ",".join(item['KlĂ­ÄŤovĂˇ slova'].split(",")[:10]),
+            'Super Tags': ",".join(item['KlĂ­ÄŤovĂˇ slova'].split(",")[:10]),
             'location': LOCATION,
             'Location': LOCATION,
             'date_taken': date_created,
@@ -262,7 +262,7 @@ def get_special_case_value(header, item, all_categories, photobank):
 
         # Handle editorial status for Dreamstime (1/0 instead of yes/no)
         if photobank == "Dreamstime" and header.lower() == "editorial":
-            editorial_status = is_editorial(item['Název'], item['Popis'], item['Klíčová slova'])
+            editorial_status = is_editorial(item['NĂˇzev'], item['Popis'], item['KlĂ­ÄŤovĂˇ slova'])
             value = "1" if editorial_status.lower() == "yes" else "0"
             logging.debug(f"Dreamstime editorial status transformed: {editorial_status} -> {value}")
             return value
@@ -300,19 +300,19 @@ def get_special_case_value(header, item, all_categories, photobank):
         if header.lower() == "price":
             filename = item['Soubor'].lower()
             if any(filename.endswith(ext) for ext in video_extensions):
-                return str(len(item.get('Délka videa (s)', "100")))
+                return str(len(item.get('DĂ©lka videa (s)', "100")))
             elif filename.endswith(('tif', 'tiff')):
                 return "10"
             return "5"
 
         # Handle super tags (first 10 keywords)
         #if header.lower() in ["super tags", "super_tags"]:
-        #    keywords = item.get('Klíčová slova', '').split(",")
+        #    keywords = item.get('KlĂ­ÄŤovĂˇ slova', '').split(",")
         #    return ",".join(keywords[:10])
 
         # Handle license type
         #if header.lower() in ["license type", "license_type"]:
-        #    editorial_status = is_editorial(item['Název'], item['Popis'], item['Klíčová slova'])
+        #    editorial_status = is_editorial(item['NĂˇzev'], item['Popis'], item['KlĂ­ÄŤovĂˇ slova'])
         #    return "RF-E" if editorial_status.lower() == "yes" else "RF"
 
         return ""

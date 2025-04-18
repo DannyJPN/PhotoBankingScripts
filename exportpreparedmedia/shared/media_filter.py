@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 def filter_prepared_items(media_items, status):
     """

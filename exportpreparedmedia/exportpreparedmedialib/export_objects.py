@@ -1,4 +1,4 @@
-# File: exportpreparedmedialib/export_objects.py
+﻿# File: exportpreparedmedialib/export_objects.py
 
 import logging
 from exportpreparedmedialib.header_mappings import HEADER_MAPPINGS

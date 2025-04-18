@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import logging
 import os
 import sys
@@ -15,7 +15,7 @@ from removealreadysortedoutlib.handle_pict_files import handle_pict_files
 def main():
     # Define input parameters
     parser = argparse.ArgumentParser(description="RemoveAlreadySortedOut Script")
-    parser.add_argument("--unsorted-folder", type=str, default="I:/NeroztříděnoTest", help="Path to the unsorted folder")
+    parser.add_argument("--unsorted-folder", type=str, default="I:/NeroztĹ™Ă­dÄ›noTest", help="Path to the unsorted folder")
     parser.add_argument("--target-folder", type=str, default="J:/FotoJPG", help="Path to the target folder")
     parser.add_argument("--debug", action="store_true", help="Enable debug level logging")
 

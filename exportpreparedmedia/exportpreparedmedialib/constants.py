@@ -1,4 +1,4 @@
-# File: exportpreparedmedialib/constants.py
+﻿# File: exportpreparedmedialib/constants.py
 
 # Default file paths
 PHOTO_CSV_FILE_DEFAULT = r"F:\Disk Google (krupadan.jp@gmail.com)\XLS\Fotobanky/PhotoMediaTest.csv"
@@ -7,8 +7,8 @@ LOG_DIR = r"H:/Logs"
 CATEGORY_CSV_DIR = r"./config"  # New constant for category CSV directory
 
 # Status strings
-STATUS_READY = "připraveno"
-STATUS_CHECKED = "kontrolováno"
+STATUS_READY = "pĹ™ipraveno"
+STATUS_CHECKED = "kontrolovĂˇno"
 
 # Headers for photobank CSVs
 PHOTOBANK_HEADERS = ["KEY", "VALUE"]
@@ -75,3 +75,4 @@ DELIMITERS = {
     "CanStockPhoto": "\t",  # Tab-separated
     "default": ","          # Default comma-separated
 }
+

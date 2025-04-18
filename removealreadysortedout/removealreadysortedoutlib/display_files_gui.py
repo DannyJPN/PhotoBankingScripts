@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 from tkinter import Tk, Label, Button, Frame
 from PIL import Image, ImageTk, UnidentifiedImageError, ImageDraw
@@ -11,9 +11,9 @@ def display_files_side_by_side_gui(file1, file2):
 
     def on_error():
         logging.debug("Displaying error message for invalid image files.")
-        error_label = Label(root, text="Chyba při zobrazení souborů", fg="red")
+        error_label = Label(root, text="Chyba pĹ™i zobrazenĂ­ souborĹŻ", fg="red")
         error_label.grid(row=0, column=0, columnspan=2)
-        close_button = Button(root, text="Zavřít", command=on_close)
+        close_button = Button(root, text="ZavĹ™Ă­t", command=on_close)
         close_button.grid(row=1, column=0, columnspan=2)
 
     def create_red_cross_image(size):
@@ -83,12 +83,12 @@ def display_files_side_by_side_gui(file1, file2):
     image_frame = Frame(root)
     image_frame.grid(row=0, column=0, columnspan=2, padx=30, pady=30)
 
-    label1 = Label(image_frame, text=f"Neroztříděný soubor: {file1}", wraplength=screen_width // 2 - 150)
+    label1 = Label(image_frame, text=f"NeroztĹ™Ă­dÄ›nĂ˝ soubor: {file1}", wraplength=screen_width // 2 - 150)
     label1.grid(row=0, column=0, padx=10, pady=10)
     panel1 = Label(image_frame)
     panel1.grid(row=1, column=0, padx=10, pady=10)
 
-    label2 = Label(image_frame, text=f"Cílový soubor: {file2}", wraplength=screen_width // 2 - 150)
+    label2 = Label(image_frame, text=f"CĂ­lovĂ˝ soubor: {file2}", wraplength=screen_width // 2 - 150)
     label2.grid(row=0, column=1, padx=10, pady=10)
     panel2 = Label(image_frame)
     panel2.grid(row=1, column=1, padx=10, pady=10)
@@ -97,7 +97,7 @@ def display_files_side_by_side_gui(file1, file2):
     question_frame = Frame(root)
     question_frame.grid(row=2, column=0, columnspan=2, pady=20)
 
-    question_label = Label(question_frame, text="Chcete nahradit neroztříděný soubor cílovým souborem?", font=("Helvetica", 14))
+    question_label = Label(question_frame, text="Chcete nahradit neroztĹ™Ă­dÄ›nĂ˝ soubor cĂ­lovĂ˝m souborem?", font=("Helvetica", 14))
     question_label.grid(row=0, column=0, columnspan=2, pady=10)
 
     def on_yes():

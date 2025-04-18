@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from tqdm import tqdm
 from markmediaascheckedlib.constants import STATUS_READY, STATUS_CHECKED
 

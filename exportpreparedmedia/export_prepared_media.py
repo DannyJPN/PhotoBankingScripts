@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import argparse
 import logging
@@ -47,7 +47,7 @@ def main():
         csv_data, encoding = load_csv(PHOTO_CSV_FILE)
         logging.info(f"Successfully loaded {len(csv_data)} items from CSV")
 
-        # Filter media items with 'připraveno' status
+        # Filter media items with 'pĹ™ipraveno' status
         logging.info(f"Filtering items with '{STATUS_READY}' status")
         prepared_items = filter_prepared_items(csv_data, STATUS_READY)
         logging.info(f"Found {len(prepared_items)} items with '{STATUS_READY}' status")
