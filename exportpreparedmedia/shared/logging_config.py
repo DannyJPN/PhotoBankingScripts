@@ -50,3 +50,13 @@ def setup_logging(debug=False, log_file="logs/logfile.log"):
     root_logger.addHandler(file_handler)
 
     logging.debug(f"Logging setup complete. Log file: {log_file}")
+
+
+
+
+
+
+
+
+
+

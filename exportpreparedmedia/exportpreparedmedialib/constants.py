@@ -1,78 +1,26 @@
-﻿# File: exportpreparedmedialib/constants.py
+﻿import os
 
-# Default file paths
-PHOTO_CSV_FILE_DEFAULT = r"F:\Disk Google (krupadan.jp@gmail.com)\XLS\Fotobanky/PhotoMediaTest.csv"
-CSV_LOCATION_DEFAULT = r"F:\Disk Google (krupadan.jp@gmail.com)\XLS\Fotobanky\CSV"
-LOG_DIR = r"H:/Logs"
-CATEGORY_CSV_DIR = r"./config"  # New constant for category CSV directory
+# Výchozí hodnoty pro vstupní a výstupní soubory
+DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
+DEFAULT_OUTPUT_FOLDER = r"L:\Můj disk\XLS\Fotobanky\CSV\CSV"
 
-# Status strings
-STATUS_READY = "pĹ™ipraveno"
-STATUS_CHECKED = "kontrolovĂˇno"
+# Výchozí hodnoty pro metadata
+DEFAULT_LOCATION = "Czech republic"
+DEFAULT_USERNAME = "DannyJPN"
+DEFAULT_COPYRIGHT_AUTHOR = "Dan K."
 
-# Headers for photobank CSVs
-PHOTOBANK_HEADERS = ["KEY", "VALUE"]
+# Cesty k mapám kategorií
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_ADOBE_CATEGORY_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "adobe_stock_categories.csv")
+DEFAULT_DREAMSTIME_CATEGORY_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "dreams_time_categories.csv")
 
-# Photobank names
-SHUTTERSTOCK = "ShutterStock"
-ADOBE_STOCK = "AdobeStock"
-DREAMS_TIME = "Dreamstime"
-DEPOSIT_PHOTOS = "DepositPhotos"
-BIG_STOCK_PHOTO = "BigStockPhoto"
-RF_123 = "123RF"
-CAN_STOCK_PHOTO = "CanStockPhoto"
-POND5 = "Pond5"
-ALAMY = "Alamy"
-GETTY_IMAGES = "GettyImages"
+# Cesty k CSV souborům pro exporty
+DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "photobank_export_formats.csv")
+DEFAULT_POND_PRICES_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "pond_prices.csv")
 
-# List of photobanks
-PHOTOBANKS = [
-    SHUTTERSTOCK,
-    ADOBE_STOCK,
-    DREAMS_TIME,
-    DEPOSIT_PHOTOS,
-    BIG_STOCK_PHOTO,
-    RF_123,
-    CAN_STOCK_PHOTO,
-    POND5,
-    ALAMY,
-    GETTY_IMAGES
-]
+# Regulární výrazy pro detekci typů souborů
+EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
+VECTOREXT_REGEX = r"(cdr|ai|eps|svg)$"
 
-# Editorial regex pattern
-EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - [0-9]{2} [0-9]{2} [0-9]{4}:"
-
-# File extension lists
-VIDEO_EXTENSIONS_FILE = "config/video_extensions.txt"
-IMAGE_EXTENSIONS_FILE = "config/image_extensions.txt"
-ILLUSTRATION_EXTENSIONS_FILE = "config/illustration_extensions.txt"
-
-# Not Available constant
-NA = "NA"
-
-# Constant values
-LOCATION = "Czech republic"
-MATURE_CONTENT = "no"
-FREE = "0"
-W_EL = "1"
-P_EL = "1"
-SR_EL = "0"
-SR_PRICE = "0"
-MR_DOC_IDS = "0"
-PR_DOCS = "0"
-NUDITY = "no"
-COUNTRY = "CZ"
-SPECIFY_SOURCE = ""
-USERNAME = "DannyJPN"
-EXCLUSIVE = "N"
-ADDITIONAL_INFO = ""
-NA_VALUE = "NA"
-
-# New constants for additional file extensions
-VECTOR_FILE_EXTENSIONS = ['tif', 'tiff']
-# Define delimiters for different photobanks
-DELIMITERS = {
-    "CanStockPhoto": "\t",  # Tab-separated
-    "default": ","          # Default comma-separated
-}
-
+# Validní hodnota pro status
+VALID_STATUS = "kontrolováno"
