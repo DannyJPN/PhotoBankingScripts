@@ -1,0 +1,3 @@
+"""
+MarkMediaAsChecked library package.
+"""
