@@ -1,1 +1,4 @@
-tqdm
+tqdm>=4.65.0
+colorlog>=6.7.0
+black>=23.0.0
+ruff>=0.1.0
