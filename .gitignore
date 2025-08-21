@@ -1,0 +1,58 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Config files with secrets
+**/config/secrets.*
+**/config/api_keys.*
+.env
+.env.local
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Test artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Data files (potentially large)
+*.csv.bak
+*.json.bak
+backup_*
+
+# CUDA/GPU artifacts
+__pycache__/
