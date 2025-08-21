@@ -88,6 +88,17 @@ They are **shared** across all modules; local specifics may be added at script l
 * One branch/PR = one feature.
 * PR requires owner review, no auto-merge.
 
+### Multi-line Commit Messages
+
+For detailed commit messages, use one of these approaches:
+
+1. **File-based (recommended)**: Create temporary file and use `git commit -F filename`
+2. **Multiple -m flags**: `git commit -m "Title" -m "Line 1" -m "Line 2"`  
+3. **$'...' syntax**: `git commit -m $'Title\n\nDescription\nMore details'`
+4. **Printf with variable**: `MSG="$(printf "line1\nline2")" && git commit -m "$MSG"`
+
+File-based approach avoids shell escaping issues and supports full formatting.
+
 ---
 
 ## Secrets
