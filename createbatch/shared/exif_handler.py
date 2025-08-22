@@ -1,10 +1,10 @@
 import logging
-import subprocess
 import os
 import shutil
-from typing import Dict
+import subprocess
 
-def update_exif_metadata(file_path: str, metadata: Dict[str, str], tool_path: str = None) -> None:
+
+def update_exif_metadata(file_path: str, metadata: dict[str, str], tool_path: str = None) -> None:
     """
     Update metadata for a given media file using the ExifTool command-line tool across platforms.
     Ensures that creation date, title, description, and keywords are set correctly.
@@ -25,7 +25,7 @@ def update_exif_metadata(file_path: str, metadata: Dict[str, str], tool_path: st
     exe = None
     # If provided a directory, look inside
     if tool_path and os.path.isdir(tool_path):
-        base = 'exiftool.exe' if os.name == 'nt' else 'exiftool'
+        base = "exiftool.exe" if os.name == "nt" else "exiftool"
         candidate = os.path.join(tool_path, base)
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             exe = candidate
@@ -34,21 +34,21 @@ def update_exif_metadata(file_path: str, metadata: Dict[str, str], tool_path: st
         exe = tool_path
     # Fallback to system PATH
     if not exe:
-        exe = shutil.which('exiftool')
+        exe = shutil.which("exiftool")
     if not exe:
-        raise RuntimeError('ExifTool executable not found. Please install ExifTool or provide its path.')
+        raise RuntimeError("ExifTool executable not found. Please install ExifTool or provide its path.")
 
     logging.debug("Using ExifTool executable at %s", exe)
 
     # Base arguments: overwrite original, set file creation from original timestamp, and keyword separator
-    args = [exe, '-overwrite_original', '-FileCreateDate<DateTimeOriginal', '-sep', ',']
+    args = [exe, "-overwrite_original", "-FileCreateDate<DateTimeOriginal", "-sep", ","]
 
     # Map metadata keys to ExifTool tags
     tag_map = {
-        'datetimeoriginal': '-DateTimeOriginal',
-        'title': '-Title',
-        'description': '-Description',
-        'keywords': '-Keywords'
+        "datetimeoriginal": "-DateTimeOriginal",
+        "title": "-Title",
+        "description": "-Description",
+        "keywords": "-Keywords",
     }
     # Append each tag assignment if provided
     for key, tag in tag_map.items():
@@ -64,9 +64,6 @@ def update_exif_metadata(file_path: str, metadata: Dict[str, str], tool_path: st
         logging.debug("ExifTool stdout: %s", result.stdout.strip())
         logging.debug("EXIF metadata updated successfully for %s", file_path)
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr.strip() if e.stderr else ''
-        logging.error(
-            "ExifTool failed for %s with return code %d and error: %s",
-            file_path, e.returncode, stderr
-        )
+        stderr = e.stderr.strip() if e.stderr else ""
+        logging.error("ExifTool failed for %s with return code %d and error: %s", file_path, e.returncode, stderr)
         raise

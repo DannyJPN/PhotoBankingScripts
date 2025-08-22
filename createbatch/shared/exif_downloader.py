@@ -1,19 +1,21 @@
 import logging
 import os
 import platform
-import zipfile
 import tarfile
+import zipfile
 from urllib.request import urlretrieve
+
 from shared.file_operations import ensure_directory
 
 a = os
 
 EXIFTOOL_URLS = {
-    'Windows_64bit': 'https://exiftool.org/exiftool-13.27_64.zip',
-    'Windows_32bit': 'https://exiftool.org/exiftool-13.27_32.zip',
-    'Linux': 'https://exiftool.org/Image-ExifTool-13.27.tar.gz',
-    'Darwin': 'https://exiftool.org/Image-ExifTool-13.27.tar.gz'
+    "Windows_64bit": "https://exiftool.org/exiftool-13.27_64.zip",
+    "Windows_32bit": "https://exiftool.org/exiftool-13.27_32.zip",
+    "Linux": "https://exiftool.org/Image-ExifTool-13.27.tar.gz",
+    "Darwin": "https://exiftool.org/Image-ExifTool-13.27.tar.gz",
 }
+
 
 def ensure_exiftool(tool_dir: str) -> str:
     """
@@ -30,9 +32,9 @@ def ensure_exiftool(tool_dir: str) -> str:
     system = platform.system()
     arch, _ = platform.architecture()
 
-    if system == 'Windows':
-        key = 'Windows_64bit' if '64' in arch else 'Windows_32bit'
-    elif system in ('Linux', 'Darwin'):
+    if system == "Windows":
+        key = "Windows_64bit" if "64" in arch else "Windows_32bit"
+    elif system in ("Linux", "Darwin"):
         key = system
     else:
         raise RuntimeError(f"Unsupported platform for ExifTool: {system}")
@@ -42,7 +44,7 @@ def ensure_exiftool(tool_dir: str) -> str:
         raise RuntimeError(f"No ExifTool download URL for platform/arch {key}")
 
     # Prepare paths
-    exe_name = 'exiftool.exe' if system == 'Windows' else 'exiftool'
+    exe_name = "exiftool.exe" if system == "Windows" else "exiftool"
     exe_path = os.path.join(tool_dir, exe_name)
     # If already have executable and it works, return
     if os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
@@ -57,11 +59,11 @@ def ensure_exiftool(tool_dir: str) -> str:
     logging.debug("Downloaded archive to %s", archive_path)
 
     # Extract contents
-    if archive_path.endswith('.zip'):
-        with zipfile.ZipFile(archive_path, 'r') as zf:
+    if archive_path.endswith(".zip"):
+        with zipfile.ZipFile(archive_path, "r") as zf:
             zf.extractall(tool_dir)
     else:
-        with tarfile.open(archive_path, 'r:gz') as tf:
+        with tarfile.open(archive_path, "r:gz") as tf:
             tf.extractall(tool_dir)
     os.remove(archive_path)
     logging.info("Extracted ExifTool archive in %s", tool_dir)
@@ -71,10 +73,10 @@ def ensure_exiftool(tool_dir: str) -> str:
     for root, _, files in os.walk(tool_dir):
         for fname in files:
             lower = fname.lower()
-            if system == 'Windows' and lower.startswith('exiftool') and lower.endswith('.exe'):
+            if system == "Windows" and lower.startswith("exiftool") and lower.endswith(".exe"):
                 exe = os.path.join(root, fname)
                 break
-            if system != 'Windows' and fname == 'exiftool':
+            if system != "Windows" and fname == "exiftool":
                 exe = os.path.join(root, fname)
                 break
         if exe:

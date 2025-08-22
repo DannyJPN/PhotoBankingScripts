@@ -1,13 +1,15 @@
-﻿import logging
-import colorlog
-import json
+﻿import json
+import logging
 import os
 import sys
+
+import colorlog
+
 
 def setup_logging(debug=False, log_file="logs/logfile.log"):
     # Load color configuration from the JSON file
     try:
-        with open(os.path.join(os.path.dirname(sys.argv[0]), 'shared/log_colors.json'), 'r') as f:
+        with open(os.path.join(os.path.dirname(sys.argv[0]), "shared/log_colors.json")) as f:
             color_config = json.load(f)
     except Exception as e:
         logging.error(f"Failed to load color configuration: {e}", exc_info=True)
@@ -17,16 +19,16 @@ def setup_logging(debug=False, log_file="logs/logfile.log"):
     level = logging.DEBUG if debug else logging.INFO
 
     # Define a formatter using colorlog with a custom color scheme from the JSON
-    log_format = '%(log_color)s%(levelname)s: %(message)s'
+    log_format = "%(log_color)s%(levelname)s: %(message)s"
     formatter = colorlog.ColoredFormatter(
         log_format,
         log_colors={
-            'DEBUG': color_config["DEBUG"],
-            'INFO': color_config["INFO"],
-            'WARNING': color_config["WARNING"],
-            'ERROR': color_config["ERROR"],
-            'CRITICAL': color_config["CRITICAL"],
-        }
+            "DEBUG": color_config["DEBUG"],
+            "INFO": color_config["INFO"],
+            "WARNING": color_config["WARNING"],
+            "ERROR": color_config["ERROR"],
+            "CRITICAL": color_config["CRITICAL"],
+        },
     )
 
     # Set up the console handler with the formatter
@@ -50,13 +52,3 @@ def setup_logging(debug=False, log_file="logs/logfile.log"):
     root_logger.addHandler(file_handler)
 
     logging.debug(f"Logging setup complete. Log file: {log_file}")
-
-
-
-
-
-
-
-
-
-

@@ -1,9 +1,5 @@
-import os
 import hashlib
 import logging
-from typing import Dict
-from tqdm import tqdm
-
 
 
 def compute_file_hash(path: str, method: str = "md5") -> str:
@@ -19,5 +15,3 @@ def compute_file_hash(path: str, method: str = "md5") -> str:
     except Exception as e:
         logging.error("Failed to compute hash for %s: %s", path, e)
         raise
-
-

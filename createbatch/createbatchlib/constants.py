@@ -4,13 +4,3 @@ DEFAULT_EXIF_FOLDER = "F:/Dropbox/"
 LOG_DIR = "H:/Logs/"
 STATUS_FIELD_KEYWORD = "status"
 PREPARED_STATUS_VALUE = "připraveno"
-
-
-
-
-
-
-
-
-
-

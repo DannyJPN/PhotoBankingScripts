@@ -3,14 +3,13 @@ Unit tests for exportpreparedmedialib.constants module - default values validati
 """
 
 import unittest
-import os
 
 from exportpreparedmedialib.constants import (
-    DEFAULT_PHOTO_CSV,
-    DEFAULT_OUTPUT_FOLDER,
+    DEFAULT_COPYRIGHT_AUTHOR,
     DEFAULT_LOCATION,
+    DEFAULT_OUTPUT_FOLDER,
+    DEFAULT_PHOTO_CSV,
     DEFAULT_USERNAME,
-    DEFAULT_COPYRIGHT_AUTHOR
 )
 
 

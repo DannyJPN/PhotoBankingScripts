@@ -1,14 +1,13 @@
-
+import csv
+import logging
 import os
 import re
 import shutil
-import logging
-import csv
-from typing import List, Dict
 from collections import defaultdict
+
+from shared.hash_utils import compute_file_hash
 from tqdm import tqdm
 
-from shared.hash_utils      import compute_file_hash
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -33,6 +32,7 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
+
 
 def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") -> None:
     """
@@ -61,6 +61,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
         raise
 
+
 def delete_folder(path: str) -> None:
     """
     Smaže celou složku a její obsah.
@@ -72,6 +73,7 @@ def delete_folder(path: str) -> None:
     except Exception as e:
         logging.error("Failed to delete folder %s: %s", path, e)
         raise
+
 
 def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "") -> None:
     """
@@ -104,6 +106,8 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+
+
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
     Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
@@ -125,6 +129,7 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
+
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
@@ -157,7 +162,9 @@ def ensure_directory(path: str) -> None:
         raise
 
 
-def load_csv(path: str, encoding: str = 'utf-8-sig', delimiter: str = ',', quotechar: str = '"') -> List[Dict[str, str]]:
+def load_csv(
+    path: str, encoding: str = "utf-8-sig", delimiter: str = ",", quotechar: str = '"'
+) -> list[dict[str, str]]:
     """
     Load a CSV file and return a list of records as dictionaries.
 
@@ -172,14 +179,16 @@ def load_csv(path: str, encoding: str = 'utf-8-sig', delimiter: str = ',', quote
 
     Shows a progress bar during loading.
     """
-    logging.debug("Loading CSV file from %s (encoding=%s, delimiter=%s, quotechar=%s)", path, encoding, delimiter, quotechar)
-    records: List[Dict[str, str]] = []
+    logging.debug(
+        "Loading CSV file from %s (encoding=%s, delimiter=%s, quotechar=%s)", path, encoding, delimiter, quotechar
+    )
+    records: list[dict[str, str]] = []
     try:
         # Count total data rows (excluding header)
-        with open(path, 'r', encoding=encoding, newline='') as csvfile:
+        with open(path, encoding=encoding, newline="") as csvfile:
             total_rows = sum(1 for _ in csvfile) - 1
         # Read and load records with progress bar
-        with open(path, 'r', encoding=encoding, newline='') as csvfile:
+        with open(path, encoding=encoding, newline="") as csvfile:
             reader = csv.DictReader(csvfile, delimiter=delimiter, quotechar=quotechar)
             for row in tqdm(reader, total=total_rows, desc="Loading CSV", unit="rows"):
                 records.append(row)
@@ -188,6 +197,7 @@ def load_csv(path: str, encoding: str = 'utf-8-sig', delimiter: str = ',', quote
         logging.error("Failed to load CSV file %s: %s", path, e)
         raise
     return records
+
 
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     """
@@ -218,7 +228,13 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
         canonical_path = min(group, key=lambda p: len(os.path.basename(p)))
         canonical_basename = os.path.basename(canonical_path)
         basenames = [os.path.basename(p) for p in group]
-        logging.debug("Hash %s has %d duplicates, canonical = %s, all basenames = %s", h, len(group), canonical_basename, basenames)
+        logging.debug(
+            "Hash %s has %d duplicates, canonical = %s, all basenames = %s",
+            h,
+            len(group),
+            canonical_basename,
+            basenames,
+        )
 
         for path in group:
             current_name = os.path.basename(path)
@@ -235,7 +251,8 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
 
-def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
+
+def get_hash_map_from_folder(folder: str, pattern: str = "PICT", recursive: bool = True) -> dict[str, str]:
     """
     Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
     {full_path: hash} pro každý nalezený soubor.
@@ -246,7 +263,7 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
     if not paths:
         logging.info("No files matching pattern '%s' in %s, skipping.", pattern, folder)
         return {}
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     # 2) Pro každý soubor spočti hash a ulož ho pod klíč cesty
     for path in tqdm(paths, desc="Hashing files", unit="files"):
         try:
@@ -258,7 +275,7 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
     return result
 
 
-def save_csv(records: List[Dict[str, str]], path: str) -> None:
+def save_csv(records: list[dict[str, str]], path: str) -> None:
     """
     Uloží seznam záznamů jako CSV (UTF-8 s BOM).
     Zachová hlavičku a pořadí sloupců.
@@ -273,13 +290,13 @@ def save_csv(records: List[Dict[str, str]], path: str) -> None:
         # Get fieldnames from the first record
         fieldnames = list(records[0].keys())
 
-        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+        with open(path, "w", encoding="utf-8-sig", newline="") as csvfile:
             writer = csv.DictWriter(
                 csvfile,
                 fieldnames=fieldnames,
-                delimiter=',',
+                delimiter=",",
                 quotechar='"',
-                quoting=csv.QUOTE_ALL  # Force quoting for all fields
+                quoting=csv.QUOTE_ALL,  # Force quoting for all fields
             )
             writer.writeheader()
             for row in tqdm(records, desc="Saving CSV", unit="rows"):

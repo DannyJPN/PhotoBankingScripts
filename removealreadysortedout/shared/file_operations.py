@@ -1,14 +1,13 @@
-
+import csv
+import logging
 import os
 import re
 import shutil
-import logging
-import csv
-from typing import List, Dict
 from collections import defaultdict
+
+from shared.hash_utils import compute_file_hash
 from tqdm import tqdm
 
-from shared.hash_utils      import compute_file_hash
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -33,6 +32,7 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
+
 
 def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") -> None:
     """
@@ -61,6 +61,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
         raise
 
+
 def delete_folder(path: str) -> None:
     """
     Smaže celou složku a její obsah.
@@ -72,6 +73,7 @@ def delete_folder(path: str) -> None:
     except Exception as e:
         logging.error("Failed to delete folder %s: %s", path, e)
         raise
+
 
 def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "") -> None:
     """
@@ -104,6 +106,8 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+
+
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
     Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
@@ -125,6 +129,7 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
+
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
@@ -157,21 +162,21 @@ def ensure_directory(path: str) -> None:
         raise
 
 
-def load_csv(path: str) -> List[Dict[str, str]]:
+def load_csv(path: str) -> list[dict[str, str]]:
     """
     Load a CSV file and return a list of records as dictionaries.
     Assumes comma delimiter and UTF-8 with BOM (utf-8-sig).
     Shows a progress bar during loading.
     """
     logging.debug("Loading CSV file from %s", path)
-    records: List[Dict[str, str]] = []
+    records: list[dict[str, str]] = []
     try:
         # Count total data rows (excluding header)
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
+        with open(path, encoding="utf-8-sig", newline="") as csvfile:
             total_rows = sum(1 for _ in csvfile) - 1
         # Read and load records with progress bar
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
+        with open(path, encoding="utf-8-sig", newline="") as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=",", quotechar='"')
             for row in tqdm(reader, total=total_rows, desc="Loading CSV", unit="rows"):
                 records.append(row)
         logging.info("Loaded %d records from CSV %s", len(records), path)
@@ -179,6 +184,7 @@ def load_csv(path: str) -> List[Dict[str, str]]:
         logging.error("Failed to load CSV file %s: %s", path, e)
         raise
     return records
+
 
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     """
@@ -225,7 +231,8 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
 
-def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
+
+def get_hash_map_from_folder(folder: str, pattern: str = "PICT", recursive: bool = True) -> dict[str, str]:
     """
     Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
     {full_path: hash} pro každý nalezený soubor.
@@ -236,7 +243,7 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
     if not paths:
         logging.info("No files matching pattern '%s' in %s, skipping.", pattern, folder)
         return {}
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     # 2) Pro každý soubor spočti hash a ulož ho pod klíč cesty
     for path in tqdm(paths, desc="Hashing files", unit="files"):
         try:

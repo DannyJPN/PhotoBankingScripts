@@ -1,54 +1,39 @@
-﻿import os
-import logging
+﻿import logging
 from argparse import ArgumentParser
-from tqdm import tqdm
-from typing import List, Dict
 
-from shared.utils import get_log_filename
-from shared.logging_config import setup_logging
-from shared.file_operations import ensure_directory, load_csv
-from shared.exif_downloader import ensure_exiftool
 from createbatchlib.constants import (
+    DEFAULT_EXIF_FOLDER,
     DEFAULT_PHOTO_CSV_FILE,
     DEFAULT_PROCESSED_MEDIA_FOLDER,
-    DEFAULT_EXIF_FOLDER,
     LOG_DIR,
+    PREPARED_STATUS_VALUE,
     STATUS_FIELD_KEYWORD,
-    PREPARED_STATUS_VALUE
 )
 from createbatchlib.filtering import filter_prepared_media
 from createbatchlib.preparation import prepare_media_file
+from shared.exif_downloader import ensure_exiftool
+from shared.file_operations import ensure_directory, load_csv
+from shared.logging_config import setup_logging
+from shared.utils import get_log_filename
+from tqdm import tqdm
+
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
     parser.add_argument(
-        "--photo_csv",
-        type=str,
-        default=DEFAULT_PHOTO_CSV_FILE,
-        help="Path to CSV file with photo metadata"
+        "--photo_csv", type=str, default=DEFAULT_PHOTO_CSV_FILE, help="Path to CSV file with photo metadata"
     )
     parser.add_argument(
         "--output_folder",
         type=str,
         default=DEFAULT_PROCESSED_MEDIA_FOLDER,
-        help="Root folder where processed media will be placed"
+        help="Root folder where processed media will be placed",
     )
     parser.add_argument(
-        "--exif_tool_folder",
-        type=str,
-        default=DEFAULT_EXIF_FOLDER,
-        help="Folder where the EXIF tool is located"
+        "--exif_tool_folder", type=str, default=DEFAULT_EXIF_FOLDER, help="Folder where the EXIF tool is located"
     )
-    parser.add_argument(
-        "--overwrite",
-        action='store_true',
-        help="Overwrite existing files in the output folders"
-    )
-    parser.add_argument(
-        "--debug",
-        action='store_true',
-        help="Enable debug logging"
-    )
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files in the output folders")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 
 
@@ -58,44 +43,56 @@ def main():
     # Ensure log directory and ExifTool availability
     ensure_directory(LOG_DIR)
     args.exif_tool_folder = ensure_exiftool(args.exif_tool_folder)
-    logging.debug("EXIF: %s",args.exif_tool_folder)
+    logging.debug("EXIF: %s", args.exif_tool_folder)
     # Setup logging
     log_file = get_log_filename(LOG_DIR)
     setup_logging(args.debug, log_file)
     logging.info("Starting CreateBatch process")
 
     # Load and filter records
-    records: List[Dict[str, str]] = load_csv(args.photo_csv)
+    records: list[dict[str, str]] = load_csv(args.photo_csv)
     prepared = filter_prepared_media(records)
     if not prepared:
         logging.warning("No prepared media records found. Exiting.")
         return
 
     # Identify unique photobanks
-    banks = sorted({
-        key[:key.lower().find(STATUS_FIELD_KEYWORD)].strip()
-        for rec in prepared
-        for key, val in rec.items()
-        if STATUS_FIELD_KEYWORD in key.lower() and isinstance(val, str) and PREPARED_STATUS_VALUE.lower() in val.lower()
-    })
+    banks = sorted(
+        {
+            key[: key.lower().find(STATUS_FIELD_KEYWORD)].strip()
+            for rec in prepared
+            for key, val in rec.items()
+            if STATUS_FIELD_KEYWORD in key.lower()
+            and isinstance(val, str)
+            and PREPARED_STATUS_VALUE.lower() in val.lower()
+        }
+    )
 
-    all_processed: List[str] = []
+    all_processed: list[str] = []
     # Process per photobank with individual progress bars
     for bank in banks:
-        logging.info("Processing %d records for %s",
-                     sum(1 for rec in prepared if any(
-                         STATUS_FIELD_KEYWORD in k.lower()
-                         and k[:k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
-                         and PREPARED_STATUS_VALUE.lower() in v.lower()
-                         for k, v in rec.items()
-                     )), bank)
+        logging.info(
+            "Processing %d records for %s",
+            sum(
+                1
+                for rec in prepared
+                if any(
+                    STATUS_FIELD_KEYWORD in k.lower()
+                    and k[: k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
+                    and PREPARED_STATUS_VALUE.lower() in v.lower()
+                    for k, v in rec.items()
+                )
+            ),
+            bank,
+        )
         processed = []
         # Filter records for this bank
         bank_records = [
-            rec for rec in prepared
+            rec
+            for rec in prepared
             if any(
                 STATUS_FIELD_KEYWORD in k.lower()
-                and k[:k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
+                and k[: k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
                 and PREPARED_STATUS_VALUE.lower() in v.lower()
                 for k, v in rec.items()
             )
@@ -103,18 +100,11 @@ def main():
         for rec in tqdm(bank_records, desc=f"Preparing {bank}", unit="file"):
             try:
                 paths = prepare_media_file(
-                    rec,
-                    args.output_folder,
-                    args.exif_tool_folder,
-                    overwrite=args.overwrite,
-                    bank=bank
+                    rec, args.output_folder, args.exif_tool_folder, overwrite=args.overwrite, bank=bank
                 )
                 processed.extend(paths)
             except Exception as e:
-                logging.error(
-                    "Error preparing file %s for %s: %s",
-                    rec.get('Cesta'), bank, e
-                )
+                logging.error("Error preparing file %s for %s: %s", rec.get("Cesta"), bank, e)
         all_processed.extend(processed)
 
     # Summary of processed files
@@ -124,6 +114,7 @@ def main():
             logging.info(" - %s", path)
 
     logging.info("CreateBatch process completed")
+
 
 if __name__ == "__main__":
     main()

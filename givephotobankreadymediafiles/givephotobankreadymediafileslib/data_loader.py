@@ -1,25 +1,37 @@
 """
 Data loader module for loading and saving data files.
 """
-import os
-import psutil
-import sys
-import logging
-import pandas as pd
+
 import json
-import requests
+import logging
+import os
 import platform
 import subprocess
-from typing import Dict, Any, List, Optional, Tuple, Union
+import sys
 from datetime import datetime
+from typing import Any
 
-from shared.download_utils import download_file, download_multiple_files
+import pandas as pd
+import psutil
+import requests
+from shared.download_utils import download_file
 from shared.file_operations import load_csv, save_csv_with_backup
+
 from givephotobankreadymediafileslib.constants import (
-    COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_PREP_DATE,
-    COL_WIDTH, COL_HEIGHT, COL_RESOLUTION, COL_KEYWORDS,
-    COL_CATEGORIES, COL_CREATE_DATE, COL_ORIGINAL, COL_PATH,
-    ORIGINAL_YES, ORIGINAL_NO
+    COL_CATEGORIES,
+    COL_CREATE_DATE,
+    COL_DESCRIPTION,
+    COL_FILE,
+    COL_HEIGHT,
+    COL_KEYWORDS,
+    COL_ORIGINAL,
+    COL_PATH,
+    COL_PREP_DATE,
+    COL_RESOLUTION,
+    COL_TITLE,
+    COL_WIDTH,
+    ORIGINAL_NO,
+    ORIGINAL_YES,
 )
 
 
@@ -27,22 +39,32 @@ def load_media_csv(csv_path: str) -> pd.DataFrame:
     """
     Load media CSV file using file_operations.load_csv and convert to DataFrame.
 
-    Args:
-        csv_path: Path to the media CSV file
-
-    Returns:
-        DataFrame containing media data
+    :param csv_path: Path to the media CSV file
+    :type csv_path: str
+    :returns: DataFrame containing media data
+    :rtype: pd.DataFrame
     """
     try:
         # Check if file exists
         if not os.path.exists(csv_path):
             logging.warning(f"Media CSV file not found: {csv_path}")
             # Create empty DataFrame with required columns
-            return pd.DataFrame(columns=[
-                COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_PREP_DATE,
-                COL_WIDTH, COL_HEIGHT, COL_RESOLUTION, COL_KEYWORDS,
-                COL_CATEGORIES, COL_CREATE_DATE, COL_ORIGINAL, COL_PATH
-            ])
+            return pd.DataFrame(
+                columns=[
+                    COL_FILE,
+                    COL_TITLE,
+                    COL_DESCRIPTION,
+                    COL_PREP_DATE,
+                    COL_WIDTH,
+                    COL_HEIGHT,
+                    COL_RESOLUTION,
+                    COL_KEYWORDS,
+                    COL_CATEGORIES,
+                    COL_CREATE_DATE,
+                    COL_ORIGINAL,
+                    COL_PATH,
+                ]
+            )
 
         # Load CSV file using file_operations
         records = load_csv(csv_path)
@@ -66,27 +88,38 @@ def load_media_csv(csv_path: str) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error loading media CSV: {e}")
         # Return empty DataFrame
-        return pd.DataFrame(columns=[
-            COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_PREP_DATE,
-            COL_WIDTH, COL_HEIGHT, COL_RESOLUTION, COL_KEYWORDS,
-            COL_CATEGORIES, COL_CREATE_DATE, COL_ORIGINAL, COL_PATH
-        ])
+        return pd.DataFrame(
+            columns=[
+                COL_FILE,
+                COL_TITLE,
+                COL_DESCRIPTION,
+                COL_PREP_DATE,
+                COL_WIDTH,
+                COL_HEIGHT,
+                COL_RESOLUTION,
+                COL_KEYWORDS,
+                COL_CATEGORIES,
+                COL_CREATE_DATE,
+                COL_ORIGINAL,
+                COL_PATH,
+            ]
+        )
 
 
 def save_media_csv(df: pd.DataFrame, csv_path: str) -> bool:
     """
     Save media CSV file using file_operations.save_csv_with_backup.
 
-    Args:
-        df: DataFrame containing media data
-        csv_path: Path to save the media CSV file
-
-    Returns:
-        True if successful, False otherwise
+    :param df: DataFrame containing media data
+    :type df: pd.DataFrame
+    :param csv_path: Path to save the media CSV file
+    :type csv_path: str
+    :returns: True if successful, False otherwise
+    :rtype: bool
     """
     try:
         # Convert DataFrame to list of dictionaries
-        records = df.to_dict('records')
+        records = df.to_dict("records")
 
         # Save CSV file with backup using file_operations
         save_csv_with_backup(records, csv_path)
@@ -99,15 +132,14 @@ def save_media_csv(df: pd.DataFrame, csv_path: str) -> bool:
         return False
 
 
-def load_categories_csv(csv_path: str) -> Dict[str, List[str]]:
+def load_categories_csv(csv_path: str) -> dict[str, list[str]]:
     """
     Load categories CSV file using file_operations.load_csv.
 
-    Args:
-        csv_path: Path to the categories CSV file
-
-    Returns:
-        Dictionary mapping photobank names to lists of categories
+    :param csv_path: Path to the categories CSV file
+    :type csv_path: str
+    :returns: Dictionary mapping photobank names to lists of categories
+    :rtype: Dict[str, List[str]]
     """
     try:
         # Check if file exists
@@ -143,17 +175,18 @@ def load_categories_csv(csv_path: str) -> Dict[str, List[str]]:
         return {}
 
 
-def update_media_record(df: pd.DataFrame, file_path: str, metadata: Dict[str, Any]) -> pd.DataFrame:
+def update_media_record(df: pd.DataFrame, file_path: str, metadata: dict[str, Any]) -> pd.DataFrame:
     """
     Update a record in the media DataFrame.
 
-    Args:
-        df: DataFrame containing media data
-        file_path: Path to the media file
-        metadata: Dictionary containing metadata to update
-
-    Returns:
-        Updated DataFrame
+    :param df: DataFrame containing media data
+    :type df: pd.DataFrame
+    :param file_path: Path to the media file
+    :type file_path: str
+    :param metadata: Dictionary containing metadata to update
+    :type metadata: Dict[str, Any]
+    :returns: Updated DataFrame
+    :rtype: pd.DataFrame
     """
     try:
         # Check if file exists in DataFrame
@@ -163,18 +196,18 @@ def update_media_record(df: pd.DataFrame, file_path: str, metadata: Dict[str, An
         if mask.any():
             # Update existing record
             for key, value in metadata.items():
-                if key == 'keywords' and isinstance(value, list):
+                if key == "keywords" and isinstance(value, list):
                     # Join keywords with commas
-                    df.loc[mask, COL_KEYWORDS] = ','.join(value)
-                elif key == 'category':
+                    df.loc[mask, COL_KEYWORDS] = ",".join(value)
+                elif key == "category":
                     df.loc[mask, COL_CATEGORIES] = value
-                elif key == 'title':
+                elif key == "title":
                     df.loc[mask, COL_TITLE] = value
-                elif key == 'description':
+                elif key == "description":
                     df.loc[mask, COL_DESCRIPTION] = value
 
             # Update preparation date
-            df.loc[mask, COL_PREP_DATE] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            df.loc[mask, COL_PREP_DATE] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             logging.info(f"Updated record for {file_name}")
         else:
@@ -182,28 +215,28 @@ def update_media_record(df: pd.DataFrame, file_path: str, metadata: Dict[str, An
             new_record = {
                 COL_FILE: file_name,
                 COL_PATH: file_path,
-                COL_PREP_DATE: datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                COL_PREP_DATE: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             }
 
             # Add metadata
             for key, value in metadata.items():
-                if key == 'keywords' and isinstance(value, list):
-                    new_record[COL_KEYWORDS] = ','.join(value)
-                elif key == 'category':
+                if key == "keywords" and isinstance(value, list):
+                    new_record[COL_KEYWORDS] = ",".join(value)
+                elif key == "category":
                     new_record[COL_CATEGORIES] = value
-                elif key == 'title':
+                elif key == "title":
                     new_record[COL_TITLE] = value
-                elif key == 'description':
+                elif key == "description":
                     new_record[COL_DESCRIPTION] = value
-                elif key == 'width':
+                elif key == "width":
                     new_record[COL_WIDTH] = value
-                elif key == 'height':
+                elif key == "height":
                     new_record[COL_HEIGHT] = value
-                elif key == 'resolution':
+                elif key == "resolution":
                     new_record[COL_RESOLUTION] = value
-                elif key == 'create_date':
+                elif key == "create_date":
                     new_record[COL_CREATE_DATE] = value
-                elif key == 'original':
+                elif key == "original":
                     new_record[COL_ORIGINAL] = ORIGINAL_YES if value else ORIGINAL_NO
 
             # Add new record to DataFrame
@@ -218,22 +251,21 @@ def update_media_record(df: pd.DataFrame, file_path: str, metadata: Dict[str, An
         return df
 
 
-def load_ai_config(config_path: str) -> Dict[str, Any]:
+def load_ai_config(config_path: str) -> dict[str, Any]:
     """
     Load AI configuration from JSON file.
 
-    Args:
-        config_path: Path to the AI configuration file
-
-    Returns:
-        Dictionary containing AI configuration
+    :param config_path: Path to the AI configuration file
+    :type config_path: str
+    :returns: Dictionary containing AI configuration
+    :rtype: Dict[str, Any]
     """
     try:
         if not os.path.exists(config_path):
             logging.warning(f"AI configuration file not found: {config_path}")
             return {}
 
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, encoding="utf-8") as f:
             config = json.load(f)
 
         logging.info(f"Loaded AI configuration from {config_path}")
@@ -247,51 +279,49 @@ def load_ai_config(config_path: str) -> Dict[str, Any]:
 class AIConfigLoader:
     """Class for loading AI configuration and checking available models."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None) -> None:
         """
         Initialize the AI configuration loader.
 
-        Args:
-            config_path: Path to the AI configuration file (default: config/ai_config.json)
+        :param config_path: Path to the AI configuration file (default: config/ai_config.json)
+        :type config_path: Optional[str]
+        :returns: None
+        :rtype: None
         """
         if config_path is None:
             # Default path is in the config directory
             self.config_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 os.path.splitext(os.path.basename(sys.argv[0]))[0] + "lib",
-                "config", "ai_config.json"
+                "config",
+                "ai_config.json",
             )
 
         else:
             self.config_path = config_path
 
         self.config = None
-        self.available_models = {
-            "neural_networks": [],
-            "local_llm": [],
-            "online_llm": []
-        }
+        self.available_models = {"neural_networks": [], "local_llm": [], "online_llm": []}
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """
         Load AI configuration from the config file.
 
-        Returns:
-            Dictionary containing AI configuration
+        :returns: Dictionary containing AI configuration
+        :rtype: Dict[str, Any]
         """
         # Use load_ai_config function
         self.config = load_ai_config(self.config_path)
         return self.config
 
-    def get_available_models(self, models_dir: str) -> Dict[str, List[str]]:
+    def get_available_models(self, models_dir: str) -> dict[str, list[str]]:
         """
         Get available models based on configuration and filesystem.
 
-        Args:
-            models_dir: Directory containing neural network models
-
-        Returns:
-            Dictionary containing available models by type
+        :param models_dir: Directory containing neural network models
+        :type models_dir: str
+        :returns: Dictionary containing available models by type
+        :rtype: Dict[str, List[str]]
         """
         if self.config is None:
             self.load_config()
@@ -314,8 +344,10 @@ class AIConfigLoader:
         """
         Check available neural network models and download or create missing ones.
 
-        Args:
-            models_dir: Directory containing neural network models
+        :param models_dir: Directory containing neural network models
+        :type models_dir: str
+        :returns: None
+        :rtype: None
         """
         try:
             # Check if models directory exists
@@ -337,7 +369,7 @@ class AIConfigLoader:
             for model_type, model_config in nn_models_config.items():
                 model_file_name = model_config.get("file_name")
                 model_path = os.path.join(models_dir, model_file_name)
-                model_type_base = model_type.split('_')[0]  # Extract base type (title, description, etc.)
+                model_type_base = model_type.split("_")[0]  # Extract base type (title, description, etc.)
 
                 # Check if model file exists
                 if os.path.exists(model_path):
@@ -367,17 +399,18 @@ class AIConfigLoader:
         except Exception as e:
             logging.error(f"Error checking neural networks: {e}")
 
-    def _download_pretrained_model(self, model_type: str, model_config: Dict[str, Any], models_dir: str) -> bool:
+    def _download_pretrained_model(self, model_type: str, model_config: dict[str, Any], models_dir: str) -> bool:
         """
         Download a pretrained neural network model.
 
-        Args:
-            model_type: Type of the model (e.g., title_pretrained)
-            model_config: Configuration of the model
-            models_dir: Directory to save the model
-
-        Returns:
-            True if the model was successfully downloaded, False otherwise
+        :param model_type: Type of the model (e.g., title_pretrained)
+        :type model_type: str
+        :param model_config: Configuration of the model
+        :type model_config: Dict[str, Any]
+        :param models_dir: Directory to save the model
+        :type models_dir: str
+        :returns: True if the model was successfully downloaded, False otherwise
+        :rtype: bool
         """
         try:
             model_file_name = model_config.get("file_name")
@@ -398,7 +431,7 @@ class AIConfigLoader:
                 description=description,
                 show_progress=True,
                 create_dirs=True,
-                overwrite=False
+                overwrite=False,
             )
 
             if download_success:
@@ -414,17 +447,18 @@ class AIConfigLoader:
             logging.error(f"Error processing pretrained model for {model_type}: {e}")
             return False
 
-    def _create_custom_model(self, model_type: str, model_config: Dict[str, Any], models_dir: str) -> bool:
+    def _create_custom_model(self, model_type: str, model_config: dict[str, Any], models_dir: str) -> bool:
         """
         Create a custom neural network model from scratch.
 
-        Args:
-            model_type: Type of the model (e.g., title_custom)
-            model_config: Configuration of the model
-            models_dir: Directory to save the model
-
-        Returns:
-            True if the model was successfully created, False otherwise
+        :param model_type: Type of the model (e.g., title_custom)
+        :type model_type: str
+        :param model_config: Configuration of the model
+        :type model_config: Dict[str, Any]
+        :param models_dir: Directory to save the model
+        :type models_dir: str
+        :returns: True if the model was successfully created, False otherwise
+        :rtype: bool
         """
         try:
             model_file_name = model_config.get("file_name")
@@ -435,12 +469,12 @@ class AIConfigLoader:
 
             # Create a placeholder model file
             # In a real implementation, this would create an actual model based on the architecture and parameters
-            with open(model_path, 'wb') as f:
+            with open(model_path, "wb") as f:
                 # Create a simple header with model type and architecture
-                header = f"CUSTOM_MODEL_{model_type}_{architecture}".encode('utf-8')
+                header = f"CUSTOM_MODEL_{model_type}_{architecture}".encode()
                 f.write(header)
                 # Add placeholder data
-                f.write(b'\x00' * 1024)  # 1KB of zeros as placeholder
+                f.write(b"\x00" * 1024)  # 1KB of zeros as placeholder
 
             # Create a training state file
             self._create_training_state_file(model_type, model_config, models_dir, is_pretrained=False)
@@ -452,15 +486,22 @@ class AIConfigLoader:
             logging.error(f"Error creating custom model for {model_type}: {e}")
             return False
 
-    def _create_training_state_file(self, model_type: str, model_config: Dict[str, Any], models_dir: str, is_pretrained: bool) -> None:
+    def _create_training_state_file(
+        self, model_type: str, model_config: dict[str, Any], models_dir: str, is_pretrained: bool
+    ) -> None:
         """
         Create a training state file for a model.
 
-        Args:
-            model_type: Type of the model
-            model_config: Configuration of the model
-            models_dir: Directory to save the training state file
-            is_pretrained: Whether the model is pretrained or custom
+        :param model_type: Type of the model
+        :type model_type: str
+        :param model_config: Configuration of the model
+        :type model_config: Dict[str, Any]
+        :param models_dir: Directory to save the training state file
+        :type models_dir: str
+        :param is_pretrained: Whether the model is pretrained or custom
+        :type is_pretrained: bool
+        :returns: None
+        :rtype: None
         """
         training_file = model_config.get("training_file")
         if not training_file:
@@ -475,30 +516,42 @@ class AIConfigLoader:
             "created_at": datetime.now().isoformat(),
             "trained": False,
             "training_iterations": 0,
-            "training_data_count": 0
+            "training_data_count": 0,
         }
 
         # Add model-specific information
         if is_pretrained:
-            training_state.update({
-                "is_pretrained": True,
-                "model_source": model_config.get("model_source"),
-                "base_model": model_config.get("base_model"),
-                "fine_tuning": model_config.get("fine_tuning", {})
-            })
+            training_state.update(
+                {
+                    "is_pretrained": True,
+                    "model_source": model_config.get("model_source"),
+                    "base_model": model_config.get("base_model"),
+                    "fine_tuning": model_config.get("fine_tuning", {}),
+                }
+            )
         else:
-            training_state.update({
-                "is_pretrained": False,
-                "model_parameters": {k: v for k, v in model_config.items()
-                                    if k not in ["type", "description", "architecture", "file_name", "training_file"]}
-            })
+            training_state.update(
+                {
+                    "is_pretrained": False,
+                    "model_parameters": {
+                        k: v
+                        for k, v in model_config.items()
+                        if k not in ["type", "description", "architecture", "file_name", "training_file"]
+                    },
+                }
+            )
 
         # Save training state
-        with open(training_path, 'w') as f:
+        with open(training_path, "w") as f:
             json.dump(training_state, f, indent=2)
 
     def _check_local_llm(self) -> None:
-        """Check available local LLM models and download missing ones if possible."""
+        """
+        Check available local LLM models and download missing ones if possible.
+
+        :returns: None
+        :rtype: None
+        """
         try:
             # Get system information for requirements checking
             system_info = get_system_info()
@@ -528,7 +581,9 @@ class AIConfigLoader:
 
                     # Check system requirements for this model
                     system_requirements = model_config.get("system_requirements", {})
-                    meets_requirements, requirement_warnings = check_system_requirements(system_requirements, system_info)
+                    meets_requirements, requirement_warnings = check_system_requirements(
+                        system_requirements, system_info
+                    )
 
                     if not meets_requirements:
                         logging.warning(f"System does not meet requirements for model {model_id}:")
@@ -559,7 +614,16 @@ class AIConfigLoader:
             logging.error(f"Error checking local LLM: {e}")
 
     def _check_provider_availability(self, provider: str, endpoint: str) -> bool:
-        """Check if a local LLM provider is available."""
+        """
+        Check if a local LLM provider is available.
+
+        :param provider: Name of the provider
+        :type provider: str
+        :param endpoint: Provider endpoint URL
+        :type endpoint: str
+        :returns: True if provider is available, False otherwise
+        :rtype: bool
+        """
         if not endpoint:
             return False
 
@@ -579,7 +643,18 @@ class AIConfigLoader:
             return False
 
     def _check_model_availability(self, provider: str, model_name: str, endpoint: str) -> bool:
-        """Check if a specific model is available from a provider."""
+        """
+        Check if a specific model is available from a provider.
+
+        :param provider: Name of the provider
+        :type provider: str
+        :param model_name: Name of the model
+        :type model_name: str
+        :param endpoint: Provider endpoint URL
+        :type endpoint: str
+        :returns: True if model is available, False otherwise
+        :rtype: bool
+        """
         try:
             if provider == "ollama":
                 # Check if model is in the list of available models
@@ -596,8 +671,19 @@ class AIConfigLoader:
             logging.debug(f"Error checking model availability for {provider}/{model_name}: {e}")
             return False
 
-    def _download_local_llm_model(self, provider: str, model_name: str, model_config: Dict[str, Any]) -> bool:
-        """Download a local LLM model."""
+    def _download_local_llm_model(self, provider: str, model_name: str, model_config: dict[str, Any]) -> bool:
+        """
+        Download a local LLM model.
+
+        :param provider: Name of the provider
+        :type provider: str
+        :param model_name: Name of the model
+        :type model_name: str
+        :param model_config: Configuration of the model
+        :type model_config: Dict[str, Any]
+        :returns: True if model was successfully downloaded, False otherwise
+        :rtype: bool
+        """
         try:
             model_type = model_config.get("type", "")
             if model_type != "downloadable":
@@ -612,17 +698,13 @@ class AIConfigLoader:
                 try:
                     # Run the download command
                     process = subprocess.Popen(
-                        download_command,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True
+                        download_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
                     )
 
                     # Monitor the process and log output
                     while True:
                         output = process.stdout.readline()
-                        if output == '' and process.poll() is not None:
+                        if output == "" and process.poll() is not None:
                             break
                         if output:
                             logging.info(output.strip())
@@ -662,7 +744,7 @@ class AIConfigLoader:
                     show_progress=True,
                     create_dirs=True,
                     overwrite=False,
-                    chunk_size=1024*1024  # Použijeme větší chunk size pro velké LLM modely (1MB)
+                    chunk_size=1024 * 1024,  # Použijeme větší chunk size pro velké LLM modely (1MB)
                 )
 
                 if download_success:
@@ -678,7 +760,12 @@ class AIConfigLoader:
             return False
 
     def _check_online_llm(self) -> None:
-        """Check available online LLM models."""
+        """
+        Check available online LLM models.
+
+        :returns: None
+        :rtype: None
+        """
         try:
             # Get online LLM providers from config
             online_providers = ["openai", "anthropic", "google", "mistral"]
@@ -717,15 +804,14 @@ class AIConfigLoader:
         except Exception as e:
             logging.error(f"Error checking online LLM: {e}")
 
-    def get_model_config(self, model_id: str) -> Dict[str, Any]:
+    def get_model_config(self, model_id: str) -> dict[str, Any]:
         """
         Get configuration for a specific model.
 
-        Args:
-            model_id: Model ID in the format "provider/model_name"
-
-        Returns:
-            Dictionary containing model configuration
+        :param model_id: Model ID in the format "provider/model_name"
+        :type model_id: str
+        :returns: Dictionary containing model configuration
+        :rtype: Dict[str, Any]
         """
         if self.config is None:
             self.load_config()
@@ -749,7 +835,7 @@ class AIConfigLoader:
                 "model_name": model_name,
                 "endpoint": provider_config.get("endpoint", ""),
                 "api_key": provider_config.get("api_key", ""),
-                "api_key_env": provider_config.get("api_key_env", "")
+                "api_key_env": provider_config.get("api_key_env", ""),
             }
 
             # Add model-specific config
@@ -762,22 +848,22 @@ class AIConfigLoader:
             return {}
 
 
-def save_ai_config(config: Dict[str, Any], config_path: str) -> bool:
+def save_ai_config(config: dict[str, Any], config_path: str) -> bool:
     """
     Save AI configuration to JSON file.
 
-    Args:
-        config: Dictionary containing AI configuration
-        config_path: Path to save the AI configuration file
-
-    Returns:
-        True if successful, False otherwise
+    :param config: Dictionary containing AI configuration
+    :type config: Dict[str, Any]
+    :param config_path: Path to save the AI configuration file
+    :type config_path: str
+    :returns: True if successful, False otherwise
+    :rtype: bool
     """
     try:
         # Ensure directory exists
         os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4)
 
         logging.info(f"Saved AI configuration to {config_path}")
@@ -788,44 +874,44 @@ def save_ai_config(config: Dict[str, Any], config_path: str) -> bool:
         return False
 
 
-def get_system_info() -> Dict[str, Any]:
+def get_system_info() -> dict[str, Any]:
     """
     Get information about the current system.
 
-    Returns:
-        Dictionary containing system information
+    :returns: Dictionary containing system information
+    :rtype: Dict[str, Any]
     """
     try:
         # Get OS information
         os_name = platform.system().lower()
-        if os_name == 'darwin':
-            os_name = 'macos'  # Normalize macOS name
+        if os_name == "darwin":
+            os_name = "macos"  # Normalize macOS name
 
         # Get CPU information
         cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
         cpu_model = "Unknown"
 
         # Try to get CPU model name
-        if os_name == 'windows':
+        if os_name == "windows":
             try:
-                output = subprocess.check_output("wmic cpu get name", shell=True).decode('utf-8')
-                lines = output.strip().split('\n')
+                output = subprocess.check_output("wmic cpu get name", shell=True).decode("utf-8")
+                lines = output.strip().split("\n")
                 if len(lines) > 1:
                     cpu_model = lines[1].strip()
             except Exception as e:
                 logging.warning(f"Failed to get CPU model: {e}")
-        elif os_name == 'linux':
+        elif os_name == "linux":
             try:
-                with open('/proc/cpuinfo', 'r') as f:
+                with open("/proc/cpuinfo") as f:
                     for line in f:
-                        if line.startswith('model name'):
-                            cpu_model = line.split(':', 1)[1].strip()
+                        if line.startswith("model name"):
+                            cpu_model = line.split(":", 1)[1].strip()
                             break
             except Exception as e:
                 logging.warning(f"Failed to get CPU model: {e}")
-        elif os_name == 'macos':
+        elif os_name == "macos":
             try:
-                output = subprocess.check_output("sysctl -n machdep.cpu.brand_string", shell=True).decode('utf-8')
+                output = subprocess.check_output("sysctl -n machdep.cpu.brand_string", shell=True).decode("utf-8")
                 cpu_model = output.strip()
             except Exception as e:
                 logging.warning(f"Failed to get CPU model: {e}")
@@ -839,20 +925,10 @@ def get_system_info() -> Dict[str, Any]:
 
         # Combine all information
         system_info = {
-            "os": {
-                "name": os_name,
-                "version": platform.version(),
-                "architecture": platform.machine()
-            },
-            "cpu": {
-                "model": cpu_model,
-                "cores": cpu_count
-            },
-            "ram": {
-                "total_gb": ram_total_gb,
-                "available_gb": round(ram_info.available / (1024**3), 2)
-            },
-            "gpu": gpu_info
+            "os": {"name": os_name, "version": platform.version(), "architecture": platform.machine()},
+            "cpu": {"model": cpu_model, "cores": cpu_count},
+            "ram": {"total_gb": ram_total_gb, "available_gb": round(ram_info.available / (1024**3), 2)},
+            "gpu": gpu_info,
         }
 
         logging.info(f"System information: OS={os_name}, RAM={ram_total_gb}GB, CPU={cpu_count} cores")
@@ -863,31 +939,23 @@ def get_system_info() -> Dict[str, Any]:
 
     except Exception as e:
         logging.error(f"Error getting system information: {e}")
-        return {
-            "os": {"name": "unknown"},
-            "ram": {"total_gb": 0, "available_gb": 0},
-            "gpu": {"available": False}
-        }
+        return {"os": {"name": "unknown"}, "ram": {"total_gb": 0, "available_gb": 0}, "gpu": {"available": False}}
 
 
-def get_gpu_info() -> Dict[str, Any]:
+def get_gpu_info() -> dict[str, Any]:
     """
     Get information about available GPUs.
 
-    Returns:
-        Dictionary containing GPU information
+    :returns: Dictionary containing GPU information
+    :rtype: Dict[str, Any]
     """
-    gpu_info = {
-        "available": False,
-        "count": 0,
-        "models": [],
-        "total_vram_gb": 0
-    }
+    gpu_info = {"available": False, "count": 0, "models": [], "total_vram_gb": 0}
 
     try:
         # Try to import torch to check for CUDA availability
         try:
             import torch
+
             if torch.cuda.is_available():
                 gpu_info["available"] = True
                 gpu_info["count"] = torch.cuda.device_count()
@@ -920,10 +988,12 @@ def get_gpu_info() -> Dict[str, Any]:
         # If torch failed, try platform-specific methods
         if not gpu_info["available"]:
             os_name = platform.system().lower()
-            if os_name == 'windows':
+            if os_name == "windows":
                 try:
-                    output = subprocess.check_output("wmic path win32_VideoController get name", shell=True).decode('utf-8')
-                    lines = output.strip().split('\n')[1:]  # Skip header
+                    output = subprocess.check_output("wmic path win32_VideoController get name", shell=True).decode(
+                        "utf-8"
+                    )
+                    lines = output.strip().split("\n")[1:]  # Skip header
                     gpu_models = [line.strip() for line in lines if line.strip()]
 
                     if gpu_models:
@@ -938,14 +1008,16 @@ def get_gpu_info() -> Dict[str, Any]:
                 except Exception as e:
                     logging.warning(f"Failed to get GPU information: {e}")
 
-            elif os_name == 'linux':
+            elif os_name == "linux":
                 try:
                     # Try lspci command
-                    output = subprocess.check_output("lspci | grep -i 'vga\\|3d\\|2d'", shell=True).decode('utf-8')
+                    output = subprocess.check_output("lspci | grep -i 'vga\\|3d\\|2d'", shell=True).decode("utf-8")
                     if "nvidia" in output.lower() or "amd" in output.lower() or "radeon" in output.lower():
                         gpu_info["available"] = True
                         gpu_info["count"] = output.count("VGA") or output.count("3D") or 1
-                        gpu_info["models"] = [line.split(":")[-1].strip() for line in output.split('\n') if line.strip()]
+                        gpu_info["models"] = [
+                            line.split(":")[-1].strip() for line in output.split("\n") if line.strip()
+                        ]
                 except Exception as e:
                     logging.warning(f"Failed to get GPU information: {e}")
 
@@ -955,16 +1027,16 @@ def get_gpu_info() -> Dict[str, Any]:
     return gpu_info
 
 
-def check_system_requirements(requirements: Dict[str, Any], system_info: Dict[str, Any]) -> Tuple[bool, List[str]]:
+def check_system_requirements(requirements: dict[str, Any], system_info: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     Check if the system meets the requirements for a model.
 
-    Args:
-        requirements: Dictionary containing system requirements
-        system_info: Dictionary containing system information
-
-    Returns:
-        Tuple of (meets_requirements, warnings)
+    :param requirements: Dictionary containing system requirements
+    :type requirements: Dict[str, Any]
+    :param system_info: Dictionary containing system information
+    :type system_info: Dict[str, Any]
+    :returns: Tuple of (meets_requirements, warnings)
+    :rtype: Tuple[bool, List[str]]
     """
     warnings = []
     meets_requirements = True
@@ -974,7 +1046,9 @@ def check_system_requirements(requirements: Dict[str, Any], system_info: Dict[st
     current_os = system_info.get("os", {}).get("name", "unknown")
 
     if supported_os and current_os not in supported_os:
-        warnings.append(f"Operating system '{current_os}' is not officially supported. Supported OS: {', '.join(supported_os)}")
+        warnings.append(
+            f"Operating system '{current_os}' is not officially supported. Supported OS: {', '.join(supported_os)}"
+        )
         meets_requirements = False
 
     # Check RAM requirements

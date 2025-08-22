@@ -12,10 +12,14 @@ DEFAULT_COPYRIGHT_AUTHOR = "Dan K."
 # Cesty k mapám kategorií
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_ADOBE_CATEGORY_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "adobe_stock_categories.csv")
-DEFAULT_DREAMSTIME_CATEGORY_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "dreams_time_categories.csv")
+DEFAULT_DREAMSTIME_CATEGORY_PATH = os.path.join(
+    BASE_DIR, "exportpreparedmedialib", "data", "dreams_time_categories.csv"
+)
 
 # Cesty k CSV souborům pro exporty
-DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "photobank_export_formats.csv")
+DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH = os.path.join(
+    BASE_DIR, "exportpreparedmedialib", "data", "photobank_export_formats.csv"
+)
 DEFAULT_POND_PRICES_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "pond_prices.csv")
 
 # Regulární výrazy pro detekci typů souborů

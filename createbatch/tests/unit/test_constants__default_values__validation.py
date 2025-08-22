@@ -4,17 +4,16 @@ Unit tests for createbatchlib.constants module - default values validation.
 Tests the validation and accessibility of default configuration values.
 """
 
-import unittest
 import os
-from typing import Dict, Any
+import unittest
 
 from createbatchlib.constants import (
+    DEFAULT_EXIF_FOLDER,
     DEFAULT_PHOTO_CSV_FILE,
     DEFAULT_PROCESSED_MEDIA_FOLDER,
-    DEFAULT_EXIF_FOLDER,
     LOG_DIR,
+    PREPARED_STATUS_VALUE,
     STATUS_FIELD_KEYWORD,
-    PREPARED_STATUS_VALUE
 )
 
 

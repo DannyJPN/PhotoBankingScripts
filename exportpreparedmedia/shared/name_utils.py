@@ -1,10 +1,8 @@
-import re
 import logging
-from typing import Optional, Set
+import re
 
 
-
-def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = 4) -> Optional[int]:
+def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = 4) -> int | None:
     logging.debug("Extracting numeric suffix from filename: %s, prefix=%s, width=%d", filename, prefix, width)
     pattern = rf"^{re.escape(prefix)}(\d{{{width}}})"
     m = re.match(pattern, filename)
@@ -22,7 +20,7 @@ def generate_indexed_filename(number: int, extension: str, prefix: str = "PICT",
     return name
 
 
-def find_next_available_number(used: Set[int], max_number: int = 9999) -> int:
+def find_next_available_number(used: set[int], max_number: int = 9999) -> int:
     logging.debug("Finding next available number, used set size: %d", len(used))
     for num in range(1, max_number + 1):
         if num not in used:
@@ -31,8 +29,3 @@ def find_next_available_number(used: Set[int], max_number: int = 9999) -> int:
     error_msg = "No available numbers left"
     logging.error(error_msg)
     raise ValueError(error_msg)
-
-
-
-
-

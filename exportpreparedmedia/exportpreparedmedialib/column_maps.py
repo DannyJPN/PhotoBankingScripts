@@ -1,37 +1,43 @@
-﻿from typing import Dict, List, Any, Callable, Optional, Union
+﻿from collections.abc import Callable
 
 # Typ pro transformační funkci
 TransformFunc = Callable[[str], str]
 
 # Typ pro definici sloupce
-ColumnDef = Dict[str, Union[str, TransformFunc]]
+ColumnDef = dict[str, str | TransformFunc]
 
 # Typ pro mapu sloupců pro jednu banku
-BankColumnMap = List[ColumnDef]
+BankColumnMap = list[ColumnDef]
+
 
 # Transformační funkce
 def editorial_to_numeric(val: str) -> str:
     """Převede 'yes'/'no' na '1'/'0'"""
     return "1" if val == "yes" else "0"
 
+
 def get_super_tags(val: str) -> str:
     """Získá prvních 10 klíčových slov jako super tagy"""
     return ",".join(val.split(",")[:10]) if val else ""
+
 
 def check_people(val: str) -> str:
     """Zkontroluje, zda jsou na obrázku lidé"""
     return "crowd" if "people" in val.lower() or "crowd" in val.lower() else "0"
 
+
 def check_property(val: str) -> str:
     """Zkontroluje, zda je na obrázku nemovitost"""
     return "Y" if "house" in val.lower() or "building" in val.lower() else "N"
+
 
 def license_type_from_editorial(val: str) -> str:
     """Určí typ licence na základě editorial příznaku"""
     return "RF-E" if val == "yes" else "RF"
 
+
 # Hlavní mapa sloupců pro všechny banky
-BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
+BANK_COLUMN_MAPS: dict[str, BankColumnMap] = {
     "ShutterStock": [
         {"target": "Filename", "source": "filename"},
         {"target": "Description", "source": "description"},
@@ -41,7 +47,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Mature content", "source": "mature"},
         {"target": "illustration", "source": "vector"},
     ],
-
     "AdobeStock": [
         {"target": "Filename", "source": "filename"},
         {"target": "Title", "source": "description"},
@@ -49,7 +54,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Category", "source": "adobe_cat_id"},
         {"target": "Releases", "value": ""},
     ],
-
     "DreamsTime": [
         {"target": "Filename", "source": "filename"},
         {"target": "Image Name", "source": "title"},
@@ -67,7 +71,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "MR doc Ids", "value": "0"},
         {"target": "Pr Docs", "value": "0"},
     ],
-
     "DepositPhotos": [
         {"target": "Filename", "source": "filename"},
         {"target": "description", "source": "description"},
@@ -76,7 +79,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Editorial", "source": "editorial"},
         {"target": "Categories", "source": "deposit_cat"},
     ],
-
     "BigStockPhoto": [
         {"target": "filename", "source": "filename"},
         {"target": "description", "source": "description"},
@@ -85,7 +87,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "illustration", "source": "vector"},
         {"target": "editorial", "source": "editorial"},
     ],
-
     "123RF": [
         {"target": "oldfilename", "source": "filename"},
         {"target": "123rf_filename", "value": ""},
@@ -94,7 +95,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "country", "source": "country"},
         {"target": "categories", "source": "rf123_cat"},
     ],
-
     "CanStockPhoto": [
         {"target": "filename", "source": "filename"},
         {"target": "title", "source": "title"},
@@ -102,7 +102,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "keywords", "source": "keywords"},
         {"target": "categories", "source": "canstock_cat"},
     ],
-
     "Pond5": [
         {"target": "originalfilename", "source": "filename"},
         {"target": "title", "source": "title"},
@@ -115,7 +114,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "imagetype", "value": "photo"},
         {"target": "categories", "source": "pond5_cat"},
     ],
-
     "GettyImages": [
         {"target": "file name", "source": "filename"},
         {"target": "created date", "source": "year"},
@@ -126,7 +124,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "keywords", "source": "keywords"},
         {"target": "categories", "source": "getty_cat"},
     ],
-
     "Alamy": [
         {"target": "Filename", "source": "filename"},
         {"target": "Caption", "source": "title"},
@@ -145,8 +142,9 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Image Type", "value": "P"},
         {"target": "Exclusive to Alamy", "value": "N"},
         {"target": "Additional Info", "value": ""},
-    ]
+    ],
 }
+
 
 def get_column_map(bank: str) -> BankColumnMap:
     """

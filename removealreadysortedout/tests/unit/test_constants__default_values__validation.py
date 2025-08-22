@@ -4,11 +4,7 @@ Unit tests for removealreadysortedoutlib.constants module - default values valid
 
 import unittest
 
-from removealreadysortedoutlib.constants import (
-    DEFAULT_UNSORTED_FOLDER,
-    DEFAULT_TARGET_FOLDER,
-    DEFAULT_LOG_DIR
-)
+from removealreadysortedoutlib.constants import DEFAULT_LOG_DIR, DEFAULT_TARGET_FOLDER, DEFAULT_UNSORTED_FOLDER
 
 
 class TestConstantsDefaultValuesValidation(unittest.TestCase):

@@ -3,14 +3,13 @@ Unit tests for givephotobankreadymediafileslib.constants module - default values
 """
 
 import unittest
-import os
 
 from givephotobankreadymediafileslib.constants import (
-    DEFAULT_MEDIA_CSV,
     DEFAULT_CATEGORIES_CSV,
-    DEFAULT_TRAINING_DATA_DIR,
+    DEFAULT_INTERVAL,
     DEFAULT_LOG_DIR,
-    DEFAULT_INTERVAL
+    DEFAULT_MEDIA_CSV,
+    DEFAULT_TRAINING_DATA_DIR,
 )
 
 

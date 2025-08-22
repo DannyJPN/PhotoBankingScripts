@@ -4,8 +4,6 @@ Test-specific constants for RemoveAlreadySortedOut module.
 This module provides test-only values as required by CLAUDE.md global rules.
 """
 
-from typing import Dict, List
-
 # Test directories - safe paths for testing
 TEST_UNSORTED_FOLDER: str = "F:/Dropbox/Scripts/Python/Fotobanking/removealreadysortedout/tests/data/unsorted"
 TEST_TARGET_FOLDER: str = "F:/Dropbox/Scripts/Python/Fotobanking/removealreadysortedout/tests/data/sorted"
@@ -15,17 +13,27 @@ TEST_LOG_DIR: str = "F:/Dropbox/Scripts/Python/Fotobanking/removealreadysortedou
 TEST_LOG_LEVEL: str = "DEBUG"
 
 # Test file patterns for unit tests
-TEST_MEDIA_FILES: Dict[str, str] = {
+TEST_MEDIA_FILES: dict[str, str] = {
     "duplicate_photo.jpg": "F:/test/photos/duplicate_photo.jpg",
     "unique_photo.png": "F:/test/photos/unique_photo.png",
-    "duplicate_video.mp4": "F:/test/videos/duplicate_video.mp4"
+    "duplicate_video.mp4": "F:/test/videos/duplicate_video.mp4",
 }
 
 # Test supported extensions
-TEST_EXTENSIONS: List[str] = [
-    "jpg", "jpeg", "png", "gif", "bmp",
-    "mp4", "mov", "avi", "mkv",
-    "nef", "cr2", "arw", "dng"
+TEST_EXTENSIONS: list[str] = [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "mp4",
+    "mov",
+    "avi",
+    "mkv",
+    "nef",
+    "cr2",
+    "arw",
+    "dng",
 ]
 
 # Mock values for testing (not real)

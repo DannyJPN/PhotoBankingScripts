@@ -1,13 +1,11 @@
-﻿import os
-import csv
+﻿import json
 import logging
-import json
-from typing import Dict, List, Any, Optional
+import os
 
-from shared.file_operations import save_csv
 from exportpreparedmedialib.column_maps import get_column_map
 
-def load_photobank_headers(headers_file: str) -> Dict[str, Dict[str, str]]:
+
+def load_photobank_headers(headers_file: str) -> dict[str, dict[str, str]]:
     """
     Načte formáty exportu pro jednotlivé banky z CSV souboru.
 
@@ -24,37 +22,39 @@ def load_photobank_headers(headers_file: str) -> Dict[str, Dict[str, str]]:
 
         # Použij sdílenou funkci load_csv pro načtení CSV
         from shared.file_operations import load_csv
+
         rows = load_csv(headers_file)
 
         for row in rows:
             # Zpracování oddělovače - převod escape sekvencí na skutečné znaky
-            delimiter = row.get('delimiter', ',')
-            if delimiter and '\\' in delimiter:
+            delimiter = row.get("delimiter", ",")
+            if delimiter and "\\" in delimiter:
                 try:
                     # Použij funkci decode_escapes pro převod escape sekvencí
-                    delimiter = bytes(delimiter, 'utf-8').decode('unicode_escape')
+                    delimiter = bytes(delimiter, "utf-8").decode("unicode_escape")
                     logging.debug(f"Converted delimiter escape sequence '{row['delimiter']}' to actual character")
                 except Exception as e:
                     logging.warning(f"Failed to decode delimiter escape sequence '{delimiter}': {e}")
                     # Pokud se převod nezdaří, použij původní hodnotu
 
             # Zpracování hlavičky - převod escape sekvencí na skutečné znaky v hlavičce
-            headers = row.get('headers', '')
-            if headers and '\\' in headers:
+            headers = row.get("headers", "")
+            if headers and "\\" in headers:
                 try:
                     # Použij funkci decode_escapes pro převod escape sekvencí v hlavičce
-                    headers = bytes(headers, 'utf-8').decode('unicode_escape')
+                    headers = bytes(headers, "utf-8").decode("unicode_escape")
                     logging.debug(f"Converted escape sequences in headers for {row.get('bank', 'unknown')}")
                 except Exception as e:
-                    logging.warning(f"Failed to decode escape sequences in headers for {row.get('bank', 'unknown')}: {e}")
+                    logging.warning(
+                        f"Failed to decode escape sequences in headers for {row.get('bank', 'unknown')}: {e}"
+                    )
 
-            bank_name = row.get('bank')
+            bank_name = row.get("bank")
             if bank_name:
-                formats[bank_name] = {
-                    'headers': headers,
-                    'delimiter': delimiter
-                }
-                logging.debug(f"Loaded format for {bank_name}: headers={headers[:30] if headers else ''}..., delimiter='{delimiter}'")
+                formats[bank_name] = {"headers": headers, "delimiter": delimiter}
+                logging.debug(
+                    f"Loaded format for {bank_name}: headers={headers[:30] if headers else ''}..., delimiter='{delimiter}'"
+                )
 
         logging.info(f"Loaded export formats for {len(formats)} photobanks")
         logging.debug(f"Loaded formats: {json.dumps(formats, indent=2)}")
@@ -63,7 +63,10 @@ def load_photobank_headers(headers_file: str) -> Dict[str, Dict[str, str]]:
         logging.debug(f"Exception details: {str(e)}", exc_info=True)
     return formats
 
-def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export_formats: Dict[str, Dict[str, str]]) -> bool:
+
+def export_mediafile(
+    bank: str, record: dict[str, str], output_file: str, export_formats: dict[str, dict[str, str]]
+) -> bool:
     """
     Exportuje záznam do výstupního souboru pro danou banku.
 
@@ -88,7 +91,7 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         for col in column_map:
             log_col = {}
             for k, v in col.items():
-                if k != 'transform':
+                if k != "transform":
                     log_col[k] = v
                 else:
                     log_col[k] = "<function>"  # Nahrazení funkce textem
@@ -97,7 +100,7 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         logging.debug(f"Column map for {bank}:\n{json.dumps(log_column_map, indent=2)}")
 
         # Kontrola, zda má záznam všechny potřebné hodnoty
-        required_sources = [col['source'] for col in column_map if 'source' in col and 'value' not in col]
+        required_sources = [col["source"] for col in column_map if "source" in col and "value" not in col]
         missing_sources = [source for source in required_sources if source and source not in record]
 
         if missing_sources:
@@ -107,10 +110,10 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
 
         # Získání oddělovače pro danou banku
         bank_format = export_formats.get(bank, {})
-        delimiter = bank_format.get('delimiter', ',')
+        delimiter = bank_format.get("delimiter", ",")
 
         # Oddělovač by měl být již převeden na skutečný znak v load_photobank_headers
-        if delimiter == '\t':
+        if delimiter == "\t":
             logging.debug(f"Using TAB delimiter for {bank}")
         else:
             logging.debug(f"Using delimiter for {bank}: '{delimiter}'")
@@ -153,8 +156,8 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         logging.debug(f"Writing to file: {output_file}")
         logging.debug(f"File exists before write: {os.path.exists(output_file)}")
 
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(line + '\n')
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
 
         logging.debug(f"Successfully exported to {bank}: {record.get('filename', '')}")
         logging.debug(f"File exists after write: {os.path.exists(output_file)}")
@@ -166,8 +169,10 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         logging.debug(f"Exception details: {str(e)}", exc_info=True)
         return False
 
-def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], output_paths: Dict[str, str],
-                        filter_func=None) -> None:
+
+def export_to_photobanks(
+    items: list[dict[str, str]], enabled_banks: list[str], output_paths: dict[str, str], filter_func=None
+) -> None:
     """
     Exportuje záznamy do výstupních souborů pro aktivované banky.
 
@@ -186,8 +191,8 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
     from exportpreparedmedialib.constants import (
         DEFAULT_ADOBE_CATEGORY_PATH,
         DEFAULT_DREAMSTIME_CATEGORY_PATH,
+        DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH,
         DEFAULT_POND_PRICES_PATH,
-        DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH
     )
 
     # Načtení formátů exportu
@@ -196,8 +201,8 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
 
     # Načtení map kategorií
     category_maps = {
-        'adobe': load_category_map(DEFAULT_ADOBE_CATEGORY_PATH, 'name', 'id'),
-        'dreamstime': load_category_map(DEFAULT_DREAMSTIME_CATEGORY_PATH, 'path', 'id')
+        "adobe": load_category_map(DEFAULT_ADOBE_CATEGORY_PATH, "name", "id"),
+        "dreamstime": load_category_map(DEFAULT_DREAMSTIME_CATEGORY_PATH, "path", "id"),
     }
     logging.info(f"Loaded category maps: {', '.join(category_maps.keys())}")
 
@@ -218,11 +223,11 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
         # Zápis hlavičky
         try:
             bank_format = export_formats.get(bank, {})
-            header = bank_format.get('headers', '')
-            delimiter = bank_format.get('delimiter', ',')
+            header = bank_format.get("headers", "")
+            delimiter = bank_format.get("delimiter", ",")
 
             # Oddělovač by měl být již převeden na skutečný znak v load_photobank_headers
-            if delimiter == '\t':
+            if delimiter == "\t":
                 logging.debug(f"Using TAB delimiter for {bank} header")
             else:
                 logging.debug(f"Using delimiter for {bank} header: '{delimiter}'")
@@ -232,8 +237,8 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
             if header:
                 logging.debug(f"Writing header to file: {output_file}")
                 logging.debug(f"Header content: {repr(header)}")
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(header + '\n')
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(header + "\n")
                 logging.debug(f"Wrote header for {bank}")
                 logging.debug(f"File exists after header write: {os.path.exists(output_file)}")
                 logging.debug(f"File size after header write: {os.path.getsize(output_file)} bytes")
@@ -262,9 +267,13 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
             if export_mediafile(bank, record, output_file, export_formats):
                 export_count += 1
                 if export_count % 10 == 0:
-                    logging.debug(f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})")
+                    logging.debug(
+                        f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})"
+                    )
 
-        logging.info(f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)")
+        logging.info(
+            f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)"
+        )
         if os.path.exists(output_file):
             logging.debug(f"Final file size for {bank}: {os.path.getsize(output_file)} bytes")
         else:
