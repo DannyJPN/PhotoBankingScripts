@@ -1,7 +1,6 @@
 """
 Module for copying files while preserving dates and metadata.
 """
-
 import logging
 import os
 import shutil
@@ -11,10 +10,10 @@ from tqdm import tqdm
 
 def copy_files_with_preserved_dates(src_folder: str, dest_folder: str) -> None:
     """Kopíruje soubory ze zdrojové složky do cílové při zachování původních dat.
-
+    
     :param src_folder: Zdrojová složka
     :type src_folder: str
-    :param dest_folder: Cílová složka
+    :param dest_folder: Cílová složka  
     :type dest_folder: str
     :returns: None
     :rtype: None

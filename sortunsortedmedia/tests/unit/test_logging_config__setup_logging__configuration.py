@@ -137,8 +137,8 @@ class TestLoggingConfigSetupLoggingConfiguration(unittest.TestCase):
         
         setup_logging(debug=False, log_file=self.test_log_file)
         
-        # ColoredFormatter should be called twice (once for console, once for file)
-        self.assertEqual(mock_colored_formatter.call_count, 2, "Should create ColoredFormatter for both handlers")
+        # ColoredFormatter should be called once and reused for both handlers
+        self.assertEqual(mock_colored_formatter.call_count, 1, "Should create one ColoredFormatter instance for both handlers")
 
     @patch('shared.logging_config.open', new_callable=mock_open)
     @patch('shared.logging_config.json.load')

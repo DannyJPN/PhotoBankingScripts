@@ -36,6 +36,8 @@ They are **shared** across all modules; local specifics may be added at script l
 * Type hints everywhere.
 * Imports explicit, no wildcards.
 * Docstrings mandatory, **Sphinx style**.
+* **Code comments** must be in **English**.
+* **Comments only for functions and classes** (for documentation generators). No inline comments after every line.
 
 ---
 

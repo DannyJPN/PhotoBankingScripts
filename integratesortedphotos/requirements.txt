@@ -1,0 +1,6 @@
+# Core dependencies
+colorlog>=6.7.0
+tqdm>=4.65.0
+
+# Development dependencies (optional)
+# Run: pip install -r requirements-dev.txt for full development setup
