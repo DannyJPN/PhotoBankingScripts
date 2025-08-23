@@ -6,7 +6,10 @@ Contains default values, regular expressions, and dictionaries for media classif
 # Default folder paths
 DEFAULT_UNSORTED_FOLDER = "I:/Neroztříděno"
 DEFAULT_TARGET_FOLDER = "I:/Roztříděno"
-DEFAULT_INTERVAL = 3600  # seconds
+DEFAULT_INTERVAL = 60  # seconds
+
+# ExifTool path
+EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
 
 # Tags indicating edited files
 EDITED_TAGS = {

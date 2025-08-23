@@ -5,9 +5,9 @@ Media classifier module for detecting media origins, edits, and extensions.
 import os
 import re
 import logging
-from media_helper import is_video_file, is_edited_file
+from sortunsortedmedialib.media_helper import is_video_file, is_edited_file
 from sortunsortedmedialib.constants import CAMERA_REGEXES
-from exif_camera_detector import combine_regex_and_exif_detection
+from sortunsortedmedialib.exif_camera_detector import combine_regex_and_exif_detection
 
 
 def classify_media_file(file_path: str) -> tuple[str, str, bool, str]:
