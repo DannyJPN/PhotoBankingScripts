@@ -25,8 +25,8 @@ def build_target_path(base_folder: str, media_type: str, extension: str,
     Returns:
         Target path for the file
     """
-    year = date.strftime("%Y")
-    month = date.strftime("%m")
+    year = str(date.year)
+    month = str(date.month)  # No leading zeros
     
     path = os.path.join(
         base_folder,
