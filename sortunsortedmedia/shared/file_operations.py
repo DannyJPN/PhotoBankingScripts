@@ -142,6 +142,13 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         logging.debug("File exists and overwrite disabled, skipping move: %s", dest)
         return
 
+    try:
+        shutil.move(src, dest)
+        logging.debug("Moved file from %s to %s", src, dest)
+    except Exception as e:
+        logging.error("Failed to move file from %s to %s: %s", src, dest, e)
+        raise
+
 
 def ensure_directory(path: str) -> None:
     """

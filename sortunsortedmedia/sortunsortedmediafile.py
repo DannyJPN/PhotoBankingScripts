@@ -72,11 +72,28 @@ def process_media_file(media_path: str, target_folder: str) -> Optional[str]:
             logging.warning(f"Could not determine creation date for {media_path}, using current time")
             creation_date = datetime.now()
 
-        # Ask for category
-        category = ask_for_category(media_path)
+        # Show GUI to get category and camera from user
+        from sortunsortedmedialib.media_viewer import show_media_viewer
+        
+        # Variables to store user selection
+        selected_category = None
+        selected_camera = None
+        
+        def completion_callback(category: str, camera: str):
+            nonlocal selected_category, selected_camera
+            selected_category = category
+            selected_camera = camera
+        
+        # Show GUI
+        show_media_viewer(media_path, target_folder, completion_callback)
+        
+        # Use the selected values or defaults
+        category = selected_category if selected_category else "Ostatní"
+        if selected_camera and selected_camera != "Unknown":
+            camera = selected_camera
 
-        # Build target path
-        target_path = build_target_path(
+        # Build target directory path
+        target_dir = build_target_path(
             base_folder=target_folder,
             media_type=media_type,
             extension=extension,
@@ -86,6 +103,9 @@ def process_media_file(media_path: str, target_folder: str) -> Optional[str]:
             is_edited=is_edited,
             edit_type=edit_type
         )
+        
+        # Full target path with filename
+        target_path = os.path.join(target_dir, filename)
 
         # Ensure the target path is unique
         unique_target_path = ensure_unique_path(target_path)
