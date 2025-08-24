@@ -11,7 +11,6 @@ from shared.exif_downloader import ensure_exiftool
 from createbatchlib.constants import (
     DEFAULT_PHOTO_CSV_FILE,
     DEFAULT_PROCESSED_MEDIA_FOLDER,
-    DEFAULT_EXIF_FOLDER,
     DEFAULT_LOG_DIR,
     STATUS_FIELD_KEYWORD,
     PREPARED_STATUS_VALUE
@@ -32,12 +31,6 @@ def parse_arguments():
         type=str,
         default=DEFAULT_PROCESSED_MEDIA_FOLDER,
         help="Root folder where processed media will be placed"
-    )
-    parser.add_argument(
-        "--exif_tool_folder",
-        type=str,
-        default=DEFAULT_EXIF_FOLDER,
-        help="Folder where the EXIF tool is located"
     )
     parser.add_argument(
         "--overwrite",
@@ -67,8 +60,8 @@ def main():
     setup_logging(debug=args.debug, log_file=log_file)
 
     # Ensure ExifTool availability
-    args.exif_tool_folder = ensure_exiftool(args.exif_tool_folder)
-    logging.debug("EXIF: %s", args.exif_tool_folder)
+    exif_tool_path = ensure_exiftool()
+    logging.debug("EXIF: %s", exif_tool_path)
     logging.info("Starting CreateBatch process")
 
     # Load and filter records
@@ -112,7 +105,7 @@ def main():
                 paths = prepare_media_file(
                     rec,
                     args.output_folder,
-                    args.exif_tool_folder,
+                    exif_tool_path,
                     overwrite=args.overwrite,
                     bank=bank
                 )
