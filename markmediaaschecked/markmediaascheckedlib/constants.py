@@ -2,7 +2,7 @@
 Constants for the MarkMediaAsChecked script.
 """
 
-DEFAULT_PHOTO_CSV_FILE = "L:\\Můj disk\\XLS\\Fotobanky\\PhotoMediaTest.csv"
+DEFAULT_PHOTO_CSV_FILE = "L:\\Můj disk\\XLS\\Fotobanky\\PhotoMedia.csv"
 STATUS_COLUMN_KEYWORD = "status"
 
 # Status values
