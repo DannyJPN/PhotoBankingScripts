@@ -1,7 +1,7 @@
 import os
 
 # Výchozí hodnoty pro vstupní a výstupní soubory
-DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
+DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_OUTPUT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
 DEFAULT_OUTPUT_PREFIX = "CSV"
 
