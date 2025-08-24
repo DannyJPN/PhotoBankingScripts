@@ -1,7 +1,7 @@
 ﻿import os
-import shutil
 import logging
 from tqdm import tqdm
+from shared.file_operations import copy_file
 
 def copy_files_with_preserved_dates(src_folder, dest_folder):
     """
@@ -25,8 +25,7 @@ def copy_files_with_preserved_dates(src_folder, dest_folder):
         with tqdm(total=len(all_files), desc="Copying files", unit="file") as pbar:
             for src_file, dest_file in all_files:
                 if not os.path.exists(dest_file):  # Check if the file already exists
-                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                    shutil.copy2(src_file, dest_file)
+                    copy_file(src_file, dest_file, overwrite=True)
                     logging.debug(f"Copied {src_file} to {dest_file}")
                 else:
                     logging.debug(f"Skipped {src_file} as it already exists at {dest_file}")
