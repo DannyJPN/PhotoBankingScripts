@@ -264,7 +264,10 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
                 if export_count % 10 == 0:
                     logging.debug(f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})")
 
-        logging.info(f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)")
+        if attempted_count > 0:
+            logging.info(f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)")
+        else:
+            logging.info(f"No records found for {bank} - skipping export")
         if os.path.exists(output_file):
             logging.debug(f"Final file size for {bank}: {os.path.getsize(output_file)} bytes")
         else:

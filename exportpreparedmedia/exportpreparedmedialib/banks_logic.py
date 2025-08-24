@@ -60,7 +60,7 @@ def get_enabled_banks(args: Namespace) -> list[str]:
     logging.info(f"Enabled banks: {', '.join(enabled_banks)}")
     return enabled_banks
 
-def get_output_paths(enabled_banks: list[str], base_prefix: str) -> dict[str, str]:
+def get_output_paths(enabled_banks: list[str], output_dir: str, file_prefix: str) -> dict[str, str]:
     """
     Vytvoří cesty k výstupním CSV souborům pro každou aktivovanou banku.
 
@@ -72,16 +72,17 @@ def get_output_paths(enabled_banks: list[str], base_prefix: str) -> dict[str, st
         Slovník {název_banky: cesta_k_souboru}
     """
     logging.debug(f"Creating output paths for banks: {enabled_banks}")
-    logging.debug(f"Base prefix: {base_prefix}")
+    logging.debug(f"Output directory: {output_dir}")
+    logging.debug(f"File prefix: {file_prefix}")
 
     output_paths = {}
 
     for bank in enabled_banks:
-        # Použij prefix cesty a přidej název banky s předponou '_'
-        output_file = f"{base_prefix}_{bank}.csv"
+        # Kombinuj adresář, prefix a název banky
+        output_file = os.path.join(output_dir, f"{file_prefix}_{bank}.csv")
         output_paths[bank] = output_file
         logging.debug(f"Created output path for {bank}: {output_file}")
-        logging.debug(f"Output directory exists: {os.path.exists(os.path.dirname(output_file) if os.path.dirname(output_file) else '.')}")
+        logging.debug(f"Output directory exists: {os.path.exists(output_dir)}")
         logging.info(f"Output path for {bank}: {output_file}")
 
     return output_paths
