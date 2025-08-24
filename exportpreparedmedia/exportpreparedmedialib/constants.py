@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 # Výchozí hodnoty pro vstupní a výstupní soubory
 DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
@@ -24,3 +24,6 @@ VECTOREXT_REGEX = r"(cdr|ai|eps|svg)$"
 
 # Validní hodnota pro status
 VALID_STATUS = "kontrolováno"
+
+# Default log directory
+DEFAULT_LOG_DIR = "H:/Logs"

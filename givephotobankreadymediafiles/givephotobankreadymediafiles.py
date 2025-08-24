@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import QApplication
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory, load_csv
 from gui.main_window import MainWindow
+from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR
 
 
 def parse_arguments():
@@ -29,7 +30,7 @@ def parse_arguments():
                         help="Path to the categories CSV file")
     parser.add_argument("--training_data_dir", type=str, default="data/training",
                         help="Directory for storing training data")
-    parser.add_argument("--log_dir", type=str, default="logs",
+    parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--cli", action="store_true", 
