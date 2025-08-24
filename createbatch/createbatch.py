@@ -1,4 +1,4 @@
-﻿import os
+import os
 import logging
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -12,7 +12,7 @@ from createbatchlib.constants import (
     DEFAULT_PHOTO_CSV_FILE,
     DEFAULT_PROCESSED_MEDIA_FOLDER,
     DEFAULT_EXIF_FOLDER,
-    LOG_DIR,
+    DEFAULT_LOG_DIR,
     STATUS_FIELD_KEYWORD,
     PREPARED_STATUS_VALUE
 )
@@ -45,6 +45,12 @@ def parse_arguments():
         help="Overwrite existing files in the output folders"
     )
     parser.add_argument(
+        "--log_dir",
+        type=str,
+        default=DEFAULT_LOG_DIR,
+        help="Directory for log files"
+    )
+    parser.add_argument(
         "--debug",
         action='store_true',
         help="Enable debug logging"
@@ -55,13 +61,14 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    # Ensure log directory and ExifTool availability
-    ensure_directory(LOG_DIR)
-    args.exif_tool_folder = ensure_exiftool(args.exif_tool_folder)
-    logging.debug("EXIF: %s",args.exif_tool_folder)
     # Setup logging
-    log_file = get_log_filename(LOG_DIR)
-    setup_logging(args.debug, log_file)
+    ensure_directory(args.log_dir)
+    log_file = get_log_filename(args.log_dir)
+    setup_logging(debug=args.debug, log_file=log_file)
+
+    # Ensure ExifTool availability
+    args.exif_tool_folder = ensure_exiftool(args.exif_tool_folder)
+    logging.debug("EXIF: %s", args.exif_tool_folder)
     logging.info("Starting CreateBatch process")
 
     # Load and filter records

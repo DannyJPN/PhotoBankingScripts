@@ -8,3 +8,6 @@ STATUS_COLUMN_KEYWORD = "status"
 # Status values
 STATUS_READY = "připraveno"
 STATUS_CHECKED = "kontrolováno"
+
+# Default log directory
+DEFAULT_LOG_DIR = "H:/Logs"
