@@ -9,7 +9,8 @@ from shared.logging_config import setup_logging
 
 from exportpreparedmedialib.constants import (
     DEFAULT_PHOTO_CSV,
-    DEFAULT_OUTPUT_FOLDER,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_OUTPUT_PREFIX,
     DEFAULT_LOG_DIR,
     VALID_STATUS
 )
@@ -30,8 +31,10 @@ def parse_arguments():
     # Základní parametry
     parser.add_argument("--photo_csv", type=str, default=DEFAULT_PHOTO_CSV,
                         help="Path to the input CSV file with photo metadata")
-    parser.add_argument("--output_folder", type=str, default=DEFAULT_OUTPUT_FOLDER,
-                        help="Path to the output folder for CSV files")
+    parser.add_argument("--output_dir", type=str, default=DEFAULT_OUTPUT_DIR,
+                        help="Directory for output CSV files")
+    parser.add_argument("--output_prefix", type=str, default=DEFAULT_OUTPUT_PREFIX,
+                        help="Prefix for output CSV filenames")
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true",
@@ -60,8 +63,8 @@ def parse_arguments():
                         help="Export to GettyImages")
     parser.add_argument("--alamy", action="store_true",
                         help="Export to Alamy")
-    parser.add_argument("--all", action="store_true",
-                        help="Export to all supported banks")
+    parser.add_argument("--all", action="store_true", default=True,
+                        help="Export to all supported banks (default: True)")
 
     return parser.parse_args()
 
@@ -69,6 +72,15 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
+    # Kontrola vzájemného vylučování parametrů
+    individual_banks = [args.shutterstock, args.adobestock, args.dreamstime, 
+                       args.depositphotos, args.bigstockphoto, args._123rf,
+                       args.canstockphoto, args.pond5, args.gettyimages, args.alamy]
+    
+    if args.all and any(individual_banks):
+        logging.error("Cannot use --all together with individual bank parameters")
+        return
+    
     # Pokud je zadaný přepínač --all, aktivuj všechny banky
     if args.all:
         args.shutterstock = True
@@ -90,7 +102,7 @@ def main():
     logging.info("Starting export process")
 
     # Zajištění výstupní složky
-    ensure_directory(args.output_folder)
+    ensure_directory(args.output_dir)
 
     # Podrobné informace o běhu skriptu
     logging.debug(f"Script running from: {os.path.abspath(__file__)}")
@@ -104,7 +116,7 @@ def main():
         return
 
     # Načtení cest k výstupním CSV
-    output_paths = get_output_paths(enabled_banks, args.output_folder)
+    output_paths = get_output_paths(enabled_banks, args.output_dir, args.output_prefix)
 
     # Načtení vstupního CSV
     try:

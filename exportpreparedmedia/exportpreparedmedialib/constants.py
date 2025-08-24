@@ -1,8 +1,9 @@
 import os
 
 # Výchozí hodnoty pro vstupní a výstupní soubory
-DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
-DEFAULT_OUTPUT_FOLDER = r"L:\Můj disk\XLS\Fotobanky\CSV\CSV"
+DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
+DEFAULT_OUTPUT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
+DEFAULT_OUTPUT_PREFIX = "CSV"
 
 # Výchozí hodnoty pro metadata
 DEFAULT_LOCATION = "Czech republic"
@@ -23,7 +24,7 @@ EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
 VECTOREXT_REGEX = r"(cdr|ai|eps|svg)$"
 
 # Validní hodnota pro status
-VALID_STATUS = "kontrolováno"
+VALID_STATUS = "připraveno"
 
 # Default log directory
 DEFAULT_LOG_DIR = "H:/Logs"
