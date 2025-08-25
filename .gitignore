@@ -56,3 +56,7 @@ backup_*
 
 # CUDA/GPU artifacts
 __pycache__/
+
+# Claude Code settings with authentication tokens (keep generic settings.json tracked)
+**/settings_with_token.json
+**/.claude/settings_private.json

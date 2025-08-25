@@ -1,0 +1,18 @@
+{
+  "model": "claude-sonnet-4",
+  "custom_instructions": "Follow the project guidelines in CLAUDE.md. This is a Python project for photo banking scripts with strict coding standards including Black formatting (line length 120), Ruff linting, type hints, and comprehensive testing.",
+  "allowed_tools": [
+    "Bash(python -m pytest*)",
+    "Bash(python -m black*)",
+    "Bash(python -m ruff*)",
+    "Bash(pip install*)",
+    "Bash(python -m venv*)",
+    "Bash(source*/activate*)",
+    "Bash(python *.py*)",
+    "Bash(cd *)"
+  ],
+  "claude_env": {
+    "PYTHONPATH": "."
+  },
+  "trigger_phrase": "@claude"
+}

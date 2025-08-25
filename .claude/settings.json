@@ -1,0 +1,17 @@
+{
+  "model": "claude-sonnet-4",
+  "custom_instructions": "Follow the project guidelines in CLAUDE.md. This is a Python project for photo banking scripts with strict coding standards.",
+  "allowed_tools": [
+    "Bash(python -m pytest*)",
+    "Bash(python -m black*)",
+    "Bash(python -m ruff*)",
+    "Bash(pip install*)",
+    "Bash(python -m venv*)",
+    "Bash(source*/activate*)"
+  ],
+  "claude_env": {
+    "PYTHONPATH": "/project/path"
+  },
+  "trigger_phrase": "@claude",
+  "assignee_trigger": "claude-bot"
+}
