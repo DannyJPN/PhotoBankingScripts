@@ -1,0 +1,141 @@
+{
+  "permissions": {
+    "allow": [
+      "List(**)",
+	  "Search(**)",
+      "Read(./**)",
+      "Read(J:/**)",
+	  "Read(F:/**)",
+	  "Read(I:/Roztříděno/**)",
+      "Read(I:/Neroztříděno/**)",
+      "Read(L:/**)",
+      "Read(M:/**)",
+      "Read(N:/**)",
+
+      "Bash(python -m venv:*)",
+      "Bash(.*[\\\\/]?venv[\\\\/].*[\\\\/](python|python\\.exe):*)",
+      "Bash(.*[\\\\/]?venv[\\\\/].*[\\\\/](pip|pip\\.exe) install:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+
+      "Bash(git checkout -b claude/*:*)",
+      "Bash(git switch -c claude/*:*)",
+
+      "Bash(ping:*)",
+
+      "WebFetch(domain:docs.python.org)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:pip.pypa.io)",
+      "WebFetch(domain:numpy.org)",
+      "WebFetch(domain:pandas.pydata.org)",
+      "WebFetch(domain:pillow.readthedocs.io)",
+      "WebFetch(domain:opencv.org)",
+      "WebFetch(domain:imageio.readthedocs.io)",
+      "WebFetch(domain:exiftool.org)",
+      "WebFetch(domain:ffmpeg.org)",
+      "WebFetch(domain:libvips.org)",
+      "WebFetch(domain:imagemagick.org)",
+
+      "WebFetch(domain:shutterstock.com)",
+      "WebFetch(domain:contributor-accounts.shutterstock.com)",
+      "WebFetch(domain:submit.shutterstock.com)",
+      "WebFetch(domain:stock.adobe.com)",
+      "WebFetch(domain:auth.services.adobe.com)",
+      "WebFetch(domain:adobelogin.com)",
+      "WebFetch(domain:123rf.com)",
+      "WebFetch(domain:cz.123rf.com)",
+      "WebFetch(domain:depositphotos.com)",
+      "WebFetch(domain:gettyimages.com)",
+      "WebFetch(domain:esp.gettyimages.com)",
+      "WebFetch(domain:alamy.com)",
+      "WebFetch(domain:bigstockphoto.com)",
+      "WebFetch(domain:canstockphoto.com)",
+      "WebFetch(domain:dreamstime.com)",
+      "WebFetch(domain:pond5.com)",
+
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:api.openai.com)",
+      "WebFetch(domain:anthropic.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:mistral.ai)",
+      "WebFetch(domain:api.mistral.ai)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:ai.meta.com)",
+      "WebFetch(domain:llama.meta.com)",
+      "WebFetch(domain:huggingface.co)",
+      "WebFetch(domain:docs.huggingface.co)",
+
+      "WebFetch(domain:rfc-editor.org)",
+      "WebFetch(domain:ietf.org)"
+    ],
+    "ask": [
+      "Write(./**)",
+      "Edit(./**)",
+      "Delete(./**)",
+	  "Update(./**)",
+      "Bash(python *.py:*)",
+      "Bash(pytest:*)",
+      "Bash(coverage:*)",
+
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git rebase:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git tag:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+
+      "Bash(ffmpeg:*)",
+      "Bash(exiftool:*)",
+      "Bash(magick:*)",
+      "Bash(vips:*)",
+
+      "Bash(start:*)",
+      "Bash(.*/[^\\\\/]*(\\.exe|\\.bat|\\.cmd):*)"
+    ],
+    "deny": [
+      "Read(C:/**)",
+      "Read(J:/Cizí foto/**)",
+
+      "Bash(git merge:*)",
+
+      "Bash(taskkill:*)",
+      "Bash(kill:*)",
+
+      "WebFetch(domain:localhost)",
+      "WebFetch(domain:127.0.0.1)",
+      "WebFetch(domain:0.0.0.0)"
+    ]
+  },
+
+  "branchPolicy": {
+    "claudeBranchPattern": "claude/*",
+    "gitAutoWithoutAsk": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)"
+    ],
+    "respectUserBranches": true
+  },
+
+  "additionalDirectories": [
+    ".."
+  ],
+
+  "statusLine": {
+    "type": "command",
+    "command": "input=$(cat); current_dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); model_name=$(echo \"$input\" | jq -r '.model.display_name'); git_branch=$(git -C \"$current_dir\" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'no-git'); current_time=$(date +\"%H:%M:%S\"); printf \"\\033[2m%s\\033[0m \\033[36m[%s]\\033[0m \\033[33m%s\\033[0m \\033[32m%s\\033[0m\" \"$(basename \"$current_dir\")\" \"$git_branch\" \"$model_name\" \"$current_time\""
+  },
+
+  "contextFiles": [
+    "CLAUDE.md"
+  ]
+}
