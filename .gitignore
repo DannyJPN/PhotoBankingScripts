@@ -39,6 +39,12 @@ logs/
 .env
 .env.local
 
+# Claude Code authentication (never commit tokens!)
+.claude/settings_private.json
+.claude/token
+.claude/oauth_token
+settings_private.json
+
 # Build artifacts
 build/
 dist/

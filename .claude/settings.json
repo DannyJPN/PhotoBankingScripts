@@ -1,0 +1,88 @@
+{
+  "model": "claude-sonnet-4",
+  "custom_instructions": "../CLAUDE.md",
+  "allowed_tools": [
+    {
+      "name": "Bash",
+      "commands": [
+        "pytest",
+        "python -m pytest", 
+        "black .",
+        "black **/*.py",
+        "ruff check",
+        "ruff check .",
+        "ruff format",
+        "pip install -r requirements.txt",
+        "python -m venv venv",
+        "source venv/bin/activate",
+        "git status",
+        "git diff",
+        "git log",
+        "git add",
+        "git commit",
+        "git push"
+      ]
+    },
+    {
+      "name": "Read",
+      "enabled": true
+    },
+    {
+      "name": "Edit", 
+      "enabled": true
+    },
+    {
+      "name": "MultiEdit",
+      "enabled": true
+    },
+    {
+      "name": "Write",
+      "enabled": true
+    },
+    {
+      "name": "Glob",
+      "enabled": true
+    },
+    {
+      "name": "Grep", 
+      "enabled": true
+    },
+    {
+      "name": "LS",
+      "enabled": true
+    },
+    {
+      "name": "Task",
+      "enabled": true
+    },
+    {
+      "name": "TodoWrite",
+      "enabled": true
+    }
+  ],
+  "environment": {
+    "PYTHONPATH": ".",
+    "PYTHON_ENV": "development"
+  },
+  "workspace": {
+    "include_patterns": [
+      "**/*.py",
+      "**/*.md", 
+      "**/*.txt",
+      "**/*.csv",
+      "**/*.json",
+      "**/*.yml",
+      "**/*.yaml"
+    ],
+    "exclude_patterns": [
+      "**/__pycache__/**",
+      "**/.git/**",
+      "**/venv/**",
+      "**/.venv/**", 
+      "**/node_modules/**",
+      "**/*.pyc",
+      "**/*.tmp.*",
+      "**/.*cache/**"
+    ]
+  }
+}
