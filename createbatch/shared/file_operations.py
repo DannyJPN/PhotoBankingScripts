@@ -4,18 +4,30 @@ import csv
 from typing import List, Dict
 from tqdm import tqdm
 import os
+import shutil
 
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-    Copy a file from src to dest. Overwrite if specified.
+    Copy a file from src to dest using shutil.copy2 for proper metadata preservation.
+    
+    Args:
+        src: Source file path
+        dest: Destination file path
+        overwrite: Whether to overwrite existing files
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping: %s", dest)
         return
+    
     try:
-        with open(src, 'rb') as fsrc, open(dest, 'wb') as fdest:
-            fdest.write(fsrc.read())
+        # Ensure destination directory exists
+        dest_dir = os.path.dirname(dest)
+        if dest_dir:
+            ensure_directory(dest_dir)
+        
+        # Copy file with metadata preservation
+        shutil.copy2(src, dest)
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
