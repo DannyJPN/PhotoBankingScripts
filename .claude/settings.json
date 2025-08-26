@@ -6,6 +6,7 @@
       "Read(./**)",
       "Read(J:/**)",
 	  "Read(F:/**)",
+	  "Read(/F:/**)",
 	  "Read(I:/Roztříděno/**)",
       "Read(I:/Neroztříděno/**)",
       "Read(L:/**)",
@@ -132,7 +133,7 @@
 
   "statusLine": {
     "type": "command",
-    "command": "input=$(cat); current_dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); model_name=$(echo \"$input\" | jq -r '.model.display_name'); git_branch=$(git -C \"$current_dir\" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'no-git'); current_time=$(date +\"%H:%M:%S\"); printf \"\\033[2m%s\\033[0m \\033[36m[%s]\\033[0m \\033[33m%s\\033[0m \\033[32m%s\\033[0m\" \"$(basename \"$current_dir\")\" \"$git_branch\" \"$model_name\" \"$current_time\""
+    "command": "input=$(cat); current_dir=$(echo \"$input\" | jq -r '.workspace.current_dir'); model_name=$(echo \"$input\" | jq -r '.model.display_name'); project_dir=$(echo \"$input\" | jq -r '.workspace.project_dir'); if [ -d \"$current_dir/.git\" ] || git -C \"$current_dir\" rev-parse --git-dir >/dev/null 2>&1; then git_branch=$(git -C \"$current_dir\" rev-parse --abbrev-ref HEAD 2>/dev/null); git_status=$(git -C \"$current_dir\" status --porcelain 2>/dev/null | wc -l); if [ \"$git_status\" -gt 0 ]; then git_indicator=\"*\"; else git_indicator=\"\"; fi; git_info=\"\\033[36m($git_branch$git_indicator)\\033[0m\"; else git_info=\"\"; fi; rel_path=$(echo \"$current_dir\" | sed \"s|^$project_dir||\" | sed 's|^/||'); if [ -z \"$rel_path\" ]; then rel_path=\".\"; fi; current_time=$(date +\"%H:%M:%S\"); printf \"\\033[32m%s\\033[0m:\\033[34m%s\\033[0m %s \\033[33m%s\\033[0m \\033[90m%s\\033[0m\" \"$(whoami)\" \"$rel_path\" \"$git_info\" \"$model_name\" \"$current_time\""
   },
 
   "contextFiles": [
