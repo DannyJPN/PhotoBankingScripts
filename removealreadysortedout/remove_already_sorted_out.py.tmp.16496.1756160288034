@@ -101,10 +101,8 @@ def main():
     
     # Process duplicates
     logging.info("Processing duplicates...")
-    with tqdm(total=len(duplicates), desc="Removing duplicates", unit="files") as pbar:
-        for source_path, target_paths in duplicates.items():
-            handle_duplicate(source_path, target_paths, args.overwrite, log_file)
-            pbar.update(1)
+    for source_path, target_paths in duplicates.items():
+        handle_duplicate(source_path, target_paths, args.overwrite, log_file)
     
     logging.info("RemoveAlreadySortedOut process completed successfully")
 

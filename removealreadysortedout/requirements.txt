@@ -1,0 +1,5 @@
+tqdm
+PyQt5
+colorlog
+rawpy
+Pillow
