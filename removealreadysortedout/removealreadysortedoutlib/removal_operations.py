@@ -2,6 +2,7 @@ import os
 import logging
 import shutil
 from typing import Dict, List
+from shared.hash_utils import compute_file_hash
 
 def get_target_files_map(target_folder: str) -> dict[str, list[str]]:
     """
@@ -35,7 +36,7 @@ def find_duplicates(unsorted_files: list[str], target_files_map: dict[str, list[
 
 def should_replace_file(source_path: str, target_path: str) -> bool:
     """
-    Vrací True, pokud cílový soubor má nulovou velikost, nebo má jinou velikost než zdrojový.
+    Vrací True, pokud cílový soubor má nulovou velikost, nebo má jiný MD5 hash než zdrojový.
     """
     source_size = os.path.getsize(source_path)
     target_size = os.path.getsize(target_path)
@@ -44,11 +45,28 @@ def should_replace_file(source_path: str, target_path: str) -> bool:
         logging.debug(f"Target file has zero size: {target_path}")
         return True
     
-    if source_size != target_size:
-        logging.debug(f"Size mismatch: {source_path} ({source_size} bytes) vs {target_path} ({target_size} bytes)")
-        return True
+    if source_size == 0:
+        logging.debug(f"Source file has zero size: {source_path}")
+        return False  # Don't replace with empty source
     
-    return False
+    # Compare MD5 hashes instead of just size
+    try:
+        source_hash = compute_file_hash(source_path)
+        target_hash = compute_file_hash(target_path)
+        
+        if source_hash != target_hash:
+            logging.debug(f"Hash mismatch: {source_path} ({source_hash}) vs {target_path} ({target_hash})")
+            return True
+            
+        logging.debug(f"Files are identical by hash: {source_path} and {target_path}")
+        return False
+    except Exception as e:
+        logging.error(f"Failed to compute hashes for {source_path} vs {target_path}: {e}")
+        # Fallback to size comparison if hash fails
+        if source_size != target_size:
+            logging.debug(f"Size mismatch (hash failed): {source_path} ({source_size} bytes) vs {target_path} ({target_size} bytes)")
+            return True
+        return False
 
 def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool, log_file: str) -> None:
     """
@@ -80,7 +98,7 @@ def remove_if_identical(source_path: str, target_path: str, log_file: str) -> No
     """
     try:
         os.remove(source_path)
-        logging.info(f"Removed duplicate file: {source_path} (identical to {target_path})")
+        logging.debug(f"Removed duplicate file: {source_path} (identical to {target_path})")
     except Exception as e:
         logging.error(f"Failed to remove file {source_path}: {e}")
 
