@@ -142,6 +142,13 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         logging.debug("File exists and overwrite disabled, skipping move: %s", dest)
         return
 
+    try:
+        shutil.move(src, dest)
+        logging.debug("Moved file from %s to %s", src, dest)
+    except Exception as e:
+        logging.error("Failed to move file from %s to %s: %s", src, dest, e)
+        raise
+
 
 def ensure_directory(path: str) -> None:
     """
@@ -246,3 +253,42 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
             logging.error("Failed to hash %s: %s", path, e)
     logging.info("Built hash map with %d entries from %s", len(result), folder)
     return result
+
+
+def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
+    """
+    Creates a backup of the original CSV and saves the new data.
+
+    Args:
+        data: List of dictionaries representing CSV rows
+        path: Path to the CSV file
+    """
+    from datetime import datetime
+
+    logging.info("Saving CSV with backup: %s", path)
+
+    # Create backup with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{os.path.splitext(path)[0]}_{timestamp}.csv"
+
+    # Create backup
+    copy_file(path, backup_path)
+    logging.info("Created backup at: %s", backup_path)
+
+    # Ensure the directory exists
+    ensure_directory(os.path.dirname(path))
+
+    # Write the updated CSV
+    try:
+        # Get fieldnames from the first row
+        fieldnames = list(data[0].keys()) if data else []
+
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
+            writer.writeheader()
+            writer.writerows(data)
+
+        logging.info("Successfully saved %d records to %s", len(data), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise
