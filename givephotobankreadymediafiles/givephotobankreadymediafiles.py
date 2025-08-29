@@ -9,6 +9,7 @@ import logging
 
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
+from shared.config import get_config
 from givephotobankreadymediafileslib.constants import (
     DEFAULT_MEDIA_CSV_PATH, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_LOG_DIR
 )
@@ -49,6 +50,10 @@ def main():
     log_file = os.path.join(args.log_dir, "givephotobankreadymediafiles.log")
     setup_logging(debug=args.debug, log_file=log_file)
     
+    # Initialize global configuration early for all modules
+    config = get_config()
+    logging.info("Global configuration loaded")
+    
     # Log startup
     logging.info("Starting givephotobankreadymediafiles.py orchestrator")
     
@@ -76,7 +81,7 @@ def main():
     print(f"Found {len(unprocessed_records)} files to process")
     
     # Process files sequentially (default: max 1 file like PowerShell)
-    stats = process_unmatched_files(unprocessed_records, max_count=1)
+    stats = process_unmatched_files(unprocessed_records, config=config, max_count=1)
     
     # Summary
     total_attempted = stats['processed'] + stats['failed']

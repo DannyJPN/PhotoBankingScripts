@@ -1,570 +1,842 @@
 """
-Media viewer with metadata generation interface for photobank ready media files.
+Graphical media viewer with responsive layout for categorizing files.
 """
 
 import os
 import sys
 import logging
 import tkinter as tk
-from tkinter import ttk, messagebox, Text, Listbox, SINGLE
+from tkinter import ttk
+from tkinter import messagebox
 from PIL import Image, ImageTk
 import pygame
-from typing import Optional, Callable, List, Dict, Any
+from typing import Optional, Callable, List, Dict
 import threading
 import time
 
-from givephotobankreadymediafileslib.constants import (
-    IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, MAX_TITLE_LENGTH, 
-    MAX_DESCRIPTION_LENGTH, MAX_KEYWORDS_COUNT
-)
-from givephotobankreadymediafileslib.media_helper import is_video_file, is_image_file
-from shared.config import get_config
+from givephotobankreadymediafileslib.media_helper import is_video_file
 
 
-class MetadataViewer:
-    def __init__(self, root: tk.Tk, media_file_path: str):
+class MediaViewer:
+    def __init__(self, root: tk.Tk, target_folder: str, categories: Dict[str, List[str]] = None):
         self.root = root
-        self.root.title("Photobank Metadata Generator")
+        self.root.title("AI Media Metadata Generator")
         self.root.geometry("1400x900")
         self.root.minsize(1200, 800)
         
-        # Initialize configuration
-        self.config = get_config()
+        # Store categories
+        self.categories = categories or {}
         
-        # Initialize pygame for video playback (defer for performance)
-        self.pygame_initialized = False
+        # Initialize pygame for video playback
+        pygame.init()
+        pygame.mixer.init()
         
         # Current media info
-        self.media_file_path = media_file_path
+        self.current_file_path: Optional[str] = None
+        self.current_record: Optional[dict] = None
         self.current_image: Optional[ImageTk.PhotoImage] = None
         self.original_image_size: Optional[tuple] = None
         self.video_surface = None
         self.video_playing = False
         self.video_paused = False
+        self.completion_callback: Optional[Callable] = None
         
-        # AI model selection
-        self.available_ai_models = self.config.get_available_ai_models()
-        default_provider, default_model = self.config.get_default_ai_model()
-        self.selected_ai_model = f"{default_provider}/{default_model}"
-        
-        # Metadata fields
-        self.metadata = {
-            'title': '',
-            'description': '',
-            'keywords': [],
-            'categories': {},
-            'editorial': False
-        }
-        
-        # Available photobank categories (will be loaded from CSV)
-        self.photobank_categories = {
-            'Shutterstock': [],
-            'Adobe': [],
-            'Alamy': [],
-            'Dreamstime': []
-        }
+        # Configure styles for tags
+        self.setup_styles()
         
         self.setup_ui()
-        self.load_media_file(media_file_path)
         
         # Bind resize event for responsive image display
         self.root.bind('<Configure>', self.on_window_resize)
         
-        # Handle window close event
+        # Handle window close event (equivalent to Ctrl+C)
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
-
+    
+    def setup_styles(self):
+        """Setup custom styles for UI components."""
+        style = ttk.Style()
+        
+        # Configure tag frame style
+        style.configure('Tag.TFrame',
+                       background='lightblue',
+                       relief='raised',
+                       borderwidth=1)
+        
     def setup_ui(self):
-        """Setup the user interface with media viewer and metadata fields."""
-        # Main container with two panes
+        """Setup the main UI layout."""
+        # Create main paned window
         main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Left pane - Media viewer
-        left_frame = ttk.Frame(main_paned)
-        main_paned.add(left_frame, weight=2)
-        self.setup_media_viewer(left_frame)
+        # Left panel for media display
+        self.setup_media_panel(main_paned)
         
-        # Right pane - Metadata fields
-        right_frame = ttk.Frame(main_paned)
-        main_paned.add(right_frame, weight=1)
-        self.setup_metadata_panel(right_frame)
-
-    def setup_media_viewer(self, parent):
-        """Setup the media viewing area."""
-        # Media display frame
-        self.media_frame = ttk.Frame(parent)
-        self.media_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Right panel for metadata interface
+        self.setup_terminal_panel(main_paned)
         
-        # Canvas for image/video display
-        self.canvas = tk.Canvas(self.media_frame, bg='black')
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+    def setup_media_panel(self, parent):
+        """Setup the left panel for media display."""
+        media_frame = ttk.Frame(parent)
+        parent.add(media_frame, weight=2)
         
-        # Video control frame
-        self.video_controls = ttk.Frame(parent)
-        self.video_controls.pack(fill=tk.X, padx=5, pady=5)
+        # Media display area
+        self.media_label = ttk.Label(media_frame, text="No media loaded", 
+                                   anchor=tk.CENTER, background='black', foreground='white')
+        self.media_label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Video controls (initially hidden)
-        self.play_button = ttk.Button(self.video_controls, text="Play", command=self.toggle_video)
-        self.play_button.pack(side=tk.LEFT, padx=5)
+        # Video controls frame
+        controls_frame = ttk.Frame(media_frame)
+        controls_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        self.video_progress = ttk.Progressbar(self.video_controls, mode='determinate')
-        self.video_progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        self.play_button = ttk.Button(controls_frame, text="Play", command=self.toggle_video)
+        self.play_button.pack(side=tk.LEFT, padx=2)
         
-        # File info label
-        self.file_info_label = ttk.Label(parent, text="", background='lightgray')
-        self.file_info_label.pack(fill=tk.X, padx=5, pady=2)
-
-    def setup_metadata_panel(self, parent):
-        """Setup the metadata editing panel."""
-        # Create scrollable frame
-        canvas = tk.Canvas(parent)
-        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        self.stop_button = ttk.Button(controls_frame, text="Stop", command=self.stop_video)
+        self.stop_button.pack(side=tk.LEFT, padx=2)
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        # Video progress bar
+        self.video_progress = ttk.Scale(controls_frame, orient=tk.HORIZONTAL, 
+                                      from_=0, to=100, command=self.seek_video)
+        self.video_progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # Time labels
+        self.time_label = ttk.Label(controls_frame, text="00:00 / 00:00")
+        self.time_label.pack(side=tk.RIGHT, padx=2)
         
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        # Initially hide video controls
+        controls_frame.pack_forget()
+        self.controls_frame = controls_frame
         
-        # Metadata fields
-        self.setup_ai_model_section(scrollable_frame)
-        self.setup_title_section(scrollable_frame)
-        self.setup_description_section(scrollable_frame)
-        self.setup_keywords_section(scrollable_frame)
-        self.setup_categories_section(scrollable_frame)
-        self.setup_editorial_section(scrollable_frame)
-        self.setup_action_buttons(scrollable_frame)
-
-    def setup_ai_model_section(self, parent):
-        """Setup AI model selection section."""
-        ai_frame = ttk.LabelFrame(parent, text="AI Model Selection", padding=10)
-        ai_frame.pack(fill=tk.X, padx=5, pady=5)
+    def setup_terminal_panel(self, parent):
+        """Setup the right panel with metadata interface."""
+        control_frame = ttk.Frame(parent)
+        parent.add(control_frame, weight=1)
         
-        # Model selection
-        model_label = ttk.Label(ai_frame, text="AI Model:")
-        model_label.pack(anchor=tk.W)
+        # File path display
+        path_frame = ttk.LabelFrame(control_frame, text="Current File")
+        path_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        self.ai_model_var = tk.StringVar(value=self.selected_ai_model)
+        self.file_path_label = ttk.Label(path_frame, text="No file loaded", 
+                                       wraplength=300, justify=tk.LEFT)
+        self.file_path_label.pack(padx=10, pady=10, anchor=tk.W)
         
-        # Create list of display names for dropdown
-        model_options = []
-        self.model_mapping = {}
+        # AI Model Selection - at the top after Current File
+        self.setup_ai_model_panel(control_frame)
         
-        for model_info in self.available_ai_models:
-            display_name = model_info["display_name"]
-            model_key = model_info["key"]
-            model_options.append(display_name)
-            self.model_mapping[display_name] = model_key
-        
-        if not model_options:
-            model_options = ["No AI models available (check API keys)"]
-            self.model_mapping[model_options[0]] = ""
-        
-        self.ai_model_combo = ttk.Combobox(
-            ai_frame, 
-            textvariable=self.ai_model_var, 
-            values=model_options,
-            state="readonly",
-            width=50
-        )
-        self.ai_model_combo.pack(fill=tk.X, pady=(0, 5))
-        
-        # Set current selection
-        if self.selected_ai_model in self.model_mapping.values():
-            for display_name, key in self.model_mapping.items():
-                if key == self.selected_ai_model:
-                    self.ai_model_var.set(display_name)
-                    break
-        
-        # Bind selection change
-        self.ai_model_combo.bind('<<ComboboxSelected>>', self.on_ai_model_changed)
-        
-        # Model info display
-        self.model_info_label = ttk.Label(ai_frame, text="", foreground="gray")
-        self.model_info_label.pack(anchor=tk.W)
-        
-        # Update model info
-        self.update_model_info()
-
-    def setup_title_section(self, parent):
-        """Setup title input section."""
-        title_frame = ttk.LabelFrame(parent, text="Název", padding=10)
+        # Title input with generate button
+        title_frame = ttk.LabelFrame(control_frame, text="Title")
         title_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        self.title_var = tk.StringVar()
-        self.title_entry = ttk.Entry(title_frame, textvariable=self.title_var)
-        self.title_entry.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(title_frame, text="Enter title:").pack(anchor=tk.W, padx=10, pady=(10, 5))
         
-        # Character counter
-        self.title_counter = ttk.Label(title_frame, text=f"0/{MAX_TITLE_LENGTH}")
-        self.title_counter.pack(anchor=tk.E)
+        # Title entry and button frame
+        title_input_frame = ttk.Frame(title_frame)
+        title_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        self.title_var.trace('w', self.update_title_counter)
+        # Title with character limit (shortest limit across photobanks is ~100 chars)
+        self.title_entry = ttk.Entry(title_input_frame, width=60)
+        self.title_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.title_entry.bind('<KeyRelease>', self.on_title_change)
         
-        # Generate button
-        ttk.Button(title_frame, text="Generovat název", 
-                  command=self.generate_title).pack(fill=tk.X, pady=(5, 0))
-
-    def setup_description_section(self, parent):
-        """Setup description input section."""
-        desc_frame = ttk.LabelFrame(parent, text="Popis", padding=10)
+        # Title character counter
+        self.title_char_label = ttk.Label(title_input_frame, text="0/100")
+        self.title_char_label.pack(side=tk.RIGHT, padx=(5, 5))
+        self.title_entry.bind('<Return>', self.handle_title_input)
+        
+        self.title_generate_button = ttk.Button(title_input_frame, text="Generate", 
+                                               command=self.generate_title)
+        self.title_generate_button.pack(side=tk.RIGHT)
+        
+        # Description input with generate button
+        desc_frame = ttk.LabelFrame(control_frame, text="Description")
         desc_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        self.description_text = Text(desc_frame, height=4, wrap=tk.WORD)
-        self.description_text.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(desc_frame, text="Enter description:").pack(anchor=tk.W, padx=10, pady=(10, 5))
         
-        # Character counter
-        self.desc_counter = ttk.Label(desc_frame, text=f"0/{MAX_DESCRIPTION_LENGTH}")
-        self.desc_counter.pack(anchor=tk.E)
+        # Description input and button frame
+        desc_input_frame = ttk.Frame(desc_frame)
+        desc_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        self.description_text.bind('<KeyRelease>', self.update_description_counter)
+        # Description with character limit (shortest limit ~200 chars)
+        self.desc_text = tk.Text(desc_input_frame, height=2, wrap=tk.WORD, font=('Arial', 9), width=50)
+        self.desc_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        self.desc_text.bind('<KeyRelease>', self.on_description_change)
         
-        # Generate button
-        ttk.Button(desc_frame, text="Generovat popis", 
-                  command=self.generate_description).pack(fill=tk.X, pady=(5, 0))
-
-    def setup_keywords_section(self, parent):
-        """Setup keywords input section."""
-        keywords_frame = ttk.LabelFrame(parent, text="Klíčová slova", padding=10)
+        # Description controls frame
+        desc_controls_frame = ttk.Frame(desc_input_frame)
+        desc_controls_frame.pack(side=tk.RIGHT, anchor=tk.N)
+        
+        # Description character counter
+        self.desc_char_label = ttk.Label(desc_controls_frame, text="0/200")
+        self.desc_char_label.pack(pady=(0, 2))
+        
+        self.desc_generate_button = ttk.Button(desc_controls_frame, text="Generate", 
+                                              command=self.generate_description)
+        self.desc_generate_button.pack()
+        
+        # Keywords input with generate button
+        keywords_frame = ttk.LabelFrame(control_frame, text="Keywords")
         keywords_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Keywords listbox with scrollbar
-        keywords_list_frame = ttk.Frame(keywords_frame)
-        keywords_list_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(keywords_frame, text="Enter keywords:").pack(anchor=tk.W, padx=10, pady=(10, 5))
         
-        self.keywords_listbox = Listbox(keywords_list_frame, height=6, selectmode=SINGLE)
-        keywords_scrollbar = ttk.Scrollbar(keywords_list_frame, orient="vertical", 
-                                         command=self.keywords_listbox.yview)
-        self.keywords_listbox.configure(yscrollcommand=keywords_scrollbar.set)
+        # Keywords as tags with drag & drop
+        keywords_input_frame = ttk.Frame(keywords_frame)
+        keywords_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        self.keywords_listbox.pack(side="left", fill="both", expand=True)
-        keywords_scrollbar.pack(side="right", fill="y")
+        # Keywords tags container with scrolling
+        keywords_container = ttk.Frame(keywords_input_frame)
+        keywords_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        # Keyword input and buttons
-        keyword_input_frame = ttk.Frame(keywords_frame)
-        keyword_input_frame.pack(fill=tk.X, pady=(0, 5))
+        # Entry for adding keywords
+        self.keyword_entry = ttk.Entry(keywords_container)
+        self.keyword_entry.pack(fill=tk.X, pady=(0, 5))
+        self.keyword_entry.bind('<KeyPress>', self.validate_keyword_input)
+        self.keyword_entry.bind('<KeyRelease>', self.on_keyword_entry_change)
+        self.keyword_entry.bind('<Return>', self.process_keyword_entry)
         
-        self.keyword_var = tk.StringVar()
-        self.keyword_entry = ttk.Entry(keyword_input_frame, textvariable=self.keyword_var)
-        self.keyword_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        # Scrollable tags area
+        self.tags_canvas = tk.Canvas(keywords_container, height=60, bg='white', highlightthickness=1)
+        tags_scrollbar = ttk.Scrollbar(keywords_container, orient=tk.HORIZONTAL, command=self.tags_canvas.xview)
+        self.tags_frame = ttk.Frame(self.tags_canvas)
         
-        ttk.Button(keyword_input_frame, text="Přidat", 
-                  command=self.add_keyword).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(keyword_input_frame, text="Odstranit", 
-                  command=self.remove_keyword).pack(side=tk.LEFT)
+        self.tags_canvas.configure(xscrollcommand=tags_scrollbar.set)
+        self.tags_canvas.create_window((0, 0), window=self.tags_frame, anchor="nw")
         
-        # Keyword counter
-        self.keywords_counter = ttk.Label(keywords_frame, text=f"0/{MAX_KEYWORDS_COUNT}")
-        self.keywords_counter.pack(anchor=tk.E)
+        self.tags_canvas.pack(fill=tk.BOTH, expand=True)
+        tags_scrollbar.pack(fill=tk.X)
         
-        # Generate button
-        ttk.Button(keywords_frame, text="Generovat klíčová slova", 
-                  command=self.generate_keywords).pack(fill=tk.X, pady=(5, 0))
+        # Bind canvas resizing
+        self.tags_frame.bind('<Configure>', self.on_tags_frame_configure)
         
-        # Bind Enter key to add keyword
-        self.keyword_entry.bind('<Return>', lambda e: self.add_keyword())
-
-    def setup_categories_section(self, parent):
-        """Setup photobank categories section."""
-        categories_frame = ttk.LabelFrame(parent, text="Kategorie pro fotobanky", padding=10)
-        categories_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Keywords controls frame
+        keywords_controls_frame = ttk.Frame(keywords_input_frame)
+        keywords_controls_frame.pack(side=tk.RIGHT, anchor=tk.N)
         
-        self.category_vars = {}
-        self.category_combos = {}
+        # Keywords counter
+        self.keywords_count_label = ttk.Label(keywords_controls_frame, text="0/50")
+        self.keywords_count_label.pack(pady=(0, 5))
         
-        for photobank in self.photobank_categories.keys():
-            bank_frame = ttk.Frame(categories_frame)
-            bank_frame.pack(fill=tk.X, pady=2)
-            
-            ttk.Label(bank_frame, text=f"{photobank}:", width=12).pack(side=tk.LEFT)
-            
-            self.category_vars[photobank] = tk.StringVar()
-            combo = ttk.Combobox(bank_frame, textvariable=self.category_vars[photobank], 
-                                values=self.photobank_categories[photobank], state="readonly")
-            combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            self.category_combos[photobank] = combo
+        self.keywords_generate_button = ttk.Button(keywords_controls_frame, text="Generate", width=8,
+                                                  command=self.generate_keywords)
+        self.keywords_generate_button.pack()
         
-        # Generate button
-        ttk.Button(categories_frame, text="Generovat kategorie", 
-                  command=self.generate_categories).pack(fill=tk.X, pady=(10, 0))
-
-    def setup_editorial_section(self, parent):
-        """Setup editorial checkbox section."""
-        editorial_frame = ttk.LabelFrame(parent, text="Speciální označení", padding=10)
+        # Initialize keywords storage
+        self.keywords_list = []
+        self.tag_widgets = []
+        
+        # Editorial checkbox
+        editorial_frame = ttk.LabelFrame(control_frame, text="Editorial Mode")
         editorial_frame.pack(fill=tk.X, padx=5, pady=5)
         
         self.editorial_var = tk.BooleanVar()
-        ttk.Checkbutton(editorial_frame, text="Editorial", 
-                       variable=self.editorial_var).pack(anchor=tk.W)
-
-    def setup_action_buttons(self, parent):
-        """Setup save/cancel buttons."""
-        buttons_frame = ttk.Frame(parent)
-        buttons_frame.pack(fill=tk.X, padx=5, pady=20)
+        self.editorial_checkbox = ttk.Checkbutton(editorial_frame, text="Enable editorial mode (news, documentary, etc.)",
+                                                 variable=self.editorial_var)
+        self.editorial_checkbox.pack(anchor=tk.W, padx=10, pady=10)
         
-        ttk.Button(buttons_frame, text="Uložit metadata", 
-                  command=self.save_metadata).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(buttons_frame, text="Zrušit", 
-                  command=self.cancel).pack(side=tk.LEFT)
-
-    def load_media_file(self, file_path: str):
-        """Load and display media file."""
-        if not os.path.exists(file_path):
-            logging.error(f"File not found: {file_path}")
-            return
+        # Categories selection
+        self.setup_categories_panel(control_frame)
         
-        self.media_file_path = file_path
-        file_name = os.path.basename(file_path)
-        file_size = os.path.getsize(file_path)
+        # Action buttons
+        action_frame = ttk.Frame(control_frame)
+        action_frame.pack(fill=tk.X, padx=5, pady=10)
         
-        # Update file info
-        self.file_info_label.config(text=f"{file_name} ({file_size:,} bytes)")
+        self.generate_all_button = ttk.Button(action_frame, text="Generate All", 
+                                            command=self.generate_all_metadata)
+        self.generate_all_button.pack(side=tk.LEFT, padx=2)
         
-        if is_image_file(file_path):
+        self.save_button = ttk.Button(action_frame, text="Save & Continue", 
+                                    command=self.save_metadata)
+        self.save_button.pack(side=tk.LEFT, padx=2)
+        
+    def setup_ai_model_panel(self, parent):
+        """Setup AI model selection panel - simple dropdown only."""
+        model_frame = ttk.LabelFrame(parent, text="AI Model Selection")
+        model_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Model selection dropdown - compact layout
+        selection_frame = ttk.Frame(model_frame)
+        selection_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        ttk.Label(selection_frame, text="Model:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.model_combo = ttk.Combobox(selection_frame, state="readonly", width=30)
+        self.model_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Load AI models after GUI is ready
+        self.root.after(500, self.load_ai_models)
+            
+    def setup_categories_panel(self, parent):
+        """Setup categories selection panel with all photobanks."""
+        categories_frame = ttk.LabelFrame(parent, text="Categories")
+        categories_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Categories selection with generate button
+        categories_input_frame = ttk.Frame(categories_frame)
+        categories_input_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
+        
+        ttk.Label(categories_input_frame, text="Select categories:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.categories_generate_button = ttk.Button(categories_input_frame, text="Generate", 
+                                                    command=self.generate_categories)
+        self.categories_generate_button.pack(side=tk.RIGHT)
+        
+        # Direct frame for categories (no scrolling needed)
+        self.categories_container = ttk.Frame(categories_frame)
+        self.categories_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        # Populate categories from passed data
+        self.populate_categories_ui()
+            
+    def load_media(self, file_path: str, record: dict, completion_callback: Optional[Callable] = None):
+        """Load and display media file with metadata interface."""
+        self.current_file_path = file_path
+        self.current_record = record
+        self.completion_callback = completion_callback
+        
+        # Clear previous media
+        self.clear_media()
+        
+        # Update file path display
+        self.file_path_label.configure(text=file_path)
+        
+        # Load existing metadata from record if available
+        title = record.get('Název', '')
+        self.title_entry.delete(0, tk.END)
+        self.title_entry.insert(0, title)
+        self.on_title_change()  # Update character counter
+        
+        description = record.get('Popis', '')
+        self.desc_text.delete('1.0', tk.END)
+        self.desc_text.insert('1.0', description)
+        self.on_description_change()  # Update character counter
+        
+        # Load keywords into tags
+        keywords = record.get('Klíčová slova', '')
+        self.keywords_list.clear()
+        if keywords:
+            for keyword in keywords.split(','):
+                keyword = keyword.strip()
+                if keyword:
+                    self.keywords_list.append(keyword)
+        self.refresh_tags()
+        
+        # Load media file
+        if is_video_file(file_path):
+            self.load_video(file_path)
+        else:
             self.load_image(file_path)
-            self.video_controls.pack_forget()
-        elif is_video_file(file_path):
-            self.initialize_pygame_if_needed()  # Only init when actually needed
-            self.load_video_preview(file_path)
-            self.video_controls.pack(fill=tk.X, padx=5, pady=5)
-        else:
-            logging.warning(f"Unsupported file type: {file_path}")
-
-    def load_image(self, image_path: str):
-        """Load and display image."""
+            
+        # Focus on first control
+        self.title_entry.focus()
+        
+    def load_image(self, file_path: str):
+        """Load and display an image file with responsive sizing."""
         try:
-            image = Image.open(image_path)
+            # Hide video controls
+            self.controls_frame.pack_forget()
+            
+            # Load original image
+            image = Image.open(file_path)
             self.original_image_size = image.size
-            self.resize_and_display_image(image)
+            
+            # Resize for current display area
+            self.resize_image()
+            
         except Exception as e:
-            logging.error(f"Error loading image {image_path}: {e}")
-            messagebox.showerror("Error", f"Cannot load image: {e}")
-
-    def load_video_preview(self, video_path: str):
-        """Load video and show first frame."""
-        # For now, just show a placeholder for video
-        self.canvas.delete("all")
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        
-        if canvas_width > 1 and canvas_height > 1:
-            self.canvas.create_text(canvas_width//2, canvas_height//2, 
-                                  text=f"VIDEO\n{os.path.basename(video_path)}", 
-                                  fill="white", font=("Arial", 16))
-
-    def resize_and_display_image(self, image: Image.Image):
-        """Resize and display image to fit canvas."""
-        if not self.original_image_size:
+            logging.error(f"Error loading image: {e}")
+            self.media_label.configure(image="", text=f"Error loading image:\n{str(e)}")
+            
+    def resize_image(self):
+        """Resize current image to fit display area responsively."""
+        if not self.current_file_path or not self.original_image_size:
             return
-        
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-        
-        if canvas_width <= 1 or canvas_height <= 1:
-            # Canvas not ready yet
-            self.root.after(100, lambda: self.resize_and_display_image(image))
-            return
-        
-        # Calculate aspect ratio preserving resize
-        img_width, img_height = self.original_image_size
-        aspect_ratio = img_width / img_height
-        
-        # Calculate new size
-        if canvas_width / canvas_height > aspect_ratio:
-            # Canvas is wider than image aspect ratio
-            new_height = canvas_height
-            new_width = int(new_height * aspect_ratio)
-        else:
-            # Canvas is taller than image aspect ratio
-            new_width = canvas_width
-            new_height = int(new_width / aspect_ratio)
-        
-        # Resize image
-        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        self.current_image = ImageTk.PhotoImage(resized_image)
-        
-        # Clear and display
-        self.canvas.delete("all")
-        x = (canvas_width - new_width) // 2
-        y = (canvas_height - new_height) // 2
-        self.canvas.create_image(x, y, anchor=tk.NW, image=self.current_image)
-
+            
+        try:
+            # Get current display area size
+            self.media_label.update_idletasks()
+            display_width = max(self.media_label.winfo_width() - 20, 300)
+            display_height = max(self.media_label.winfo_height() - 20, 200)
+            
+            # Load image again
+            image = Image.open(self.current_file_path)
+            
+            # Calculate scaling to fit area while maintaining aspect ratio
+            # Never scale above 100% of original size
+            scale_x = min(display_width / image.width, 1.0)
+            scale_y = min(display_height / image.height, 1.0) 
+            scale = min(scale_x, scale_y)
+            
+            new_width = int(image.width * scale)
+            new_height = int(image.height * scale)
+            
+            # Resize image
+            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Convert to PhotoImage
+            self.current_image = ImageTk.PhotoImage(image)
+            
+            # Display image
+            self.media_label.configure(image=self.current_image, text="")
+            
+        except Exception as e:
+            logging.error(f"Error resizing image: {e}")
+            
     def on_window_resize(self, event):
-        """Handle window resize to update image display."""
-        if (hasattr(self, 'original_image_size') and self.original_image_size and 
-            is_image_file(self.media_file_path)):
-            # Reload image with new size after a short delay
-            self.root.after(100, lambda: self.load_image(self.media_file_path))
-
-    def update_title_counter(self, *args):
-        """Update title character counter."""
-        current_length = len(self.title_var.get())
-        self.title_counter.config(text=f"{current_length}/{MAX_TITLE_LENGTH}")
+        """Handle window resize events."""
+        # Only resize image if it's the main window being resized
+        if event.widget == self.root and self.current_file_path and not is_video_file(self.current_file_path):
+            # Delay resize to avoid too many calls
+            self.root.after(100, self.resize_image)
+            
+    def load_video(self, file_path: str):
+        """Load and prepare video for playback."""
+        try:
+            # Show video controls
+            self.controls_frame.pack(fill=tk.X, padx=5, pady=5)
+            
+            # For now, show video info and thumbnail
+            self.media_label.configure(image="", text=f"Video file:\n{os.path.basename(file_path)}\n\nUse controls below to play")
+            
+            
+        except Exception as e:
+            logging.error(f"Error loading video: {e}")
+            self.media_label.configure(image="", text=f"Error loading video:\n{str(e)}")
+            
+    def clear_media(self):
+        """Clear current media display."""
+        self.current_image = None
+        self.media_label.configure(image="", text="No media loaded")
+        self.stop_video()
         
-        if current_length > MAX_TITLE_LENGTH:
-            self.title_counter.config(foreground="red")
+    def toggle_video(self):
+        """Toggle video play/pause."""
+        if self.video_playing:
+            self.pause_video()
         else:
-            self.title_counter.config(foreground="black")
-
-    def update_description_counter(self, event=None):
-        """Update description character counter."""
-        current_text = self.description_text.get("1.0", tk.END).strip()
-        current_length = len(current_text)
-        self.desc_counter.config(text=f"{current_length}/{MAX_DESCRIPTION_LENGTH}")
+            self.play_video()
+            
+    def play_video(self):
+        """Start video playback."""
+        if self.current_file_path and is_video_file(self.current_file_path):
+            self.video_playing = True
+            self.video_paused = False
+            self.play_button.configure(text="Pause")
+            
+    def pause_video(self):
+        """Pause video playback."""
+        self.video_playing = False
+        self.video_paused = True
+        self.play_button.configure(text="Play")
         
-        if current_length > MAX_DESCRIPTION_LENGTH:
-            self.desc_counter.config(foreground="red")
-        else:
-            self.desc_counter.config(foreground="black")
-
-    def add_keyword(self):
-        """Add keyword to the list."""
-        keyword = self.keyword_var.get().strip()
-        if not keyword:
-            return
+    def stop_video(self):
+        """Stop video playback."""
+        self.video_playing = False
+        self.video_paused = False
+        self.play_button.configure(text="Play")
+        self.video_progress.set(0)
         
-        if keyword not in self.metadata['keywords']:
-            if len(self.metadata['keywords']) >= MAX_KEYWORDS_COUNT:
-                messagebox.showwarning("Warning", f"Maximum {MAX_KEYWORDS_COUNT} keywords allowed")
+    def seek_video(self, value):
+        """Seek to position in video."""
+        if self.current_file_path and is_video_file(self.current_file_path):
+            logging.info(f"Seeking to {float(value):.1f}%")
+        
+    def load_ai_models(self):
+        """Load available AI models from configuration - lazy loading."""
+        try:
+            # Load config only when needed
+            from shared.config import get_config
+            config = get_config()
+            
+            available_models = config.get_available_ai_models()
+            
+            if not available_models:
+                logging.warning("No AI models available - check API keys in environment or config")
+                self.model_combo.configure(values=["No models available"])
+                self.model_combo.set("No models available")
                 return
             
-            self.metadata['keywords'].append(keyword)
-            self.keywords_listbox.insert(tk.END, keyword)
-            self.update_keywords_counter()
-        
-        self.keyword_var.set("")
-
-    def remove_keyword(self):
-        """Remove selected keyword."""
-        selection = self.keywords_listbox.curselection()
-        if selection:
-            index = selection[0]
-            keyword = self.keywords_listbox.get(index)
-            self.keywords_listbox.delete(index)
-            self.metadata['keywords'].remove(keyword)
-            self.update_keywords_counter()
-
-    def update_keywords_counter(self):
-        """Update keywords counter."""
-        current_count = len(self.metadata['keywords'])
-        self.keywords_counter.config(text=f"{current_count}/{MAX_KEYWORDS_COUNT}")
-
-    def toggle_video(self):
-        """Toggle video playback (placeholder)."""
-        self.initialize_pygame_if_needed()  # Only init when needed
-        if self.video_playing:
-            self.play_button.config(text="Play")
-            self.video_playing = False
-        else:
-            self.play_button.config(text="Pause")
-            self.video_playing = True
-
-    def on_ai_model_changed(self, event=None):
-        """Handle AI model selection change."""
-        display_name = self.ai_model_var.get()
-        if display_name in self.model_mapping:
-            self.selected_ai_model = self.model_mapping[display_name]
-            logging.info(f"AI model changed to: {self.selected_ai_model}")
-            self.update_model_info()
+            # Populate combo box
+            model_names = [model["display_name"] for model in available_models]
+            self.model_combo.configure(values=model_names)
+            
+            # Set default model
+            default_provider, default_model = config.get_default_ai_model()
+            default_key = f"{default_provider}/{default_model}"
+            
+            for i, model in enumerate(available_models):
+                if model["key"] == default_key:
+                    self.model_combo.current(i)
+                    break
+            else:
+                # Default not found, select first
+                if available_models:
+                    self.model_combo.current(0)
+            
+            # Bind selection change
+            self.model_combo.bind('<<ComboboxSelected>>', self.on_model_selected)
+            
+            # Load initial model details
+            self.on_model_selected()
+            
+        except Exception as e:
+            logging.error(f"Error loading AI models: {e}")
+            self.model_combo.configure(values=["Error loading models"])
+            self.model_combo.set("Error loading models")
     
-    def update_model_info(self):
-        """Update model information display."""
-        if not self.selected_ai_model or "/" not in self.selected_ai_model:
-            self.model_info_label.config(text="No model selected")
+    def on_model_selected(self, event=None):
+        """Handle model selection change."""
+        selection = self.model_combo.get()
+        logging.info(f"AI model selected: {selection}")
+        # Model details can be displayed here if needed
+    
+    def populate_categories_ui(self):
+        """Populate categories UI with dropdown lists for each photobank based on their actual needs."""
+        self.category_combos = {}
+        
+        if not self.categories:
+            ttk.Label(self.categories_container, 
+                     text="No categories available").pack(pady=10)
             return
         
-        provider, model = self.selected_ai_model.split("/", 1)
-        model_config = self.config.get_ai_model_config(provider, model)
+        # Define number of categories per photobank based on verified 2025 research
+        categories_count = {
+            'shutterstock': 2,  # Up to 2 categories (verified from Shutterstock docs)
+            'adobestock': 1,    # 1 category (Adobe Sensei suggests one category)  
+            'dreamstime': 3,    # Up to 3 categories (verified from Dreamstime blog)
+            'alamy': 2,         # Primary + optional Secondary category (verified from Alamy help)
+            # All other photobanks have NO categories
+            'depositphotos': 0,
+            'bigstockphoto': 0,
+            '123rf': 0,
+            'canstockphoto': 0,
+            'pond5': 0,
+            'gettyimages': 0
+        }
         
-        if model_config:
-            info_text = f"Max tokens: {model_config['max_tokens']}, "
-            info_text += f"Images: {'Yes' if model_config['supports_images'] else 'No'}, "
-            info_text += f"Cost: ${model_config['cost_per_1k_tokens']:.4f}/1K tokens"
-            if model_config.get('notes'):
-                info_text += f" ({model_config['notes']})"
-            self.model_info_label.config(text=info_text)
-        else:
-            self.model_info_label.config(text="Model configuration not available")
-    
-    def get_current_ai_config(self):
-        """Get current AI model configuration."""
-        if not self.selected_ai_model or "/" not in self.selected_ai_model:
-            return None
+        # Create UI for each photobank's categories in compact horizontal layout
+        photobanks_with_categories = [(photobank, categories) for photobank, categories in self.categories.items() 
+                                    if categories_count.get(photobank.lower().replace(' ', '').replace('_', ''), 0) > 0]
         
-        provider, model = self.selected_ai_model.split("/", 1)
-        return self.config.get_ai_model_config(provider, model)
-    
-    def initialize_pygame_if_needed(self):
-        """Initialize pygame only when needed for better performance."""
-        if not self.pygame_initialized:
-            pygame.init()
-            pygame.mixer.init()
-            self.pygame_initialized = True
+        if not photobanks_with_categories:
+            ttk.Label(self.categories_container, text="No categories available").pack(pady=10)
+            return
+        
+        # Horizontal layout: all photobanks in one row
+        row_frame = ttk.Frame(self.categories_container)
+        row_frame.pack(fill=tk.X, pady=5)
+        
+        for i, (photobank, categories) in enumerate(photobanks_with_categories):
+            photobank_key = photobank.lower().replace(' ', '').replace('_', '')
+            max_categories = categories_count.get(photobank_key, 0)
+            
+            # Create compact frame for this photobank
+            bank_frame = ttk.Frame(row_frame)
+            bank_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=3)
+            
+            # Photobank label
+            bank_label = ttk.Label(bank_frame, text=photobank)
+            bank_label.pack(anchor=tk.W)
+            
+            # Create dropdowns for this photobank
+            self.category_combos[photobank] = []
+            for j in range(max_categories):
+                combo = ttk.Combobox(bank_frame, values=[''] + categories, 
+                                   state="readonly", width=12)
+                combo.pack(fill=tk.X, pady=1)
+                combo.set('')  # Default to empty
+                
+                self.category_combos[photobank].append(combo)
 
-    # Placeholder methods for AI generation (to be implemented)
+    
+    def on_title_change(self, event=None):
+        """Update title character counter."""
+        current_length = len(self.title_entry.get())
+        self.title_char_label.configure(text=f"{current_length}/100")
+        if current_length > 100:
+            self.title_char_label.configure(foreground='red')
+        else:
+            self.title_char_label.configure(foreground='black')
+    
+    def on_description_change(self, event=None):
+        """Update description character counter."""
+        current_text = self.desc_text.get('1.0', tk.END)
+        current_length = len(current_text.strip())
+        self.desc_char_label.configure(text=f"{current_length}/200")
+        if current_length > 200:
+            self.desc_char_label.configure(foreground='red')
+        else:
+            self.desc_char_label.configure(foreground='black')
+    
+    def on_tags_frame_configure(self, event):
+        """Update canvas scroll region when tags frame size changes."""
+        self.tags_canvas.configure(scrollregion=self.tags_canvas.bbox("all"))
+    
+    def validate_keyword_input(self, event):
+        """Validate input to only allow alfanumeric, dash, space, comma, semicolon."""
+        # Allow these keys: alphanumeric, dash, space, comma, semicolon, backspace, delete, arrows
+        allowed_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-,; ')
+        
+        # Allow control keys
+        control_keys = {'BackSpace', 'Delete', 'Left', 'Right', 'Home', 'End', 'Return', 'Tab'}
+        
+        if event.keysym in control_keys:
+            return  # Allow control keys
+        
+        if event.char and event.char not in allowed_chars:
+            return 'break'  # Block the character
+    
+    def on_keyword_entry_change(self, event):
+        """Handle real-time processing of keyword entry."""
+        text = self.keyword_entry.get()
+        # Check for separators: comma, semicolon
+        separators = [',', ';']
+        for sep in separators:
+            if sep in text:
+                self.process_keyword_entry()
+                break
+    
+    def process_keyword_entry(self, event=None):
+        """Process keywords from entry field and create tags."""
+        text = self.keyword_entry.get().strip()
+        if not text:
+            return
+            
+        # Split by various separators
+        keywords = []
+        for sep in [',', ';']:
+            if sep in text:
+                keywords = [kw.strip() for kw in text.split(sep) if kw.strip()]
+                break
+        
+        if not keywords:
+            keywords = [text]
+        
+        # Add valid keywords
+        for keyword in keywords:
+            if len(keyword) > 2 and keyword not in self.keywords_list and len(self.keywords_list) < 50:
+                self.keywords_list.append(keyword)
+        
+        # Clear entry
+        self.keyword_entry.delete(0, tk.END)
+        
+        # Refresh tags display
+        self.refresh_tags()
+    
+    def create_tag_widget(self, parent, keyword, index):
+        """Create a draggable tag widget for a keyword."""
+        tag_frame = ttk.Frame(parent, style='Tag.TFrame')
+        
+        # Configure tag style
+        tag_frame.configure(relief='raised', borderwidth=1)
+        
+        # Keyword label
+        keyword_label = ttk.Label(tag_frame, text=keyword)
+        keyword_label.pack(side=tk.LEFT, padx=(3, 1), pady=2)
+        
+        # Remove button (X)
+        remove_btn = ttk.Button(tag_frame, text="×", width=2, 
+                               command=lambda: self.remove_tag(index))
+        remove_btn.pack(side=tk.RIGHT, padx=(1, 3), pady=2)
+        
+        # Bind drag events to both frame and label
+        for widget in [tag_frame, keyword_label]:
+            widget.bind('<Button-1>', lambda e, idx=index: self.start_tag_drag(e, idx))
+            widget.bind('<B1-Motion>', self.drag_tag)
+            widget.bind('<ButtonRelease-1>', self.drop_tag)
+        
+        return tag_frame
+    
+    def refresh_tags(self):
+        """Refresh the display of keyword tags."""
+        # Clear existing widgets
+        for widget in self.tag_widgets:
+            widget.destroy()
+        self.tag_widgets.clear()
+        
+        # Create new tag widgets
+        row, col = 0, 0
+        max_cols = 4  # Tags per row
+        
+        for i, keyword in enumerate(self.keywords_list):
+            tag_widget = self.create_tag_widget(self.tags_frame, keyword, i)
+            tag_widget.grid(row=row, column=col, padx=2, pady=2, sticky='w')
+            self.tag_widgets.append(tag_widget)
+            
+            col += 1
+            if col >= max_cols:
+                col = 0
+                row += 1
+        
+        # Update counter
+        self.update_keywords_counter()
+        
+        # Update canvas scroll region
+        self.tags_frame.update_idletasks()
+        self.tags_canvas.configure(scrollregion=self.tags_canvas.bbox("all"))
+    
+    def start_tag_drag(self, event, index):
+        """Start dragging a tag."""
+        self.drag_data = {'index': index, 'item': self.keywords_list[index]}
+    
+    def drag_tag(self, event):
+        """Handle tag dragging (visual feedback could be added)."""
+        pass
+    
+    def drop_tag(self, event):
+        """Handle tag drop for reordering."""
+        if self.drag_data.get('index') is not None:
+            # Find drop target by checking widget positions
+            source_index = self.drag_data['index']
+            
+            # Get mouse position relative to tags frame
+            x = self.tags_canvas.canvasx(event.x)
+            y = self.tags_canvas.canvasy(event.y)
+            
+            # Find closest tag position
+            target_index = self.find_drop_target(x, y)
+            
+            if target_index is not None and target_index != source_index:
+                # Move keyword in list
+                keyword = self.keywords_list.pop(source_index)
+                self.keywords_list.insert(target_index, keyword)
+                
+                # Refresh display
+                self.refresh_tags()
+        
+        # Clear drag data
+        self.drag_data = {}
+    
+    def find_drop_target(self, x, y):
+        """Find the target index for dropping based on mouse position."""
+        max_cols = 4
+        tag_width = 80  # Approximate tag width
+        tag_height = 25  # Approximate tag height
+        
+        col = max(0, int(x // tag_width))
+        row = max(0, int(y // tag_height))
+        
+        target_index = row * max_cols + col
+        return min(target_index, len(self.keywords_list) - 1) if self.keywords_list else 0
+    
+    def remove_tag(self, index):
+        """Remove a keyword tag."""
+        if 0 <= index < len(self.keywords_list):
+            self.keywords_list.pop(index)
+            self.refresh_tags()
+    
+    def update_keywords_counter(self):
+        """Update keywords counter."""
+        current_count = len(self.keywords_list)
+        self.keywords_count_label.configure(text=f"{current_count}/50")
+        if current_count >= 50:
+            self.keywords_count_label.configure(foreground='red')
+        else:
+            self.keywords_count_label.configure(foreground='black')
+
+    def handle_title_input(self, event):
+        """Handle title input Enter key."""
+        # Move focus to description
+        self.desc_text.focus()
+    
     def generate_title(self):
-        """Generate title using AI (placeholder)."""
-        ai_config = self.get_current_ai_config()
-        if ai_config:
-            model_name = ai_config['model_name']
-            messagebox.showinfo("Info", f"AI generování titulku pomocí {model_name} bude implementováno později")
-        else:
-            messagebox.showwarning("Warning", "Není vybrán žádný AI model nebo chybí API klíč")
-
+        """Generate title using AI."""
+        selected_model = self.model_combo.get()
+        messagebox.showinfo("Info", f"Title generation with {selected_model} will be implemented later")
+    
     def generate_description(self):
-        """Generate description using AI (placeholder)."""
-        ai_config = self.get_current_ai_config()
-        if ai_config:
-            model_name = ai_config['model_name']
-            messagebox.showinfo("Info", f"AI generování popisu pomocí {model_name} bude implementováno později")
-        else:
-            messagebox.showwarning("Warning", "Není vybrán žádný AI model nebo chybí API klíč")
-
+        """Generate description using AI."""
+        selected_model = self.model_combo.get()
+        messagebox.showinfo("Info", f"Description generation with {selected_model} will be implemented later")
+    
     def generate_keywords(self):
-        """Generate keywords using AI (placeholder)."""
-        ai_config = self.get_current_ai_config()
-        if ai_config:
-            model_name = ai_config['model_name']
-            messagebox.showinfo("Info", f"AI generování klíčových slov pomocí {model_name} bude implementováno později")
-        else:
-            messagebox.showwarning("Warning", "Není vybrán žádný AI model nebo chybí API klíč")
-
+        """Generate keywords using AI."""
+        selected_model = self.model_combo.get()
+        messagebox.showinfo("Info", f"Keywords generation with {selected_model} will be implemented later")
+    
     def generate_categories(self):
-        """Generate categories using AI (placeholder)."""
-        ai_config = self.get_current_ai_config()
-        if ai_config:
-            model_name = ai_config['model_name']
-            messagebox.showinfo("Info", f"AI generování kategorií pomocí {model_name} bude implementováno později")
-        else:
-            messagebox.showwarning("Warning", "Není vybrán žádný AI model nebo chybí API klíč")
+        """Generate categories using AI."""
+        selected_model = self.model_combo.get()
+        messagebox.showinfo("Info", f"Categories generation with {selected_model} will be implemented later")
+    
+    def generate_all_metadata(self):
+        """Generate all metadata using AI."""
+        selected_model = self.model_combo.get()
+        messagebox.showinfo("Info", f"Full metadata generation with {selected_model} will be implemented later")
+
 
     def save_metadata(self):
         """Save metadata and close window."""
-        # Collect all metadata
-        self.metadata['title'] = self.title_var.get()
-        self.metadata['description'] = self.description_text.get("1.0", tk.END).strip()
-        self.metadata['editorial'] = self.editorial_var.get()
+        if not hasattr(self, 'current_record'):
+            messagebox.showwarning("No File", "No file is currently loaded.")
+            return
         
-        # Collect categories
-        for photobank, var in self.category_vars.items():
-            self.metadata['categories'][photobank] = var.get()
+        # Collect metadata
+        title = self.title_entry.get().strip()
+        description = self.desc_text.get("1.0", tk.END).strip()
         
-        logging.info(f"Saved metadata for {self.media_file_path}")
-        logging.debug(f"Metadata: {self.metadata}")
+        # Collect keywords from tags list
+        keywords = ', '.join(self.keywords_list)
         
-        messagebox.showinfo("Success", "Metadata byla úspěšně uložena")
+        if not title:
+            messagebox.showwarning("Missing Data", "Please enter a title.")
+            return
+        
+        # Collect selected categories from dropdowns
+        selected_categories = {}
+        if hasattr(self, 'category_combos'):
+            for photobank, combos in self.category_combos.items():
+                selected_categories[photobank] = []
+                for combo in combos:
+                    value = combo.get().strip()
+                    if value:  # Only add non-empty selections
+                        selected_categories[photobank].append(value)
+        
+        # Update record with metadata
+        metadata = {
+            'title': title,
+            'description': description,
+            'keywords': keywords,
+            'editorial': self.editorial_var.get(),
+            'categories': selected_categories
+        }
+        
+        # Call completion callback with metadata
+        if self.completion_callback:
+            self.completion_callback(metadata)
+            
         self.root.destroy()
-
-    def cancel(self):
-        """Cancel and close window."""
-        self.root.destroy()
-
+        
     def on_window_close(self):
-        """Handle window close event."""
-        self.cancel()
+        """Handle window close event - equivalent to Ctrl+C."""
+        logging.info("Window closed by user - terminating script")
+        self.root.destroy()
+        
+        # Exit the entire script (equivalent to Ctrl+C)
+        import sys
+        sys.exit(0)
+
+
+def show_media_viewer(file_path: str, record: dict, completion_callback: Optional[Callable] = None, 
+                     categories: Dict[str, List[str]] = None):
+    """Show the media viewer for a specific file and record."""
+    root = tk.Tk()
+    viewer = MediaViewer(root, "", categories)  # Pass categories to viewer
+    viewer.load_media(file_path, record, completion_callback)
+    
+    # Center window
+    root.update_idletasks()
+    x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
+    y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
+    root.geometry(f"+{x}+{y}")
+    
+    root.mainloop()
+    
+
+if __name__ == "__main__":
+    # Test the viewer
+    if len(sys.argv) > 1:
+        test_file = sys.argv[1]
+        show_media_viewer(test_file)
+    else:
+        print("Usage: python media_viewer.py <media_file>")

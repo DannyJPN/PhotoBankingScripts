@@ -1,5 +1,5 @@
 """
-Helper functions for media file processing.
+Helper functions for media file processing - simplified for givephotobankreadymediafiles.
 """
 
 import os
@@ -7,14 +7,32 @@ import sys
 import logging
 import subprocess
 from typing import List, Dict, Tuple
-from givephotobankreadymediafileslib.constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, VECTOR_EXTENSIONS
+from givephotobankreadymediafileslib.constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
 
-def is_image_file(file_path: str) -> bool:
-    """Check if file is an image based on extension."""
+def open_media_file(media_path: str) -> bool:
+    """Opens a media file with the default system application."""
+    if not os.path.exists(media_path):
+        logging.error(f"File not found: {media_path}")
+        return False
+    
+    try:
+        if os.name == 'nt':  # Windows
+            os.startfile(media_path)
+        else:
+            subprocess.run(["xdg-open", media_path], check=True)
+        logging.info(f"Opened file: {media_path}")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to open file {media_path}: {e}")
+        return False
+
+
+def is_media_file(file_path: str) -> bool:
+    """Check if file is a multimedia file based on extension."""
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
-    return ext in IMAGE_EXTENSIONS
+    return ext in IMAGE_EXTENSIONS or ext in VIDEO_EXTENSIONS
 
 
 def is_video_file(file_path: str) -> bool:
@@ -24,28 +42,18 @@ def is_video_file(file_path: str) -> bool:
     return ext in VIDEO_EXTENSIONS
 
 
-def is_vector_file(file_path: str) -> bool:
-    """Check if file is a vector graphics file."""
+def is_image_file(file_path: str) -> bool:
+    """Check if file is an image based on extension."""
     _, ext = os.path.splitext(file_path)
     ext = ext.lower()
-    return ext in VECTOR_EXTENSIONS
+    return ext in IMAGE_EXTENSIONS
 
 
-def is_media_file(file_path: str) -> bool:
-    """Check if file is a multimedia file based on extension."""
-    return is_image_file(file_path) or is_video_file(file_path) or is_vector_file(file_path)
-
-
-def get_media_type(file_path: str) -> str:
-    """Get media type string for file."""
-    if is_image_file(file_path):
-        return "image"
-    elif is_video_file(file_path):
-        return "video"
-    elif is_vector_file(file_path):
-        return "vector"
-    else:
-        return "unknown"
+def is_jpg_file(file_path: str) -> bool:
+    """Check if file is JPG/JPEG."""
+    _, ext = os.path.splitext(file_path)
+    ext = ext.lower()
+    return ext in ['.jpg', '.jpeg']
 
 
 def get_file_info(file_path: str) -> Dict[str, any]:
@@ -63,6 +71,16 @@ def get_file_info(file_path: str) -> Dict[str, any]:
         'media_type': get_media_type(file_path),
         'extension': os.path.splitext(file_path)[1].lower()
     }
+
+
+def get_media_type(file_path: str) -> str:
+    """Get media type string for file."""
+    if is_image_file(file_path):
+        return "image"
+    elif is_video_file(file_path):
+        return "video"
+    else:
+        return "unknown"
 
 
 def process_single_file(file_path: str) -> Tuple[bool, str, str]:
@@ -112,12 +130,13 @@ def process_single_file(file_path: str) -> Tuple[bool, str, str]:
         return False, file_path, error_msg
 
 
-def process_unmatched_files(records: List[Dict[str, str]], max_count: int = 1) -> Dict[str, int]:
+def process_unmatched_files(records: List[Dict[str, str]], config=None, max_count: int = 1) -> Dict[str, int]:
     """
     Process media records sequentially, like PowerShell version.
     
     Args:
         records: List of unprocessed records
+        config: Global configuration object (passed to GUI if needed)
         max_count: Maximum number of files to process (default: 1)
         
     Returns:
