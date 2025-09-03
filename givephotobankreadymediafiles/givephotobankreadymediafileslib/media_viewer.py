@@ -15,6 +15,7 @@ import threading
 import time
 
 from givephotobankreadymediafileslib.media_helper import is_video_file
+from givephotobankreadymediafileslib.tag_entry import TagEntry
 
 
 class MediaViewer:
@@ -40,6 +41,23 @@ class MediaViewer:
         self.video_playing = False
         self.video_paused = False
         self.completion_callback: Optional[Callable] = None
+        
+        # AI generation state - separate threads for each type
+        self.ai_threads = {
+            'title': None,
+            'description': None, 
+            'keywords': None,
+            'categories': None,
+            'all': None
+        }
+        self.ai_cancelled = {
+            'title': False,
+            'description': False,
+            'keywords': False, 
+            'categories': False,
+            'all': False
+        }
+        self.generation_lock = threading.Lock()
         
         # Configure styles for tags
         self.setup_styles()
@@ -175,39 +193,19 @@ class MediaViewer:
         self.desc_generate_button.pack()
         
         # Keywords input with generate button
-        keywords_frame = ttk.LabelFrame(control_frame, text="Keywords")
+        keywords_frame = ttk.LabelFrame(control_frame, text="Keywords (Tags)")
         keywords_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        ttk.Label(keywords_frame, text="Enter keywords:").pack(anchor=tk.W, padx=10, pady=(10, 5))
+        ttk.Label(keywords_frame, text="Enter keywords (press Enter, comma or semicolon to create tags):").pack(anchor=tk.W, padx=10, pady=(10, 5))
         
-        # Keywords as tags with drag & drop
+        # Keywords input container
         keywords_input_frame = ttk.Frame(keywords_frame)
         keywords_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        # Keywords tags container with scrolling
-        keywords_container = ttk.Frame(keywords_input_frame)
-        keywords_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
-        # Entry for adding keywords
-        self.keyword_entry = ttk.Entry(keywords_container)
-        self.keyword_entry.pack(fill=tk.X, pady=(0, 5))
-        self.keyword_entry.bind('<KeyPress>', self.validate_keyword_input)
-        self.keyword_entry.bind('<KeyRelease>', self.on_keyword_entry_change)
-        self.keyword_entry.bind('<Return>', self.process_keyword_entry)
-        
-        # Scrollable tags area
-        self.tags_canvas = tk.Canvas(keywords_container, height=60, bg='white', highlightthickness=1)
-        tags_scrollbar = ttk.Scrollbar(keywords_container, orient=tk.HORIZONTAL, command=self.tags_canvas.xview)
-        self.tags_frame = ttk.Frame(self.tags_canvas)
-        
-        self.tags_canvas.configure(xscrollcommand=tags_scrollbar.set)
-        self.tags_canvas.create_window((0, 0), window=self.tags_frame, anchor="nw")
-        
-        self.tags_canvas.pack(fill=tk.BOTH, expand=True)
-        tags_scrollbar.pack(fill=tk.X)
-        
-        # Bind canvas resizing
-        self.tags_frame.bind('<Configure>', self.on_tags_frame_configure)
+        # TagEntry widget - Gmail/Outlook style
+        self.keywords_tag_entry = TagEntry(keywords_input_frame, width=60, height=4,
+                                          max_tags=50, on_change=self.on_keywords_change)
+        self.keywords_tag_entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
         # Keywords controls frame
         keywords_controls_frame = ttk.Frame(keywords_input_frame)
@@ -221,9 +219,8 @@ class MediaViewer:
                                                   command=self.generate_keywords)
         self.keywords_generate_button.pack()
         
-        # Initialize keywords storage
+        # Initialize keywords storage for compatibility
         self.keywords_list = []
-        self.tag_widgets = []
         
         # Editorial checkbox
         editorial_frame = ttk.LabelFrame(control_frame, text="Editorial Mode")
@@ -319,7 +316,16 @@ class MediaViewer:
                 keyword = keyword.strip()
                 if keyword:
                     self.keywords_list.append(keyword)
-        self.refresh_tags()
+        self.refresh_keywords_display()
+        
+        # Load editorial mode
+        editorial = record.get('Editorial', False)
+        if isinstance(editorial, str):
+            editorial = editorial.lower() in ('true', '1', 'yes', 'ano')
+        self.editorial_var.set(bool(editorial))
+        
+        # Load existing categories from record
+        self.load_existing_categories(record)
         
         # Load media file
         if is_video_file(file_path):
@@ -548,6 +554,38 @@ class MediaViewer:
                 
                 self.category_combos[photobank].append(combo)
 
+    def load_existing_categories(self, record: dict):
+        """Load existing categories from CSV record into UI dropdowns."""
+        if not hasattr(self, 'category_combos') or not self.category_combos:
+            return
+        
+        # Category field mappings for CSV columns
+        category_mappings = {
+            'shutterstock': ['Kategorie_ShutterStock', 'Kategorie_ShutterStock_2'],
+            'adobestock': ['Kategorie_AdobeStock'],
+            'dreamstime': ['Kategorie_Dreamstime_1', 'Kategorie_Dreamstime_2', 'Kategorie_Dreamstime_3'],
+            'alamy': ['Kategorie_Alamy_1', 'Kategorie_Alamy_2']
+        }
+        
+        # Load categories for each photobank
+        for photobank, combos in self.category_combos.items():
+            photobank_key = photobank.lower().replace(' ', '').replace('_', '')
+            
+            if photobank_key in category_mappings:
+                category_fields = category_mappings[photobank_key]
+                
+                # Set values for each dropdown
+                for i, combo in enumerate(combos):
+                    if i < len(category_fields):
+                        field_name = category_fields[i]
+                        category_value = record.get(field_name, '').strip()
+                        
+                        if category_value:
+                            # Find the category in combo values and select it
+                            values = combo['values']
+                            if category_value in values:
+                                combo.set(category_value)
+                                logging.info(f"Loaded category for {photobank} [{i+1}]: {category_value}")
     
     def on_title_change(self, event=None):
         """Update title character counter."""
@@ -568,162 +606,19 @@ class MediaViewer:
         else:
             self.desc_char_label.configure(foreground='black')
     
-    def on_tags_frame_configure(self, event):
-        """Update canvas scroll region when tags frame size changes."""
-        self.tags_canvas.configure(scrollregion=self.tags_canvas.bbox("all"))
+    def on_keywords_change(self):
+        """Handle keywords change from TagEntry widget."""
+        # Update keywords list for compatibility with existing code
+        self.keywords_list = self.keywords_tag_entry.get_tags()
+        self.update_keywords_counter()
     
-    def validate_keyword_input(self, event):
-        """Validate input to only allow alfanumeric, dash, space, comma, semicolon."""
-        # Allow these keys: alphanumeric, dash, space, comma, semicolon, backspace, delete, arrows
-        allowed_chars = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-,; ')
-        
-        # Allow control keys
-        control_keys = {'BackSpace', 'Delete', 'Left', 'Right', 'Home', 'End', 'Return', 'Tab'}
-        
-        if event.keysym in control_keys:
-            return  # Allow control keys
-        
-        if event.char and event.char not in allowed_chars:
-            return 'break'  # Block the character
-    
-    def on_keyword_entry_change(self, event):
-        """Handle real-time processing of keyword entry."""
-        text = self.keyword_entry.get()
-        # Check for separators: comma, semicolon
-        separators = [',', ';']
-        for sep in separators:
-            if sep in text:
-                self.process_keyword_entry()
-                break
-    
-    def process_keyword_entry(self, event=None):
-        """Process keywords from entry field and create tags."""
-        text = self.keyword_entry.get().strip()
-        if not text:
-            return
-            
-        # Split by various separators
-        keywords = []
-        for sep in [',', ';']:
-            if sep in text:
-                keywords = [kw.strip() for kw in text.split(sep) if kw.strip()]
-                break
-        
-        if not keywords:
-            keywords = [text]
-        
-        # Add valid keywords
-        for keyword in keywords:
-            if len(keyword) > 2 and keyword not in self.keywords_list and len(self.keywords_list) < 50:
-                self.keywords_list.append(keyword)
-        
-        # Clear entry
-        self.keyword_entry.delete(0, tk.END)
-        
-        # Refresh tags display
-        self.refresh_tags()
-    
-    def create_tag_widget(self, parent, keyword, index):
-        """Create a draggable tag widget for a keyword."""
-        tag_frame = ttk.Frame(parent, style='Tag.TFrame')
-        
-        # Configure tag style
-        tag_frame.configure(relief='raised', borderwidth=1)
-        
-        # Keyword label
-        keyword_label = ttk.Label(tag_frame, text=keyword)
-        keyword_label.pack(side=tk.LEFT, padx=(3, 1), pady=2)
-        
-        # Remove button (X)
-        remove_btn = ttk.Button(tag_frame, text="×", width=2, 
-                               command=lambda: self.remove_tag(index))
-        remove_btn.pack(side=tk.RIGHT, padx=(1, 3), pady=2)
-        
-        # Bind drag events to both frame and label
-        for widget in [tag_frame, keyword_label]:
-            widget.bind('<Button-1>', lambda e, idx=index: self.start_tag_drag(e, idx))
-            widget.bind('<B1-Motion>', self.drag_tag)
-            widget.bind('<ButtonRelease-1>', self.drop_tag)
-        
-        return tag_frame
-    
-    def refresh_tags(self):
-        """Refresh the display of keyword tags."""
-        # Clear existing widgets
-        for widget in self.tag_widgets:
-            widget.destroy()
-        self.tag_widgets.clear()
-        
-        # Create new tag widgets
-        row, col = 0, 0
-        max_cols = 4  # Tags per row
-        
-        for i, keyword in enumerate(self.keywords_list):
-            tag_widget = self.create_tag_widget(self.tags_frame, keyword, i)
-            tag_widget.grid(row=row, column=col, padx=2, pady=2, sticky='w')
-            self.tag_widgets.append(tag_widget)
-            
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
+    def refresh_keywords_display(self):
+        """Refresh the keywords display after loading from file."""
+        # Set tags in the new TagEntry widget
+        self.keywords_tag_entry.set_tags(self.keywords_list)
         
         # Update counter
         self.update_keywords_counter()
-        
-        # Update canvas scroll region
-        self.tags_frame.update_idletasks()
-        self.tags_canvas.configure(scrollregion=self.tags_canvas.bbox("all"))
-    
-    def start_tag_drag(self, event, index):
-        """Start dragging a tag."""
-        self.drag_data = {'index': index, 'item': self.keywords_list[index]}
-    
-    def drag_tag(self, event):
-        """Handle tag dragging (visual feedback could be added)."""
-        pass
-    
-    def drop_tag(self, event):
-        """Handle tag drop for reordering."""
-        if self.drag_data.get('index') is not None:
-            # Find drop target by checking widget positions
-            source_index = self.drag_data['index']
-            
-            # Get mouse position relative to tags frame
-            x = self.tags_canvas.canvasx(event.x)
-            y = self.tags_canvas.canvasy(event.y)
-            
-            # Find closest tag position
-            target_index = self.find_drop_target(x, y)
-            
-            if target_index is not None and target_index != source_index:
-                # Move keyword in list
-                keyword = self.keywords_list.pop(source_index)
-                self.keywords_list.insert(target_index, keyword)
-                
-                # Refresh display
-                self.refresh_tags()
-        
-        # Clear drag data
-        self.drag_data = {}
-    
-    def find_drop_target(self, x, y):
-        """Find the target index for dropping based on mouse position."""
-        max_cols = 4
-        tag_width = 80  # Approximate tag width
-        tag_height = 25  # Approximate tag height
-        
-        col = max(0, int(x // tag_width))
-        row = max(0, int(y // tag_height))
-        
-        target_index = row * max_cols + col
-        return min(target_index, len(self.keywords_list) - 1) if self.keywords_list else 0
-    
-    def remove_tag(self, index):
-        """Remove a keyword tag."""
-        if 0 <= index < len(self.keywords_list):
-            self.keywords_list.pop(index)
-            self.refresh_tags()
     
     def update_keywords_counter(self):
         """Update keywords counter."""
@@ -740,29 +635,518 @@ class MediaViewer:
         self.desc_text.focus()
     
     def generate_title(self):
-        """Generate title using AI."""
+        """Generate title using AI in background thread."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No media file loaded")
+            return
+            
         selected_model = self.model_combo.get()
-        messagebox.showinfo("Info", f"Title generation with {selected_model} will be implemented later")
+        if not selected_model or selected_model in ["No models available", "Error loading models"]:
+            messagebox.showwarning("No Model", "Please select a valid AI model")
+            return
+        
+        # Check if title generation is already running
+        if self.ai_threads['title'] and self.ai_threads['title'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['title'] = True
+            self.title_generate_button.configure(text="Generate", state="normal")
+            return
+            
+        # Start generation in background thread
+        self.ai_cancelled['title'] = False
+        self.ai_threads['title'] = threading.Thread(
+            target=self._generate_title_worker,
+            args=(selected_model,),
+            daemon=True
+        )
+        
+        # Update UI for loading state
+        self.title_generate_button.configure(text="Cancel")
+        
+        self.ai_threads['title'].start()
+    
+    def _generate_title_worker(self, selected_model: str):
+        """Worker thread for title generation."""
+        try:
+            # Get AI provider from config
+            from shared.config import get_config
+            from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
+            
+            config = get_config()
+            available_models = config.get_available_ai_models()
+            
+            # Find model key
+            model_key = None
+            for model in available_models:
+                if model["display_name"] == selected_model:
+                    model_key = model["key"]
+                    break
+            
+            if not model_key:
+                raise ValueError(f"Model key not found for: {selected_model}")
+            
+            # Check for cancellation
+            if self.ai_cancelled['title']:
+                return
+            
+            # Create generator and generate title
+            generator = create_metadata_generator(model_key)
+            existing_title = self.title_entry.get().strip()
+            title = generator.generate_title(self.current_file_path, 
+                                           existing_title if existing_title else None)
+            
+            # Check for cancellation before updating UI
+            if self.ai_cancelled['title']:
+                return
+            
+            # Update UI in main thread
+            self.root.after(0, self._update_title_result, title, None)
+            
+        except Exception as e:
+            logging.error(f"Title generation failed: {e}")
+            # Update UI with error in main thread
+            self.root.after(0, self._update_title_result, None, str(e))
+    
+    def _update_title_result(self, title: Optional[str], error: Optional[str]):
+        """Update UI with title generation result (called in main thread)."""
+        try:
+            if error:
+                messagebox.showerror("Generation Failed", f"Failed to generate title: {error}")
+            elif title and not self.ai_cancelled['title']:
+                self.title_entry.delete(0, tk.END)
+                self.title_entry.insert(0, title)
+                self.on_title_change()
+        finally:
+            # Reset button
+            self.title_generate_button.configure(text="Generate", state="normal")
     
     def generate_description(self):
-        """Generate description using AI."""
+        """Generate description using AI in background thread."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No media file loaded")
+            return
+            
         selected_model = self.model_combo.get()
-        messagebox.showinfo("Info", f"Description generation with {selected_model} will be implemented later")
+        if not selected_model or selected_model in ["No models available", "Error loading models"]:
+            messagebox.showwarning("No Model", "Please select a valid AI model")
+            return
+        
+        # Check if description generation is already running
+        if self.ai_threads['description'] and self.ai_threads['description'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['description'] = True
+            self.desc_generate_button.configure(text="Generate", state="normal")
+            return
+            
+        # Start generation in background thread
+        self.ai_cancelled['description'] = False
+        self.ai_threads['description'] = threading.Thread(
+            target=self._generate_description_worker,
+            args=(selected_model,),
+            daemon=True
+        )
+        
+        # Update UI for loading state
+        self.desc_generate_button.configure(text="Cancel")
+        
+        self.ai_threads['description'].start()
+    
+    def _generate_description_worker(self, selected_model: str):
+        """Worker thread for description generation."""
+        try:
+            # Get AI provider from config
+            from shared.config import get_config
+            from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
+            
+            config = get_config()
+            available_models = config.get_available_ai_models()
+            
+            # Find model key
+            model_key = None
+            for model in available_models:
+                if model["display_name"] == selected_model:
+                    model_key = model["key"]
+                    break
+            
+            if not model_key:
+                raise ValueError(f"Model key not found for: {selected_model}")
+            
+            # Check for cancellation
+            if self.ai_cancelled['description']:
+                return
+            
+            # Create generator and generate description
+            generator = create_metadata_generator(model_key)
+            existing_title = self.title_entry.get().strip()
+            existing_desc = self.desc_text.get('1.0', tk.END).strip()
+            
+            description = generator.generate_description(
+                self.current_file_path, 
+                existing_title if existing_title else None,
+                existing_desc if existing_desc else None
+            )
+            
+            # Check for cancellation before updating UI
+            if self.ai_cancelled['description']:
+                return
+            
+            # Update UI in main thread
+            self.root.after(0, self._update_description_result, description, None)
+            
+        except Exception as e:
+            logging.error(f"Description generation failed: {e}")
+            # Update UI with error in main thread
+            self.root.after(0, self._update_description_result, None, str(e))
+    
+    def _update_description_result(self, description: Optional[str], error: Optional[str]):
+        """Update UI with description generation result (called in main thread)."""
+        try:
+            if error:
+                messagebox.showerror("Generation Failed", f"Failed to generate description: {error}")
+            elif description and not self.ai_cancelled['description']:
+                self.desc_text.delete('1.0', tk.END)
+                self.desc_text.insert('1.0', description)
+                self.on_description_change()
+        finally:
+            # Reset button
+            self.desc_generate_button.configure(text="Generate", state="normal")
     
     def generate_keywords(self):
-        """Generate keywords using AI."""
+        """Generate keywords using AI in background thread."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No media file loaded")
+            return
+            
         selected_model = self.model_combo.get()
-        messagebox.showinfo("Info", f"Keywords generation with {selected_model} will be implemented later")
+        if not selected_model or selected_model in ["No models available", "Error loading models"]:
+            messagebox.showwarning("No Model", "Please select a valid AI model")
+            return
+        
+        # Check if keywords generation is already running
+        if self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['keywords'] = True
+            self.keywords_generate_button.configure(text="Generate", state="normal")
+            return
+            
+        # Start generation in background thread
+        self.ai_cancelled['keywords'] = False
+        self.ai_threads['keywords'] = threading.Thread(
+            target=self._generate_keywords_worker,
+            args=(selected_model,),
+            daemon=True
+        )
+        
+        # Update UI for loading state
+        self.keywords_generate_button.configure(text="Cancel")
+        
+        self.ai_threads['keywords'].start()
+    
+    def _generate_keywords_worker(self, selected_model: str):
+        """Worker thread for keywords generation."""
+        try:
+            # Get AI provider from config
+            from shared.config import get_config
+            from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
+            
+            config = get_config()
+            available_models = config.get_available_ai_models()
+            
+            # Find model key
+            model_key = None
+            for model in available_models:
+                if model["display_name"] == selected_model:
+                    model_key = model["key"]
+                    break
+            
+            if not model_key:
+                raise ValueError(f"Model key not found for: {selected_model}")
+            
+            # Check for cancellation
+            if self.ai_cancelled['keywords']:
+                return
+            
+            # Create generator and generate keywords
+            generator = create_metadata_generator(model_key)
+            existing_title = self.title_entry.get().strip()
+            existing_desc = self.desc_text.get('1.0', tk.END).strip()
+            
+            # Ask for keyword count
+            keyword_count = min(30, 50 - len(self.keywords_list))  # Don't exceed 50 total
+            
+            keywords = generator.generate_keywords(
+                self.current_file_path,
+                existing_title if existing_title else None,
+                existing_desc if existing_desc else None,
+                keyword_count
+            )
+            
+            # Check for cancellation before updating UI
+            if self.ai_cancelled['keywords']:
+                return
+            
+            # Update UI in main thread
+            self.root.after(0, self._update_keywords_result, keywords, None)
+            
+        except Exception as e:
+            logging.error(f"Keywords generation failed: {e}")
+            # Update UI with error in main thread
+            self.root.after(0, self._update_keywords_result, None, str(e))
+    
+    def _update_keywords_result(self, keywords: Optional[List[str]], error: Optional[str]):
+        """Update UI with keywords generation result (called in main thread)."""
+        try:
+            if error:
+                messagebox.showerror("Generation Failed", f"Failed to generate keywords: {error}")
+            elif keywords and not self.ai_cancelled['keywords']:
+                # Add keywords to existing list (avoiding duplicates)
+                for keyword in keywords:
+                    if keyword not in self.keywords_list and len(self.keywords_list) < 50:
+                        self.keywords_list.append(keyword)
+                
+                # Update UI
+                self.refresh_keywords_display()
+        finally:
+            # Reset button
+            self.keywords_generate_button.configure(text="Generate", state="normal")
     
     def generate_categories(self):
-        """Generate categories using AI."""
+        """Generate categories using AI in background thread."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No media file loaded")
+            return
+            
         selected_model = self.model_combo.get()
-        messagebox.showinfo("Info", f"Categories generation with {selected_model} will be implemented later")
+        if not selected_model or selected_model in ["No models available", "Error loading models"]:
+            messagebox.showwarning("No Model", "Please select a valid AI model")
+            return
+            
+        if not hasattr(self, 'category_combos') or not self.category_combos:
+            messagebox.showinfo("No Categories", "No category dropdowns available to populate")
+            return
+        
+        # Check if categories generation is already running
+        if self.ai_threads['categories'] and self.ai_threads['categories'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['categories'] = True
+            self.categories_generate_button.configure(text="Generate", state="normal")
+            return
+            
+        # Start generation in background thread
+        self.ai_cancelled['categories'] = False
+        self.ai_threads['categories'] = threading.Thread(
+            target=self._generate_categories_worker,
+            args=(selected_model,),
+            daemon=True
+        )
+        
+        # Update UI for loading state
+        self.categories_generate_button.configure(text="Cancel")
+        
+        self.ai_threads['categories'].start()
+    
+    def _generate_categories_worker(self, selected_model: str):
+        """Worker thread for categories generation."""
+        try:
+            # Get AI provider from config
+            from shared.config import get_config
+            from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
+            
+            config = get_config()
+            available_models = config.get_available_ai_models()
+            
+            # Find model key
+            model_key = None
+            for model in available_models:
+                if model["display_name"] == selected_model:
+                    model_key = model["key"]
+                    break
+            
+            if not model_key:
+                raise ValueError(f"Model key not found for: {selected_model}")
+            
+            # Check for cancellation
+            if self.ai_cancelled['categories']:
+                return
+            
+            # Create generator and set categories
+            generator = create_metadata_generator(model_key)
+            generator.set_photobank_categories(self.categories)
+            
+            existing_title = self.title_entry.get().strip()
+            existing_desc = self.desc_text.get('1.0', tk.END).strip()
+            
+            # Generate categories for all photobanks
+            generated_categories = generator.generate_categories(
+                self.current_file_path,
+                existing_title if existing_title else None,
+                existing_desc if existing_desc else None
+            )
+            
+            # Check for cancellation before updating UI
+            if self.ai_cancelled['categories']:
+                return
+            
+            # Update UI in main thread
+            self.root.after(0, self._update_categories_result, generated_categories, None)
+            
+        except Exception as e:
+            logging.error(f"Categories generation failed: {e}")
+            # Update UI with error in main thread
+            self.root.after(0, self._update_categories_result, None, str(e))
+    
+    def _update_categories_result(self, generated_categories: Optional[Dict], error: Optional[str]):
+        """Update UI with categories generation result (called in main thread)."""
+        try:
+            if error:
+                messagebox.showerror("Generation Failed", f"Failed to generate categories: {error}")
+            elif generated_categories and not self.ai_cancelled['categories']:
+                # Update UI dropdowns with generated categories
+                for photobank, categories in generated_categories.items():
+                    if photobank in self.category_combos:
+                        combos = self.category_combos[photobank]
+                        
+                        # Set categories in dropdowns
+                        for i, category in enumerate(categories):
+                            if i < len(combos):
+                                if category in combos[i]['values']:
+                                    combos[i].set(category)
+                                    logging.info(f"Set category for {photobank} [{i+1}]: {category}")
+        finally:
+            # Reset button
+            self.categories_generate_button.configure(text="Generate", state="normal")
     
     def generate_all_metadata(self):
-        """Generate all metadata using AI."""
+        """Generate all metadata by sequentially triggering individual generate buttons."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No media file loaded")
+            return
+            
         selected_model = self.model_combo.get()
-        messagebox.showinfo("Info", f"Full metadata generation with {selected_model} will be implemented later")
+        if not selected_model or selected_model in ["No models available", "Error loading models"]:
+            messagebox.showwarning("No Model", "Please select a valid AI model")
+            return
+        
+        # Check if generate all is already running
+        if hasattr(self, '_generate_all_active') and self._generate_all_active:
+            # Cancel all running generations
+            self._cancel_all_generation()
+            return
+            
+        # Start sequential generation
+        self._generate_all_active = True
+        self.generate_all_button.configure(text="Cancel", state="normal")
+        
+        # Define generation sequence based on dependencies
+        # Title first (independent), then description (uses title), then keywords (uses title+desc), 
+        # then categories (uses title+desc+keywords)
+        self._generation_sequence = ['title', 'description', 'keywords', 'categories']
+        self._current_generation_index = 0
+        
+        # Start with first generation
+        self._trigger_next_generation()
+    
+    def _trigger_next_generation(self):
+        """Trigger the next generation step in the sequence."""
+        if not hasattr(self, '_generate_all_active') or not self._generate_all_active:
+            return
+            
+        if self._current_generation_index >= len(self._generation_sequence):
+            # All generations complete
+            self._complete_all_generation()
+            return
+            
+        generation_type = self._generation_sequence[self._current_generation_index]
+        
+        # Check if this type is already running - if so, wait for it to complete
+        if (generation_type in self.ai_threads and 
+            self.ai_threads[generation_type] and 
+            self.ai_threads[generation_type].is_alive()):
+            # Already running, schedule check again in 100ms
+            self.root.after(100, self._check_generation_completion)
+            return
+            
+        # Start the appropriate generation
+        if generation_type == 'title':
+            self._trigger_title_generation()
+        elif generation_type == 'description':
+            self._trigger_description_generation()
+        elif generation_type == 'keywords':
+            self._trigger_keywords_generation()
+        elif generation_type == 'categories':
+            self._trigger_categories_generation()
+            
+        # Schedule check for completion
+        self.root.after(100, self._check_generation_completion)
+        
+    def _trigger_title_generation(self):
+        """Trigger title generation if not already running."""
+        if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
+            self.generate_title()
+            
+    def _trigger_description_generation(self):
+        """Trigger description generation if not already running."""
+        if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
+            self.generate_description()
+            
+    def _trigger_keywords_generation(self):
+        """Trigger keywords generation if not already running."""
+        if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
+            self.generate_keywords()
+            
+    def _trigger_categories_generation(self):
+        """Trigger categories generation if not already running."""
+        if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
+            self.generate_categories()
+            
+    def _check_generation_completion(self):
+        """Check if current generation step is complete and move to next."""
+        if not hasattr(self, '_generate_all_active') or not self._generate_all_active:
+            return
+            
+        if self._current_generation_index >= len(self._generation_sequence):
+            self._complete_all_generation()
+            return
+            
+        generation_type = self._generation_sequence[self._current_generation_index]
+        
+        # Check if current generation is still running
+        if (generation_type in self.ai_threads and 
+            self.ai_threads[generation_type] and 
+            self.ai_threads[generation_type].is_alive()):
+            # Still running, check again in 100ms
+            self.root.after(100, self._check_generation_completion)
+            return
+            
+        # Current generation complete, move to next
+        self._current_generation_index += 1
+        self._trigger_next_generation()
+        
+    def _cancel_all_generation(self):
+        """Cancel all running generations and reset button states."""
+        # Cancel all individual generations
+        for gen_type in ['title', 'description', 'keywords', 'categories']:
+            if (gen_type in self.ai_threads and 
+                self.ai_threads[gen_type] and 
+                self.ai_threads[gen_type].is_alive()):
+                self.ai_cancelled[gen_type] = True
+                
+        # Reset all individual button states to their original text and state
+        self.title_generate_button.configure(text="Generate", state="normal")
+        self.desc_generate_button.configure(text="Generate", state="normal")
+        self.keywords_generate_button.configure(text="Generate", state="normal")
+        self.categories_generate_button.configure(text="Generate", state="normal")
+                
+        # Reset generate all state
+        self._generate_all_active = False
+        self.generate_all_button.configure(text="Generate All", state="normal")
+        
+    def _complete_all_generation(self):
+        """Complete the generate all process."""
+        self._generate_all_active = False
+        self.generate_all_button.configure(text="Generate All", state="normal")
+        logging.info("All metadata generation completed")
+    
 
 
     def save_metadata(self):
