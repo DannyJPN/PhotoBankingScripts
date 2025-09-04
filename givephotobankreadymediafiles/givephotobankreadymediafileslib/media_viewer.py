@@ -90,7 +90,7 @@ class MediaViewer:
         self.setup_media_panel(main_paned)
         
         # Right panel for metadata interface
-        self.setup_terminal_panel(main_paned)
+        self.setup_metadata_panel(main_paned)
         
     def setup_media_panel(self, parent):
         """Setup the left panel for media display."""
@@ -125,118 +125,117 @@ class MediaViewer:
         controls_frame.pack_forget()
         self.controls_frame = controls_frame
         
-    def setup_terminal_panel(self, parent):
-        """Setup the right panel with metadata interface."""
+    def setup_metadata_panel(self, parent):
+        """Setup the right panel with metadata interface - horizontal layout with vertical keywords."""
         control_frame = ttk.Frame(parent)
         parent.add(control_frame, weight=1)
         
-        # File path display
-        path_frame = ttk.LabelFrame(control_frame, text="Current File")
-        path_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Create horizontal paned window for left fields + right keywords listbox
+        metadata_paned = ttk.PanedWindow(control_frame, orient=tk.HORIZONTAL)
+        metadata_paned.pack(fill=tk.BOTH, expand=True, pady=(0, 0))
+        
+        # Left side - metadata fields (wider)
+        left_frame = ttk.Frame(metadata_paned)
+        metadata_paned.add(left_frame, weight=3)
+        
+        # Right side - keywords listbox (narrower)
+        right_frame = ttk.Frame(metadata_paned) 
+        metadata_paned.add(right_frame, weight=2)
+        
+        # File path display (in left frame)
+        path_frame = ttk.LabelFrame(left_frame, text="Current File")
+        path_frame.pack(fill=tk.X, padx=5, pady=(5, 2))
         
         self.file_path_label = ttk.Label(path_frame, text="No file loaded", 
-                                       wraplength=300, justify=tk.LEFT)
-        self.file_path_label.pack(padx=10, pady=10, anchor=tk.W)
+                                       wraplength=250, justify=tk.LEFT)
+        self.file_path_label.pack(padx=10, pady=5, anchor=tk.W)
         
-        # AI Model Selection - at the top after Current File
-        self.setup_ai_model_panel(control_frame)
+        # AI Model Selection (in left frame)
+        self.setup_ai_model_panel(left_frame)
         
-        # Title input with generate button
-        title_frame = ttk.LabelFrame(control_frame, text="Title")
-        title_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Title input (in left frame, narrower)
+        title_frame = ttk.LabelFrame(left_frame, text="Title")
+        title_frame.pack(fill=tk.X, padx=5, pady=(2, 2))
         
-        ttk.Label(title_frame, text="Enter title:").pack(anchor=tk.W, padx=10, pady=(10, 5))
+        ttk.Label(title_frame, text="Enter title:").pack(anchor=tk.W, padx=10, pady=(5, 3))
         
-        # Title entry and button frame
-        title_input_frame = ttk.Frame(title_frame)
-        title_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        # Title with character limit (shortest limit across photobanks is ~100 chars)
-        self.title_entry = ttk.Entry(title_input_frame, width=60)
-        self.title_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        # Title entry (smaller width)
+        self.title_entry = ttk.Entry(title_frame, width=30)
+        self.title_entry.pack(fill=tk.X, padx=10, pady=(0, 5))
         self.title_entry.bind('<KeyRelease>', self.on_title_change)
-        
-        # Title character counter
-        self.title_char_label = ttk.Label(title_input_frame, text="0/100")
-        self.title_char_label.pack(side=tk.RIGHT, padx=(5, 5))
         self.title_entry.bind('<Return>', self.handle_title_input)
         
-        self.title_generate_button = ttk.Button(title_input_frame, text="Generate", 
+        # Title controls
+        title_controls_frame = ttk.Frame(title_frame)
+        title_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
+        
+        self.title_char_label = ttk.Label(title_controls_frame, text="0/100")
+        self.title_char_label.pack(side=tk.LEFT)
+        
+        self.title_generate_button = ttk.Button(title_controls_frame, text="Generate", 
                                                command=self.generate_title)
         self.title_generate_button.pack(side=tk.RIGHT)
         
-        # Description input with generate button
-        desc_frame = ttk.LabelFrame(control_frame, text="Description")
-        desc_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Description input (in left frame, taller)
+        desc_frame = ttk.LabelFrame(left_frame, text="Description")
+        desc_frame.pack(fill=tk.X, padx=5, pady=(2, 2))
         
-        ttk.Label(desc_frame, text="Enter description:").pack(anchor=tk.W, padx=10, pady=(10, 5))
+        ttk.Label(desc_frame, text="Enter description:").pack(anchor=tk.W, padx=10, pady=(5, 3))
         
-        # Description input and button frame
-        desc_input_frame = ttk.Frame(desc_frame)
-        desc_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        # Description with character limit (shortest limit ~200 chars)
-        self.desc_text = tk.Text(desc_input_frame, height=2, wrap=tk.WORD, font=('Arial', 9), width=50)
-        self.desc_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        # Description text (taller for 200+ chars)
+        self.desc_text = tk.Text(desc_frame, height=4, wrap=tk.WORD, font=('Arial', 9), width=30)
+        self.desc_text.pack(fill=tk.X, padx=10, pady=(0, 5))
         self.desc_text.bind('<KeyRelease>', self.on_description_change)
         
-        # Description controls frame
-        desc_controls_frame = ttk.Frame(desc_input_frame)
-        desc_controls_frame.pack(side=tk.RIGHT, anchor=tk.N)
+        # Description controls
+        desc_controls_frame = ttk.Frame(desc_frame)
+        desc_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
         
-        # Description character counter
         self.desc_char_label = ttk.Label(desc_controls_frame, text="0/200")
-        self.desc_char_label.pack(pady=(0, 2))
+        self.desc_char_label.pack(side=tk.LEFT)
         
         self.desc_generate_button = ttk.Button(desc_controls_frame, text="Generate", 
                                               command=self.generate_description)
-        self.desc_generate_button.pack()
+        self.desc_generate_button.pack(side=tk.RIGHT)
         
-        # Keywords input with generate button
-        keywords_frame = ttk.LabelFrame(control_frame, text="Keywords (Tags)")
-        keywords_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Keywords - vertical listbox (in right frame, fixed height, ends above categories)
+        keywords_frame = ttk.LabelFrame(right_frame, text="Keywords (Tags)")
+        keywords_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=(5, 0))
         
-        ttk.Label(keywords_frame, text="Enter keywords (press Enter, comma or semicolon to create tags):").pack(anchor=tk.W, padx=10, pady=(10, 5))
-        
-        # Keywords input container
-        keywords_input_frame = ttk.Frame(keywords_frame)
-        keywords_input_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        # TagEntry widget - Gmail/Outlook style
-        self.keywords_tag_entry = TagEntry(keywords_input_frame, width=60, height=4,
+        # TagEntry widget - narrower width, expands to fill available height
+        self.keywords_tag_entry = TagEntry(keywords_frame, width=25,
                                           max_tags=50, on_change=self.on_keywords_change)
-        self.keywords_tag_entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        self.keywords_tag_entry.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 5))
         
-        # Keywords controls frame
-        keywords_controls_frame = ttk.Frame(keywords_input_frame)
-        keywords_controls_frame.pack(side=tk.RIGHT, anchor=tk.N)
+        # Keywords controls at bottom
+        keywords_controls_frame = ttk.Frame(keywords_frame)
+        keywords_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
         
-        # Keywords counter
         self.keywords_count_label = ttk.Label(keywords_controls_frame, text="0/50")
-        self.keywords_count_label.pack(pady=(0, 5))
+        self.keywords_count_label.pack(side=tk.LEFT)
         
-        self.keywords_generate_button = ttk.Button(keywords_controls_frame, text="Generate", width=8,
+        self.keywords_generate_button = ttk.Button(keywords_controls_frame, text="Generate",
                                                   command=self.generate_keywords)
-        self.keywords_generate_button.pack()
+        self.keywords_generate_button.pack(side=tk.RIGHT)
         
         # Initialize keywords storage for compatibility
         self.keywords_list = []
         
-        # Editorial checkbox
-        editorial_frame = ttk.LabelFrame(control_frame, text="Editorial Mode")
-        editorial_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Editorial checkbox (in left frame)
+        editorial_frame = ttk.LabelFrame(left_frame, text="Editorial Mode")
+        editorial_frame.pack(fill=tk.X, padx=5, pady=(2, 0))
         
         self.editorial_var = tk.BooleanVar()
-        self.editorial_checkbox = ttk.Checkbutton(editorial_frame, text="Enable editorial mode (news, documentary, etc.)",
+        self.editorial_checkbox = ttk.Checkbutton(editorial_frame, text="Editorial mode",
                                                  variable=self.editorial_var)
-        self.editorial_checkbox.pack(anchor=tk.W, padx=10, pady=10)
+        self.editorial_checkbox.pack(anchor=tk.W, padx=10, pady=5)
         
-        # Categories selection
+        # Categories selection spanning full width (below horizontal paned window)
         self.setup_categories_panel(control_frame)
         
-        # Action buttons
+        # Action buttons (span full width at bottom)
         action_frame = ttk.Frame(control_frame)
-        action_frame.pack(fill=tk.X, padx=5, pady=10)
+        action_frame.pack(fill=tk.X, padx=5, pady=10, side=tk.BOTTOM)
         
         self.generate_all_button = ttk.Button(action_frame, text="Generate All", 
                                             command=self.generate_all_metadata)
@@ -249,11 +248,11 @@ class MediaViewer:
     def setup_ai_model_panel(self, parent):
         """Setup AI model selection panel - simple dropdown only."""
         model_frame = ttk.LabelFrame(parent, text="AI Model Selection")
-        model_frame.pack(fill=tk.X, padx=5, pady=5)
+        model_frame.pack(fill=tk.X, padx=5, pady=(2, 2))
         
         # Model selection dropdown - compact layout
         selection_frame = ttk.Frame(model_frame)
-        selection_frame.pack(fill=tk.X, padx=10, pady=10)
+        selection_frame.pack(fill=tk.X, padx=10, pady=5)
         
         ttk.Label(selection_frame, text="Model:").pack(side=tk.LEFT, padx=(0, 5))
         
@@ -266,7 +265,7 @@ class MediaViewer:
     def setup_categories_panel(self, parent):
         """Setup categories selection panel with all photobanks."""
         categories_frame = ttk.LabelFrame(parent, text="Categories")
-        categories_frame.pack(fill=tk.X, padx=5, pady=5)
+        categories_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
         
         # Categories selection with generate button
         categories_input_frame = ttk.Frame(categories_frame)
@@ -872,7 +871,7 @@ class MediaViewer:
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
             
             # Ask for keyword count
-            keyword_count = min(30, 50 - len(self.keywords_list))  # Don't exceed 50 total
+            keyword_count = min(50, 50 - len(self.keywords_list))  # Don't exceed 50 total
             
             keywords = generator.generate_keywords(
                 self.current_file_path,
