@@ -16,6 +16,9 @@ import time
 
 from givephotobankreadymediafileslib.media_helper import is_video_file
 from givephotobankreadymediafileslib.tag_entry import TagEntry
+from givephotobankreadymediafileslib.editorial_dialog import (
+    get_editorial_metadata, extract_editorial_metadata_from_exif
+)
 
 
 class MediaViewer:
@@ -54,8 +57,7 @@ class MediaViewer:
             'title': False,
             'description': False,
             'keywords': False, 
-            'categories': False,
-            'all': False
+            'categories': False
         }
         self.generation_lock = threading.Lock()
         
@@ -774,6 +776,20 @@ class MediaViewer:
             if self.ai_cancelled['description']:
                 return
             
+            # Handle editorial metadata if needed
+            editorial_data = None
+            if self.editorial_var.get():
+                # Extract editorial metadata from EXIF
+                extracted_data, missing_fields = extract_editorial_metadata_from_exif(self.current_file_path)
+                
+                # Check if we need user input for missing fields
+                if any(missing_fields.values()):
+                    # Show dialog in main thread and wait for result
+                    self.root.after(0, self._show_editorial_dialog, missing_fields, extracted_data, selected_model)
+                    return
+                else:
+                    editorial_data = extracted_data
+            
             # Create generator and generate description
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
@@ -782,7 +798,8 @@ class MediaViewer:
             description = generator.generate_description(
                 self.current_file_path, 
                 existing_title if existing_title else None,
-                existing_desc if existing_desc else None
+                existing_desc if existing_desc else None,
+                editorial_data
             )
             
             # Check for cancellation before updating UI
@@ -877,7 +894,8 @@ class MediaViewer:
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
-                keyword_count
+                keyword_count,
+                self.editorial_var.get()  # Pass editorial flag
             )
             
             # Check for cancellation before updating UI
@@ -1016,7 +1034,7 @@ class MediaViewer:
             self.categories_generate_button.configure(text="Generate", state="normal")
     
     def generate_all_metadata(self):
-        """Generate all metadata by sequentially triggering individual generate buttons."""
+        """Generate all metadata serially with proper dependencies."""
         if not self.current_file_path:
             messagebox.showwarning("No File", "No media file loaded")
             return
@@ -1026,126 +1044,134 @@ class MediaViewer:
             messagebox.showwarning("No Model", "Please select a valid AI model")
             return
         
-        # Check if generate all is already running
+        # Check if Generate All is already active - if so, cancel
         if hasattr(self, '_generate_all_active') and self._generate_all_active:
-            # Cancel all running generations
             self._cancel_all_generation()
             return
             
-        # Start sequential generation
+        # Start serial generation in background thread
         self._generate_all_active = True
         self.generate_all_button.configure(text="Cancel", state="normal")
         
-        # Define generation sequence based on dependencies
-        # Title first (independent), then description (uses title), then keywords (uses title+desc), 
-        # then categories (uses title+desc+keywords)
-        self._generation_sequence = ['title', 'description', 'keywords', 'categories']
-        self._current_generation_index = 0
+        # Start generation in background thread to avoid blocking UI
+        self.ai_threads['all'] = threading.Thread(
+            target=self._generate_all_worker,
+            args=(selected_model,),
+            daemon=True
+        )
+        self.ai_threads['all'].start()
         
-        # Start with first generation
-        self._trigger_next_generation()
+    def _generate_all_worker(self, selected_model: str):
+        """Worker thread that runs all generations serially with join()."""
+        try:
+            # Reset all cancellation flags
+            for gen_type in ['title', 'description', 'keywords', 'categories']:
+                self.ai_cancelled[gen_type] = False
+            
+            # Generate title and wait for completion
+            self._start_and_wait_for_generation('title', selected_model)
+            if not self._generate_all_active or self.ai_cancelled['title']:
+                return
+            
+            # Generate description and wait for completion
+            self._start_and_wait_for_generation('description', selected_model)
+            if not self._generate_all_active or self.ai_cancelled['description']:
+                return
+                
+            # Generate keywords and wait for completion
+            self._start_and_wait_for_generation('keywords', selected_model)
+            if not self._generate_all_active or self.ai_cancelled['keywords']:
+                return
+                
+            # Generate categories and wait for completion
+            self._start_and_wait_for_generation('categories', selected_model)
+            if not self._generate_all_active or self.ai_cancelled['categories']:
+                return
+            
+            # All completed successfully
+            self.root.after(0, self._complete_all_generation)
+            
+        except Exception as e:
+            logging.error(f"Generate All failed: {e}")
+            self.root.after(0, self._complete_all_generation)
     
-    def _trigger_next_generation(self):
-        """Trigger the next generation step in the sequence."""
-        if not hasattr(self, '_generate_all_active') or not self._generate_all_active:
-            return
-            
-        if self._current_generation_index >= len(self._generation_sequence):
-            # All generations complete
-            self._complete_all_generation()
-            return
-            
-        generation_type = self._generation_sequence[self._current_generation_index]
+    def _start_and_wait_for_generation(self, gen_type: str, selected_model: str):
+        """Start a generation and wait for it to complete."""
+        # Update UI in main thread - change button to Cancel
+        if gen_type == 'title':
+            self.root.after(0, lambda: self.title_generate_button.configure(text="Cancel"))
+        elif gen_type == 'description':
+            self.root.after(0, lambda: self.desc_generate_button.configure(text="Cancel"))
+        elif gen_type == 'keywords':
+            self.root.after(0, lambda: self.keywords_generate_button.configure(text="Cancel"))
+        elif gen_type == 'categories':
+            self.root.after(0, lambda: self.categories_generate_button.configure(text="Cancel"))
         
-        # Check if this type is already running - if so, wait for it to complete
-        if (generation_type in self.ai_threads and 
-            self.ai_threads[generation_type] and 
-            self.ai_threads[generation_type].is_alive()):
-            # Already running, schedule check again in 100ms
-            self.root.after(100, self._check_generation_completion)
-            return
-            
-        # Start the appropriate generation
-        if generation_type == 'title':
-            self._trigger_title_generation()
-        elif generation_type == 'description':
-            self._trigger_description_generation()
-        elif generation_type == 'keywords':
-            self._trigger_keywords_generation()
-        elif generation_type == 'categories':
-            self._trigger_categories_generation()
-            
-        # Schedule check for completion
-        self.root.after(100, self._check_generation_completion)
-        
-    def _trigger_title_generation(self):
-        """Trigger title generation if not already running."""
-        if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
-            self.generate_title()
-            
-    def _trigger_description_generation(self):
-        """Trigger description generation if not already running."""
-        if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
-            self.generate_description()
-            
-    def _trigger_keywords_generation(self):
-        """Trigger keywords generation if not already running."""
-        if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
-            self.generate_keywords()
-            
-    def _trigger_categories_generation(self):
-        """Trigger categories generation if not already running."""
-        if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
-            self.generate_categories()
-            
-    def _check_generation_completion(self):
-        """Check if current generation step is complete and move to next."""
-        if not hasattr(self, '_generate_all_active') or not self._generate_all_active:
-            return
-            
-        if self._current_generation_index >= len(self._generation_sequence):
-            self._complete_all_generation()
-            return
-            
-        generation_type = self._generation_sequence[self._current_generation_index]
-        
-        # Check if current generation is still running
-        if (generation_type in self.ai_threads and 
-            self.ai_threads[generation_type] and 
-            self.ai_threads[generation_type].is_alive()):
-            # Still running, check again in 100ms
-            self.root.after(100, self._check_generation_completion)
-            return
-            
-        # Current generation complete, move to next
-        self._current_generation_index += 1
-        self._trigger_next_generation()
+        # Start the worker thread directly
+        if gen_type == 'title':
+            self.ai_threads['title'] = threading.Thread(
+                target=self._generate_title_worker,
+                args=(selected_model,),
+                daemon=True
+            )
+            self.ai_threads['title'].start()
+            self.ai_threads['title'].join()
+        elif gen_type == 'description':
+            self.ai_threads['description'] = threading.Thread(
+                target=self._generate_description_worker,
+                args=(selected_model,),
+                daemon=True
+            )
+            self.ai_threads['description'].start()
+            self.ai_threads['description'].join()
+        elif gen_type == 'keywords':
+            self.ai_threads['keywords'] = threading.Thread(
+                target=self._generate_keywords_worker,
+                args=(selected_model,),
+                daemon=True
+            )
+            self.ai_threads['keywords'].start()
+            self.ai_threads['keywords'].join()
+        elif gen_type == 'categories':
+            self.ai_threads['categories'] = threading.Thread(
+                target=self._generate_categories_worker,
+                args=(selected_model,),
+                daemon=True
+            )
+            self.ai_threads['categories'].start()
+            self.ai_threads['categories'].join()
+    
+    def _any_thread_running(self):
+        """Check if any AI generation thread is currently running."""
+        for thread_type, thread in self.ai_threads.items():
+            if thread and thread.is_alive():
+                return True
+        return False
         
     def _cancel_all_generation(self):
-        """Cancel all running generations and reset button states."""
-        # Cancel all individual generations
+        """Cancel all running generations and reset all buttons."""
+        # Set cancellation flags for all types
         for gen_type in ['title', 'description', 'keywords', 'categories']:
-            if (gen_type in self.ai_threads and 
-                self.ai_threads[gen_type] and 
-                self.ai_threads[gen_type].is_alive()):
-                self.ai_cancelled[gen_type] = True
-                
-        # Reset all individual button states to their original text and state
+            self.ai_cancelled[gen_type] = True
+        
+        # Reset all individual buttons to Generate state
         self.title_generate_button.configure(text="Generate", state="normal")
         self.desc_generate_button.configure(text="Generate", state="normal")
         self.keywords_generate_button.configure(text="Generate", state="normal")
         self.categories_generate_button.configure(text="Generate", state="normal")
-                
-        # Reset generate all state
+        
+        # Reset Generate All state and button
         self._generate_all_active = False
         self.generate_all_button.configure(text="Generate All", state="normal")
         
+        logging.info("All generations cancelled")
+    
     def _complete_all_generation(self):
         """Complete the generate all process."""
         self._generate_all_active = False
         self.generate_all_button.configure(text="Generate All", state="normal")
         logging.info("All metadata generation completed")
-    
+
 
 
     def save_metadata(self):
@@ -1190,6 +1216,80 @@ class MediaViewer:
             
         self.root.destroy()
         
+    def _show_editorial_dialog(self, missing_fields: Dict[str, bool], extracted_data: Dict[str, str], selected_model: str):
+        """Show editorial metadata dialog and continue description generation."""
+        try:
+            # Show dialog and get result
+            editorial_data = get_editorial_metadata(self.root, missing_fields, extracted_data)
+            
+            if editorial_data is None:
+                # User cancelled - reset button and return
+                self.desc_generate_button.configure(text="Generate", state="normal")
+                return
+            
+            # Continue description generation with complete editorial data
+            complete_data = {**extracted_data, **editorial_data}
+            
+            # Start new thread for generation with complete data
+            self.ai_threads['description'] = threading.Thread(
+                target=self._generate_description_with_editorial,
+                args=(selected_model, complete_data),
+                daemon=True
+            )
+            self.ai_threads['description'].start()
+            
+        except Exception as e:
+            logging.error(f"Editorial dialog failed: {e}")
+            self.root.after(0, self._update_description_result, None, str(e))
+    
+    def _generate_description_with_editorial(self, selected_model: str, editorial_data: Dict[str, str]):
+        """Continue description generation with complete editorial data."""
+        try:
+            # Get AI provider from config
+            from shared.config import get_config
+            from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
+            
+            config = get_config()
+            available_models = config.get_available_ai_models()
+            
+            # Find model key
+            model_key = None
+            for model in available_models:
+                if model["display_name"] == selected_model:
+                    model_key = model["key"]
+                    break
+            
+            if not model_key:
+                raise ValueError(f"Model key not found for: {selected_model}")
+            
+            # Check for cancellation
+            if self.ai_cancelled['description']:
+                return
+            
+            # Create generator and generate description with editorial data
+            generator = create_metadata_generator(model_key)
+            existing_title = self.title_entry.get().strip()
+            existing_desc = self.desc_text.get('1.0', tk.END).strip()
+            
+            description = generator.generate_description(
+                self.current_file_path,
+                existing_title if existing_title else None,
+                existing_desc if existing_desc else None,
+                editorial_data
+            )
+            
+            # Check for cancellation before updating UI
+            if self.ai_cancelled['description']:
+                return
+            
+            # Update UI in main thread
+            self.root.after(0, self._update_description_result, description, None)
+            
+        except Exception as e:
+            logging.error(f"Description generation with editorial failed: {e}")
+            # Update UI with error in main thread
+            self.root.after(0, self._update_description_result, None, str(e))
+
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
         logging.info("Window closed by user - terminating script")
