@@ -784,9 +784,13 @@ class MediaViewer:
                 
                 # Check if we need user input for missing fields
                 if any(missing_fields.values()):
-                    # Show dialog in main thread and wait for result
-                    self.root.after(0, self._show_editorial_dialog, missing_fields, extracted_data, selected_model)
-                    return
+                    # Show dialog synchronously and wait for result
+                    editorial_data = self._show_editorial_dialog_sync(missing_fields, extracted_data)
+                    if editorial_data is None:
+                        # User cancelled - stop generation
+                        return
+                    # Merge with extracted data
+                    editorial_data = {**extracted_data, **editorial_data}
                 else:
                     editorial_data = extracted_data
             
@@ -1289,6 +1293,30 @@ class MediaViewer:
             logging.error(f"Description generation with editorial failed: {e}")
             # Update UI with error in main thread
             self.root.after(0, self._update_description_result, None, str(e))
+
+    def _show_editorial_dialog_sync(self, missing_fields: Dict[str, bool], extracted_data: Dict[str, str]) -> Optional[Dict[str, str]]:
+        """Show editorial dialog synchronously from worker thread."""
+        # Create result container and event for synchronization
+        result_container = {'result': None}
+        dialog_completed = threading.Event()
+        
+        def show_dialog_in_main_thread():
+            """Show dialog in main thread and store result."""
+            try:
+                result_container['result'] = get_editorial_metadata(self.root, missing_fields, extracted_data)
+            except Exception as e:
+                logging.error(f"Editorial dialog error: {e}")
+                result_container['result'] = None
+            finally:
+                dialog_completed.set()
+        
+        # Schedule dialog to show in main thread
+        self.root.after(0, show_dialog_in_main_thread)
+        
+        # Wait for dialog completion (blocks worker thread)
+        dialog_completed.wait()
+        
+        return result_container['result']
 
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
