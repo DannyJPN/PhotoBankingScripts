@@ -81,7 +81,7 @@ def main():
     print(f"Found {len(unprocessed_records)} files to process")
     
     # Process files sequentially (default: max 1 file like PowerShell)
-    stats = process_unmatched_files(unprocessed_records, config=config, max_count=1)
+    stats = process_unmatched_files(unprocessed_records, config=config, max_count=1, media_csv=args.media_csv)
     
     # Summary
     total_attempted = stats['processed'] + stats['failed']

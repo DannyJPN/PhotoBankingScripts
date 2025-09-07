@@ -220,6 +220,8 @@ class TagEntry(tk.Frame):
                 # Remove tag and put text back in entry for editing
                 del self._tags[index]
                 self.refresh_listbox()
+                self.update_counter()
+                self.update_button_states()
                 self.entry.delete(0, tk.END)
                 self.entry.insert(0, tag_text)
                 self.entry.focus()
@@ -314,6 +316,7 @@ class TagEntry(tk.Frame):
             del self._tags[index]
             self.refresh_listbox()
             self.update_counter()
+            self.update_button_states()
             
             if self.on_change:
                 self.on_change()
@@ -331,6 +334,7 @@ class TagEntry(tk.Frame):
                 
         self.refresh_listbox()
         self.update_counter()
+        self.update_button_states()
         
         if self.on_change:
             self.on_change()
@@ -340,6 +344,7 @@ class TagEntry(tk.Frame):
         self._tags.clear()
         self.refresh_listbox()
         self.update_counter()
+        self.update_button_states()
         
         if self.on_change:
             self.on_change()
@@ -364,18 +369,32 @@ class TagEntry(tk.Frame):
         """Handle click events - single selection only."""
         # Get clicked item index
         index = self.listbox.nearest(event.y)
-        if 0 <= index < len(self._tags):
-            self._drag_start_index = index
-            self._drag_start_pos = (event.x, event.y)
-            self._drag_active = False  # Will be activated on motion if needed
+        
+        # Check if the click is actually on an item
+        # listbox.nearest() returns closest index even for clicks in empty space
+        listbox_height = self.listbox.winfo_height()
+        item_count = len(self._tags)
+        
+        # Estimate item height (approximately)
+        if item_count > 0:
+            item_height = max(listbox_height // max(item_count, 1), 15)  # Minimum 15px per item
+            max_item_y = item_count * item_height
             
-            # Always single selection - no modifier keys
-            self.listbox.selection_clear(0, tk.END)
-            self.listbox.selection_set(index)
-            return 'break'  # Prevent default behavior
+            # Check if click is within actual items area
+            if 0 <= index < len(self._tags) and event.y <= max_item_y:
+                self._drag_start_index = index
+                self._drag_start_pos = (event.x, event.y)
+                self._drag_active = False  # Will be activated on motion if needed
+                
+                # Always single selection - no modifier keys
+                self.listbox.selection_clear(0, tk.END)
+                self.listbox.selection_set(index)
+                self.update_button_states()  # Explicitly update buttons
+                return 'break'  # Prevent default behavior
         
         # If clicked outside items, clear selection
         self.listbox.selection_clear(0, tk.END)
+        self.update_button_states()  # Explicitly update buttons
         return 'break'  # Prevent default behavior
             
     def on_drag_motion(self, event):

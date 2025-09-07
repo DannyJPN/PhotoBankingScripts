@@ -79,7 +79,7 @@
       "Edit(./**)",
       "Delete(./**)",
 	  "Update(./**)",
-      "Bash(python *.py:*)",
+      "Bash(python:*.py:*)",
       "Bash(pytest:*)",
       "Bash(coverage:*)",
 
@@ -138,5 +138,9 @@
 
   "contextFiles": [
     "CLAUDE.md"
-  ]
+  ],
+
+  "editor": {
+    "type": "pycharm"
+  }
 }

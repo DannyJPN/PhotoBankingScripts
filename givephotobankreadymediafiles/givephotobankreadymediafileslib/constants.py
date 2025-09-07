@@ -44,7 +44,7 @@ ORIGINAL_NO = "ne"
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Default paths from original scripts
-DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
+DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
 DEFAULT_LIMITS_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoLimits.csv"
 DEFAULT_CATEGORIES_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoCategories.csv"
 

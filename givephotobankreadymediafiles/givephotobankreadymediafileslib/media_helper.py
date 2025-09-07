@@ -83,12 +83,13 @@ def get_media_type(file_path: str) -> str:
         return "unknown"
 
 
-def process_single_file(file_path: str) -> Tuple[bool, str, str]:
+def process_single_file(file_path: str, media_csv: str = None) -> Tuple[bool, str, str]:
     """
     Process a single file using subprocess.
     
     Args:
         file_path: Path to the media file
+        media_csv: Path to the media CSV file
         
     Returns:
         Tuple of (success, file_path, error_message)
@@ -116,6 +117,11 @@ def process_single_file(file_path: str) -> Tuple[bool, str, str]:
             file_path
         ]
         
+        # Add media_csv parameter if provided
+        if media_csv and os.path.exists(media_csv):
+            cmd.extend(['--media_csv', media_csv])
+            logging.info(f"Using media CSV: {media_csv}")
+        
         subprocess.run(cmd, check=True)
         logging.info(f"Successfully processed {file_path}")
         return True, file_path, ""
@@ -130,7 +136,7 @@ def process_single_file(file_path: str) -> Tuple[bool, str, str]:
         return False, file_path, error_msg
 
 
-def process_unmatched_files(records: List[Dict[str, str]], config=None, max_count: int = 1) -> Dict[str, int]:
+def process_unmatched_files(records: List[Dict[str, str]], config=None, max_count: int = 1, media_csv: str = None) -> Dict[str, int]:
     """
     Process media records sequentially, like PowerShell version.
     
@@ -138,6 +144,7 @@ def process_unmatched_files(records: List[Dict[str, str]], config=None, max_coun
         records: List of unprocessed records
         config: Global configuration object (passed to GUI if needed)
         max_count: Maximum number of files to process (default: 1)
+        media_csv: Path to the media CSV file
         
     Returns:
         Dictionary with processing statistics
@@ -166,7 +173,7 @@ def process_unmatched_files(records: List[Dict[str, str]], config=None, max_coun
             continue
         
         # Process the file
-        success, processed_file, error_msg = process_single_file(file_path)
+        success, processed_file, error_msg = process_single_file(file_path, media_csv)
         
         if success:
             stats['processed'] += 1

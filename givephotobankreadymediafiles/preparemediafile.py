@@ -10,9 +10,9 @@ import tkinter as tk
 
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
-from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH
+from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_MEDIA_CSV_PATH
 from givephotobankreadymediafileslib.media_viewer import show_media_viewer
-from givephotobankreadymediafileslib.mediainfo_loader import load_categories
+from givephotobankreadymediafileslib.mediainfo_loader import load_categories, load_media_records
 
 
 def parse_arguments():
@@ -21,6 +21,8 @@ def parse_arguments():
         description="Prepare media file for photobanks."
     )
     parser.add_argument("file", type=str, help="Path to the media file")
+    parser.add_argument("--media_csv", type=str, default=DEFAULT_MEDIA_CSV_PATH,
+                        help="Path to the PhotoMedia.csv file")
     parser.add_argument("--categories_csv", type=str, default=DEFAULT_CATEGORIES_CSV_PATH,
                         help="Path to the categories CSV file")
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
@@ -55,19 +57,109 @@ def main():
         if not categories:
             logging.warning("No categories loaded, continuing without categories")
         
-        # Create record from file path (minimal record for GUI)
-        record = {
-            'Soubor': os.path.basename(args.file),
-            'Cesta': args.file,
-            'Název': '',
-            'Popis': '',
-            'Klíčová slova': ''
-        }
+        # Load existing media record if CSV provided
+        record = None
+        if args.media_csv and os.path.exists(args.media_csv):
+            logging.info(f"Loading existing records from: {args.media_csv}")
+            try:
+                media_records = load_media_records(args.media_csv)
+                
+                # Find record matching this file
+                file_path_normalized = os.path.abspath(args.file).replace('\\', '/')
+                
+                for media_record in media_records:
+                    record_path = media_record.get('Cesta', '')
+                    if record_path:
+                        record_path_normalized = os.path.abspath(record_path).replace('\\', '/')
+                        if record_path_normalized == file_path_normalized:
+                            record = media_record
+                            logging.info(f"Found existing record for file: {os.path.basename(args.file)}")
+                            break
+                
+                if not record:
+                    logging.info(f"No existing record found for: {os.path.basename(args.file)}")
+                    
+            except Exception as e:
+                logging.warning(f"Failed to load media records: {e}")
+        
+        # Create default record if none found
+        if not record:
+            record = {
+                'Soubor': os.path.basename(args.file),
+                'Cesta': args.file,
+                'Název': '',
+                'Popis': '',
+                'Klíčová slova': '',
+                'Editorial': False,
+                'Kategorie_ShutterStock': '',
+                'Kategorie_AdobeStock': '',
+                'Kategorie_Dreamstime_1': '',
+                'Kategorie_Dreamstime_2': '',
+                'Kategorie_Dreamstime_3': '',
+                'Kategorie_Alamy_1': '',
+                'Kategorie_Alamy_2': ''
+            }
+            logging.info(f"Created new record for: {os.path.basename(args.file)}")
         
         def metadata_callback(metadata):
-            """Handle metadata save from GUI."""
+            """Handle metadata save from GUI - save to CSV file."""
             logging.info(f"Metadata saved for {args.file}: {metadata}")
-            print(f"Metadata saved: {metadata['title']}")
+            
+            try:
+                # Load current CSV data
+                if args.media_csv and os.path.exists(args.media_csv):
+                    from shared.file_operations import load_csv, save_csv_with_backup
+                    records = load_csv(args.media_csv)
+                    logging.info(f"Loaded {len(records)} existing records from CSV")
+                    
+                    # Find record for current file
+                    file_basename = os.path.basename(args.file)
+                    record_updated = False
+                    
+                    for record in records:
+                        # Match by filename (assuming COL_FILE contains basename)
+                        if record.get('Soubor', '') == file_basename or record.get('File', '') == file_basename:
+                            # Update existing record with metadata
+                            record['Titulek'] = metadata['title'][:100]  # Enforce 100 char limit
+                            record['Popis'] = metadata['description'][:200]  # Enforce 200 char limit  
+                            record['Klicova_Slova'] = metadata['keywords']
+                            record['Editorial'] = 'True' if metadata.get('editorial', False) else 'False'
+                            
+                            # Update categories if provided
+                            if 'categories' in metadata:
+                                for photobank, cats in metadata['categories'].items():
+                                    if cats:  # Only update if categories selected
+                                        # Map photobank names to column names
+                                        if photobank == 'shutterstock':
+                                            record['Kategorie_Shutterstock_1'] = cats[0] if len(cats) > 0 else ''
+                                            record['Kategorie_Shutterstock_2'] = cats[1] if len(cats) > 1 else ''
+                                        elif photobank == 'adobe_stock':
+                                            record['Kategorie_Adobe_Stock_1'] = cats[0] if len(cats) > 0 else ''
+                                            record['Kategorie_Adobe_Stock_2'] = cats[1] if len(cats) > 1 else ''
+                                        # Add other photobanks as needed
+                            
+                            record_updated = True
+                            logging.info(f"Updated record for {file_basename}")
+                            break
+                    
+                    if record_updated:
+                        # Save updated CSV with backup
+                        save_csv_with_backup(records, args.media_csv)
+                        logging.info(f"Successfully saved metadata to CSV: {args.media_csv}")
+                        print(f"✅ Metadata saved to CSV: {metadata['title']}")
+                    else:
+                        logging.warning(f"No matching record found for {file_basename} in CSV")
+                        print(f"⚠️ Warning: No record found for {file_basename} in CSV")
+                        
+                else:
+                    logging.warning("No CSV file specified or file doesn't exist - metadata not saved to file")
+                    print(f"⚠️ Warning: No CSV file - metadata only logged: {metadata['title']}")
+                    
+            except Exception as e:
+                logging.error(f"Failed to save metadata to CSV: {e}")
+                print(f"❌ Error saving metadata: {e}")
+                
+            # Always log the metadata for debugging
             print(f"Editorial: {metadata.get('editorial', False)}")
             print(f"Categories: {metadata.get('categories', {})}")
         
