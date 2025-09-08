@@ -32,9 +32,17 @@ COL_CATEGORIES = "Kategorie"
 COL_CREATE_DATE = "Datum vytvoření"
 COL_ORIGINAL = "Originál"
 COL_PATH = "Cesta"
-COL_STATUS_PREFIX = "status_"
+# Dynamic column name patterns for photobanks
 COL_STATUS_SUFFIX = " status"
 COL_CATEGORY_SUFFIX = " kategorie"
+
+def get_status_column(photobank: str) -> str:
+    """Get status column name for given photobank."""
+    return f"{photobank}{COL_STATUS_SUFFIX}"
+
+def get_category_column(photobank: str) -> str:
+    """Get category column name for given photobank."""
+    return f"{photobank}{COL_CATEGORY_SUFFIX}"
 
 # Original flag values
 ORIGINAL_YES = "ano"
@@ -52,5 +60,5 @@ DEFAULT_CATEGORIES_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoCategories.csv"
 DEFAULT_LOG_DIR = r"H:\Logs"
 
 # Processing settings
-DEFAULT_PROCESSED_MEDIA_MAX_COUNT = 1
+DEFAULT_PROCESSED_MEDIA_MAX_COUNT = 3
 DEFAULT_INTERVAL = 10
