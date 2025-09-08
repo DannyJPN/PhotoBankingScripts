@@ -146,7 +146,10 @@ class TagEntry(tk.Frame):
         self.update_button_states()
         
     def on_selection_change(self, event=None):
-        """Handle listbox selection change - update button states."""
+        """Handle listbox selection change - cancel entry mode if active, then update button states."""
+        # If entry is active and selection changed, cancel entry mode
+        if self.entry['state'] != 'disabled':
+            self.cancel_entry_mode()
         self.update_button_states()
         
     def update_button_states(self):
@@ -335,13 +338,24 @@ class TagEntry(tk.Frame):
             
     def on_click(self, event):
         """Handle click events - simplified without drag functionality."""
-        # Cancel any active entry mode first
-        if self.entry['state'] != 'disabled':
-            self.cancel_entry_mode()
-            
-        # Get clicked item index
+        # Get clicked item index first
         index = self.listbox.nearest(event.y)
         
+        # Check current selection before making changes
+        current_selection = self.listbox.curselection()
+        current_index = current_selection[0] if current_selection else None
+        
+        # If entry is active and clicked on different item, cancel entry mode
+        if (self.entry['state'] != 'disabled' and 
+            0 <= index < len(self._tags) and 
+            current_index != index):
+            self.cancel_entry_mode()
+            
+        # If entry is active and clicked outside items, cancel entry mode  
+        if (self.entry['state'] != 'disabled' and 
+            not (0 <= index < len(self._tags))):
+            self.cancel_entry_mode()
+            
         # Simple bounds check - if valid index and within tags range
         if 0 <= index < len(self._tags):
             # Single selection
