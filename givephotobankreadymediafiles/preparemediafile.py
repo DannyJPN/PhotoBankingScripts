@@ -82,22 +82,17 @@ def main():
             except Exception as e:
                 logging.warning(f"Failed to load media records: {e}")
         
-        # Create default record if none found
+        # Create default record if none found using proper constants
         if not record:
+            from givephotobankreadymediafileslib.constants import COL_FILE, COL_PATH, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS
             record = {
-                'Soubor': os.path.basename(args.file),
-                'Cesta': args.file,
-                'Název': '',
-                'Popis': '',
-                'Klíčová slova': '',
-                'Editorial': False,
-                'Kategorie_ShutterStock': '',
-                'Kategorie_AdobeStock': '',
-                'Kategorie_Dreamstime_1': '',
-                'Kategorie_Dreamstime_2': '',
-                'Kategorie_Dreamstime_3': '',
-                'Kategorie_Alamy_1': '',
-                'Kategorie_Alamy_2': ''
+                COL_FILE: os.path.basename(args.file),
+                COL_PATH: args.file,
+                COL_TITLE: '',
+                COL_DESCRIPTION: '',
+                COL_KEYWORDS: '',
+                # Editorial is not saved - will be detected later by another script
+                # Category columns will be added dynamically when needed
             }
             logging.info(f"Created new record for: {os.path.basename(args.file)}")
         
@@ -116,14 +111,17 @@ def main():
                     file_basename = os.path.basename(args.file)
                     record_updated = False
                     
+                    # Import constants for column names
+                    from givephotobankreadymediafileslib.constants import COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS
+                    
                     for record in records:
-                        # Match by filename (assuming COL_FILE contains basename)
-                        if record.get('Soubor', '') == file_basename or record.get('File', '') == file_basename:
-                            # Update existing record with metadata
-                            record['Titulek'] = metadata['title'][:100]  # Enforce 100 char limit
-                            record['Popis'] = metadata['description'][:200]  # Enforce 200 char limit  
-                            record['Klicova_Slova'] = metadata['keywords']
-                            record['Editorial'] = 'True' if metadata.get('editorial', False) else 'False'
+                        # Match by filename using proper column constant
+                        if record.get(COL_FILE, '') == file_basename or record.get('File', '') == file_basename:
+                            # Update existing record with metadata using correct column names
+                            record[COL_TITLE] = metadata['title'][:100]  # Enforce 100 char limit
+                            record[COL_DESCRIPTION] = metadata['description'][:200]  # Enforce 200 char limit  
+                            record[COL_KEYWORDS] = metadata['keywords']
+                            # Editorial is not saved - will be detected later by another script from description
                             
                             # Update categories if provided
                             if 'categories' in metadata:
