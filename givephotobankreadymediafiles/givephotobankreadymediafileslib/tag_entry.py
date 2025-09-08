@@ -40,6 +40,10 @@ class TagEntry(tk.Frame):
         self.on_change = on_change
         self._tags = []  # List of tag text strings
         
+        # Entry state management
+        self._edit_mode = False  # True when editing, False when adding
+        self._edit_index = None  # Index of tag being edited
+        
         self.setup_ui(width, height)
         
     def setup_ui(self, width: int, height: int):
@@ -94,7 +98,7 @@ class TagEntry(tk.Frame):
         
         # Edit/Delete buttons
         self.edit_button = ttk.Button(buttons_frame, text="Edit", width=6,
-                                     command=self.edit_selected_tag, state='disabled')
+                                     command=self.start_edit_mode, state='disabled')
         self.edit_button.pack(side=tk.LEFT, padx=(0, 2))
         
         self.delete_button = ttk.Button(buttons_frame, text="Delete", width=6, 
@@ -113,34 +117,30 @@ class TagEntry(tk.Frame):
         bottom_frame = ttk.Frame(self)
         bottom_frame.pack(fill=tk.X)
         
-        # Entry field for new tags
+        # Entry field for new tags - starts disabled
         self.entry = tk.Entry(bottom_frame, 
                              font=('Segoe UI', 9),
                              relief='solid',
-                             borderwidth=1)
+                             borderwidth=1,
+                             state='disabled')
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
-        # Add button
+        # Add button - now enables entry
         self.add_button = ttk.Button(bottom_frame, text="Add", width=8,
-                                    command=self.add_tag_from_entry)
+                                    command=self.start_add_mode)
         self.add_button.pack(side=tk.RIGHT)
         
         # Bind events
         self.entry.bind('<Return>', self.on_entry_return)
         self.entry.bind('<KeyPress>', self.on_entry_key)
+        self.entry.bind('<Escape>', self.cancel_entry_mode)
         self.listbox.bind('<Delete>', self.on_delete_key)
         self.listbox.bind('<BackSpace>', self.on_delete_key)
         self.listbox.bind('<Double-Button-1>', self.on_listbox_double_click)
         self.listbox.bind('<<ListboxSelect>>', self.on_selection_change)  # Selection change
         
-        # Bind custom events - override default listbox behavior
+        # Simplified click handling - no drag functionality
         self.listbox.bind('<Button-1>', self.on_click)
-        self.listbox.bind('<B1-Motion>', self.on_drag_motion)  
-        self.listbox.bind('<ButtonRelease-1>', self.on_drag_end)
-        
-        # Drag state
-        self._drag_start_index = None
-        self._drag_active = False
         
         self.update_counter()
         self.update_button_states()
@@ -154,25 +154,34 @@ class TagEntry(tk.Frame):
         selection = self.listbox.curselection()
         has_selection = len(selection) > 0
         has_tags = len(self._tags) > 0
+        entry_active = self.entry['state'] != 'disabled'
         
-        # All buttons require single selection only (simplified logic)
-        if has_selection and len(selection) == 1:
-            index = selection[0]
-            total_tags = len(self._tags)
-            
-            # Position-based button states
-            can_move_up = index > 0                    # Not first item
-            can_move_down = index < total_tags - 1     # Not last item  
-            can_move_to_top = index > 0                # Not first item
-            can_move_to_bottom = index < total_tags - 1 # Not last item
-            
-            # All editing buttons active when item selected
-            can_edit = True
-            can_delete = True
-        else:
-            # No selection or invalid selection - disable all movement/edit buttons
+        # If entry is active (editing/adding mode), disable most buttons
+        if entry_active:
             can_move_up = can_move_down = can_move_to_top = can_move_to_bottom = False
-            can_edit = can_delete = False
+            can_edit = can_delete = can_clear = False
+        else:
+            # Normal mode - buttons based on selection
+            if has_selection and len(selection) == 1:
+                index = selection[0]
+                total_tags = len(self._tags)
+                
+                # Position-based button states
+                can_move_up = index > 0                    # Not first item
+                can_move_down = index < total_tags - 1     # Not last item  
+                can_move_to_top = index > 0                # Not first item
+                can_move_to_bottom = index < total_tags - 1 # Not last item
+                
+                # All editing buttons active when item selected
+                can_edit = True
+                can_delete = True
+            else:
+                # No selection or invalid selection - disable all movement/edit buttons
+                can_move_up = can_move_down = can_move_to_top = can_move_to_bottom = False
+                can_edit = can_delete = False
+                
+            # Clear button - when there are any tags (independent of selection)
+            can_clear = has_tags
         
         # Apply button states
         self.up_button.configure(state='normal' if can_move_up else 'disabled')
@@ -181,13 +190,14 @@ class TagEntry(tk.Frame):
         self.bottom_button.configure(state='normal' if can_move_to_bottom else 'disabled')
         self.edit_button.configure(state='normal' if can_edit else 'disabled')
         self.delete_button.configure(state='normal' if can_delete else 'disabled')
-        
-        # Clear button - when there are any tags (independent of selection)
-        self.clear_button.configure(state='normal' if has_tags else 'disabled')
+        self.clear_button.configure(state='normal' if can_clear else 'disabled')
         
     def on_entry_return(self, event):
         """Handle Enter key in entry field."""
-        self.add_tag_from_entry()
+        if self._edit_mode:
+            self.confirm_edit()
+        else:
+            self.confirm_add()
         return 'break'
         
     def on_entry_key(self, event):
@@ -211,54 +221,9 @@ class TagEntry(tk.Frame):
         return 'break'
         
     def on_listbox_double_click(self, event):
-        """Handle double-click on listbox item - edit tag."""
-        selection = self.listbox.curselection()
-        if selection:
-            index = selection[0]
-            if 0 <= index < len(self._tags):
-                tag_text = self._tags[index]
-                # Remove tag and put text back in entry for editing
-                del self._tags[index]
-                self.refresh_listbox()
-                self.update_counter()
-                self.update_button_states()
-                self.entry.delete(0, tk.END)
-                self.entry.insert(0, tag_text)
-                self.entry.focus()
-                self.entry.select_range(0, tk.END)
-                
-                if self.on_change:
-                    self.on_change()
+        """Handle double-click on listbox item - same as Edit button."""
+        self.start_edit_mode()
         
-    def add_tag_from_entry(self):
-        """Add tag(s) from entry field."""
-        text = self.entry.get().strip()
-        if not text:
-            return
-            
-        # Split by separators to handle multiple tags: "tag1,tag2;tag3"
-        import re
-        separator_pattern = '[' + ''.join(self.separators) + ']+'
-        potential_tags = re.split(separator_pattern, text)
-        
-        # Add each valid tag
-        added_any = False
-        for tag_text in potential_tags:
-            tag_text = tag_text.strip()
-            if (len(tag_text) >= 2 and 
-                tag_text not in self._tags and 
-                len(self._tags) < self.max_tags):
-                self._tags.append(tag_text)
-                added_any = True
-        
-        if added_any:
-            self.entry.delete(0, tk.END)
-            self.refresh_listbox()
-            self.update_counter()
-            self.update_button_states()
-            
-            if self.on_change:
-                self.on_change()
                 
     def remove_selected_tags(self):
         """Remove selected tags from listbox."""
@@ -350,8 +315,11 @@ class TagEntry(tk.Frame):
             self.on_change()
             
     def focus(self):
-        """Focus the entry field."""
-        self.entry.focus()
+        """Focus the entry field - start add mode if disabled."""
+        if self.entry['state'] == 'disabled':
+            self.start_add_mode()
+        else:
+            self.entry.focus()
         
     def get_text(self) -> str:
         """Get all tags as comma-separated string."""
@@ -366,109 +334,128 @@ class TagEntry(tk.Frame):
             self.clear_tags()
             
     def on_click(self, event):
-        """Handle click events - single selection only."""
+        """Handle click events - simplified without drag functionality."""
+        # Cancel any active entry mode first
+        if self.entry['state'] != 'disabled':
+            self.cancel_entry_mode()
+            
         # Get clicked item index
         index = self.listbox.nearest(event.y)
         
-        # Check if the click is actually on an item
-        # listbox.nearest() returns closest index even for clicks in empty space
-        listbox_height = self.listbox.winfo_height()
-        item_count = len(self._tags)
-        
-        # Estimate item height (approximately)
-        if item_count > 0:
-            item_height = max(listbox_height // max(item_count, 1), 15)  # Minimum 15px per item
-            max_item_y = item_count * item_height
+        # Simple bounds check - if valid index and within tags range
+        if 0 <= index < len(self._tags):
+            # Single selection
+            self.listbox.selection_clear(0, tk.END)
+            self.listbox.selection_set(index)
+        else:
+            # Clicked outside items, clear selection
+            self.listbox.selection_clear(0, tk.END)
             
-            # Check if click is within actual items area
-            if 0 <= index < len(self._tags) and event.y <= max_item_y:
-                self._drag_start_index = index
-                self._drag_start_pos = (event.x, event.y)
-                self._drag_active = False  # Will be activated on motion if needed
-                
-                # Always single selection - no modifier keys
-                self.listbox.selection_clear(0, tk.END)
-                self.listbox.selection_set(index)
-                self.update_button_states()  # Explicitly update buttons
-                return 'break'  # Prevent default behavior
-        
-        # If clicked outside items, clear selection
-        self.listbox.selection_clear(0, tk.END)
-        self.update_button_states()  # Explicitly update buttons
+        self.update_button_states()
         return 'break'  # Prevent default behavior
             
-    def on_drag_motion(self, event):
-        """Handle drag motion - activate drag if moved enough."""
-        if self._drag_start_index is None:
-            return
-            
-        # Check if we've moved enough to start a drag operation (threshold)
-        if not self._drag_active and hasattr(self, '_drag_start_pos'):
-            dx = abs(event.x - self._drag_start_pos[0])
-            dy = abs(event.y - self._drag_start_pos[1])
-            # Only start drag if no modifier keys and moved enough
-            if dx > 5 or dy > 5:
-                if not (event.state & 0x4) and not (event.state & 0x1):  # No Ctrl or Shift
-                    self._drag_active = True
-                    
-        if not self._drag_active:
-            return
-            
-        # Get current position for visual feedback
-        current_index = self.listbox.nearest(event.y)
+    def start_add_mode(self):
+        """Start add mode - enable entry for adding new tag."""
+        self._edit_mode = False
+        self._edit_index = None
+        self.entry.configure(state='normal')
+        self.entry.delete(0, tk.END)
+        self.entry.focus()
+        self.add_button.configure(text="Confirm", command=self.confirm_add)
+        self.edit_button.configure(text="Cancel", command=self.cancel_entry_mode)
+        self.update_button_states()
         
-        # Visual feedback could be added here (highlighting target position)
-        # For now, just ensure we stay within bounds
-        if current_index < 0:
-            current_index = 0
-        elif current_index >= len(self._tags):
-            current_index = len(self._tags) - 1
+    def start_edit_mode(self):
+        """Start edit mode - enable entry for editing selected tag."""
+        selection = self.listbox.curselection()
+        if not selection:
+            return
             
-    def on_drag_end(self, event):
-        """Handle end of drag operation - reorder tags only if drag was active."""
-        try:
-            # Only perform drag operation if we actually started dragging
-            if self._drag_active and self._drag_start_index is not None:
-                # Get drop position
-                drop_index = self.listbox.nearest(event.y)
+        index = selection[0]
+        if 0 <= index < len(self._tags):
+            self._edit_mode = True
+            self._edit_index = index
+            tag_text = self._tags[index]
+            
+            self.entry.configure(state='normal')
+            self.entry.delete(0, tk.END)
+            self.entry.insert(0, tag_text)
+            self.entry.focus()
+            self.entry.select_range(0, tk.END)
+            
+            self.add_button.configure(text="Confirm", command=self.confirm_edit)
+            self.edit_button.configure(text="Cancel", command=self.cancel_entry_mode)
+            self.update_button_states()
+            
+    def cancel_entry_mode(self, event=None):
+        """Cancel entry mode and return to normal state."""
+        self._edit_mode = False
+        self._edit_index = None
+        self.entry.configure(state='disabled')
+        self.entry.delete(0, tk.END)
+        self.add_button.configure(text="Add", command=self.start_add_mode)
+        self.edit_button.configure(text="Edit", command=self.start_edit_mode)
+        self.update_button_states()
+        
+    def confirm_add(self):
+        """Confirm adding new tag."""
+        text = self.entry.get().strip()
+        if not text:
+            return
+            
+        # Split by separators to handle multiple tags
+        import re
+        separator_pattern = '[' + ''.join(self.separators) + ']+'
+        potential_tags = re.split(separator_pattern, text)
+        
+        # Add each valid tag
+        added_any = False
+        for tag_text in potential_tags:
+            tag_text = tag_text.strip()
+            if (len(tag_text) >= 2 and 
+                tag_text not in self._tags and 
+                len(self._tags) < self.max_tags):
+                self._tags.append(tag_text)
+                added_any = True
+        
+        if added_any:
+            self.refresh_listbox()
+            self.update_counter()
+            if self.on_change:
+                self.on_change()
                 
-                # Ensure valid drop position
-                if drop_index < 0:
-                    drop_index = 0
-                elif drop_index >= len(self._tags):
-                    drop_index = len(self._tags) - 1
-                    
-                # Only move if position changed
-                if drop_index != self._drag_start_index:
-                    # Move the tag
-                    tag_to_move = self._tags.pop(self._drag_start_index)
-                    self._tags.insert(drop_index, tag_to_move)
-                    
-                    # Refresh display
-                    self.refresh_listbox()
-                    
-                    # Select the moved item at new position
-                    self.listbox.selection_clear(0, tk.END)
-                    self.listbox.selection_set(drop_index)
-                    self.update_button_states()
-                    
-                    # Notify of change
-                    if self.on_change:
-                        self.on_change()
-                    
-        finally:
-            # Always reset drag state
-            self._drag_active = False
-            self._drag_start_index = None
-            if hasattr(self, '_drag_start_pos'):
-                delattr(self, '_drag_start_pos')
-    
+        self.cancel_entry_mode()
+        
+    def confirm_edit(self):
+        """Confirm editing existing tag."""
+        if self._edit_index is None or not self._edit_mode:
+            return
+            
+        text = self.entry.get().strip()
+        if not text or len(text) < 2:
+            return
+            
+        # Check for duplicate (excluding the tag being edited)
+        if text in self._tags[:self._edit_index] + self._tags[self._edit_index+1:]:
+            return
+            
+        # Update the tag at the same position
+        self._tags[self._edit_index] = text
+        self.refresh_listbox()
+        self.update_counter()
+        
+        # Maintain selection on the edited item
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(self._edit_index)
+        
+        if self.on_change:
+            self.on_change()
+            
+        self.cancel_entry_mode()
     
     def edit_selected_tag(self):
-        """Edit the selected tag (same as double-click)."""
-        selection = self.listbox.curselection()
-        if selection:
-            self.on_listbox_double_click(None)
+        """Edit the selected tag - same as double-click."""
+        self.start_edit_mode()
     
     def move_up(self):
         """Move selected tag up by one position."""
