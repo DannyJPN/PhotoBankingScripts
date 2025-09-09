@@ -104,11 +104,20 @@ File-based approach avoids shell escaping issues and supports full formatting.
 ### Commit Best Practices
 
 **Before committing:**
-1. **Clean up temporary files**: Always remove `*.tmp.*` files before staging
-2. **Stage only modified files**: Never use `git add .` - explicitly list only the files you modified
-3. **Example**: `git add file1.py file2.py constants.py` (not `git add .`)
+1. **Stop Dropbox**: Check if Dropbox is running and kill it before git operations
+   - Check: `tasklist | findstr Dropbox`
+   - Kill: `taskkill /f /im Dropbox.exe` (if running)
+   - **Critical**: Git operations fail with "Permission denied" errors when Dropbox is syncing
+2. **Clean up temporary files**: Always remove `*.tmp.*` files before staging
+3. **Stage only modified files**: Never use `git add .` - explicitly list only the files you modified
+4. **Example**: `git add file1.py file2.py constants.py` (not `git add .`)
 
-**Rationale**: Prevents accidental commits of temporary files, build artifacts, or unrelated changes.
+**After pushing:**
+- **Restart Dropbox**: `start "" "C:\Program Files (x86)\Dropbox\Client\Dropbox.exe"`
+
+**Rationale**: 
+- Dropbox file locking prevents Git from writing to `.git/objects/` 
+- Prevents accidental commits of temporary files, build artifacts, or unrelated changes
 
 ---
 
