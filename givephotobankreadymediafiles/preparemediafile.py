@@ -115,35 +115,51 @@ def main():
                     from givephotobankreadymediafileslib.constants import (COL_FILE, COL_TITLE, COL_DESCRIPTION, 
                                                                            COL_KEYWORDS, COL_PREP_DATE, 
                                                                            get_status_column, get_category_column,
-                                                                           COL_STATUS_SUFFIX, STATUS_UNPROCESSED, STATUS_PREPARED)
+                                                                           COL_STATUS_SUFFIX, STATUS_UNPROCESSED, 
+                                                                           STATUS_PREPARED, STATUS_REJECTED)
                     from datetime import datetime
                     
                     for record in records:
                         # Match by filename using proper column constant
                         if record.get(COL_FILE, '') == file_basename or record.get('File', '') == file_basename:
-                            # Update existing record with metadata using correct column names
-                            record[COL_TITLE] = metadata['title'][:100]  # Enforce 100 char limit
-                            record[COL_DESCRIPTION] = metadata['description'][:200]  # Enforce 200 char limit  
-                            record[COL_KEYWORDS] = metadata['keywords']
+                            # Check if this is a rejection
+                            is_rejected = metadata.get('rejected', False)
                             
-                            # Set preparation date
-                            record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
-                            
-                            # Update categories for each photobank using dynamic column names
-                            categories_data = metadata.get('categories', {})
-                            for photobank, selected_categories in categories_data.items():
-                                if selected_categories:  # Only if categories were selected
-                                    category_column = get_category_column(photobank)
-                                    # Join categories with comma
-                                    record[category_column] = ', '.join(selected_categories)
-                                    logging.info(f"Set categories for {photobank}: {record[category_column]}")
-                            
-                            # Update status from STATUS_UNPROCESSED to STATUS_PREPARED for ALL photobanks (independent of categories)
-                            for field_name, field_value in record.items():
-                                if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
-                                    photobank = field_name.replace(COL_STATUS_SUFFIX, '')
-                                    record[field_name] = STATUS_PREPARED
-                                    logging.info(f"Updated status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_PREPARED}")
+                            if is_rejected:
+                                # Handle rejection - set all statuses to rejected
+                                logging.info(f"Rejecting file: {file_basename}")
+                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+                                
+                                # Set status to rejected for all photobanks
+                                for field_name, field_value in record.items():
+                                    if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
+                                        photobank = field_name.replace(COL_STATUS_SUFFIX, '')
+                                        record[field_name] = STATUS_REJECTED
+                                        logging.info(f"Rejected status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_REJECTED}")
+                            else:
+                                # Handle normal save - update metadata and set status to prepared
+                                record[COL_TITLE] = metadata['title'][:100]  # Enforce 100 char limit
+                                record[COL_DESCRIPTION] = metadata['description'][:200]  # Enforce 200 char limit  
+                                record[COL_KEYWORDS] = metadata['keywords']
+                                
+                                # Set preparation date
+                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+                                
+                                # Update categories for each photobank using dynamic column names
+                                categories_data = metadata.get('categories', {})
+                                for photobank, selected_categories in categories_data.items():
+                                    if selected_categories:  # Only if categories were selected
+                                        category_column = get_category_column(photobank)
+                                        # Join categories with comma
+                                        record[category_column] = ', '.join(selected_categories)
+                                        logging.info(f"Set categories for {photobank}: {record[category_column]}")
+                                
+                                # Update status from STATUS_UNPROCESSED to STATUS_PREPARED for ALL photobanks (independent of categories)
+                                for field_name, field_value in record.items():
+                                    if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
+                                        photobank = field_name.replace(COL_STATUS_SUFFIX, '')
+                                        record[field_name] = STATUS_PREPARED
+                                        logging.info(f"Updated status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_PREPARED}")
                             
                             # Editorial is not saved - will be detected later by another script from description
                             
