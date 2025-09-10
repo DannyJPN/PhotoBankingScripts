@@ -82,6 +82,9 @@ class MediaViewer:
                        relief='raised',
                        borderwidth=1)
         
+        # Configure reject button style (red text)
+        style.configure('Reject.TButton', foreground='red')
+        
     def setup_ui(self):
         """Setup the main UI layout."""
         # Create main paned window
@@ -246,6 +249,11 @@ class MediaViewer:
         self.save_button = ttk.Button(action_frame, text="Save & Continue", 
                                     command=self.save_metadata)
         self.save_button.pack(side=tk.LEFT, padx=2)
+        
+        self.reject_button = ttk.Button(action_frame, text="Reject", 
+                                      command=self.reject_metadata, 
+                                      style='Reject.TButton')
+        self.reject_button.pack(side=tk.LEFT, padx=2)
         
     def setup_ai_model_panel(self, parent):
         """Setup AI model selection panel - simple dropdown only."""
@@ -1215,6 +1223,38 @@ class MediaViewer:
         }
         
         # Call completion callback with metadata
+        if self.completion_callback:
+            self.completion_callback(metadata)
+            
+        self.root.destroy()
+    
+    def reject_metadata(self):
+        """Reject this file and set status to rejected for all photobanks."""
+        if not hasattr(self, 'current_record'):
+            messagebox.showwarning("No File", "No file is currently loaded.")
+            return
+        
+        # Ask for confirmation
+        response = messagebox.askyesno(
+            "Reject File", 
+            f"Are you sure you want to reject this file?\n\n{self.current_file_path}\n\nThis will set status to 'zamítnuto' for all photobanks.",
+            icon='warning'
+        )
+        
+        if not response:
+            return
+        
+        # Create rejection metadata (minimal data needed)
+        metadata = {
+            'title': '',
+            'description': '',
+            'keywords': '',
+            'editorial': False,
+            'categories': {},
+            'rejected': True  # Special flag to indicate rejection
+        }
+        
+        # Call completion callback with rejection metadata
         if self.completion_callback:
             self.completion_callback(metadata)
             
