@@ -16,7 +16,7 @@ from givephotobankreadymediafileslib.constants import (
 
 def find_unprocessed_records(records: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """
-    Find records that need processing (Originál=ano and any status=nezpracováno).
+    Find records that need processing (Originál=ano and any status=STATUS_UNPROCESSED).
     
     Args:
         records: List of all media records

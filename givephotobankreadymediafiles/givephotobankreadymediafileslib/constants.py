@@ -5,7 +5,7 @@ import os
 
 # Status constants
 STATUS_UNPROCESSED = "nezpracováno"
-STATUS_PROCESSED = "zpracováno"
+STATUS_PREPARED = "připraveno"
 STATUS_REJECTED = "zamítnuto"
 STATUS_ERROR = "chyba"
 

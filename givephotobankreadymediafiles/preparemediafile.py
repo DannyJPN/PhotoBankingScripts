@@ -111,8 +111,12 @@ def main():
                     file_basename = os.path.basename(args.file)
                     record_updated = False
                     
-                    # Import constants for column names
-                    from givephotobankreadymediafileslib.constants import COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS
+                    # Import constants for column names and status values
+                    from givephotobankreadymediafileslib.constants import (COL_FILE, COL_TITLE, COL_DESCRIPTION, 
+                                                                           COL_KEYWORDS, COL_PREP_DATE, 
+                                                                           get_status_column, get_category_column,
+                                                                           COL_STATUS_SUFFIX, STATUS_UNPROCESSED, STATUS_PREPARED)
+                    from datetime import datetime
                     
                     for record in records:
                         # Match by filename using proper column constant
@@ -121,20 +125,27 @@ def main():
                             record[COL_TITLE] = metadata['title'][:100]  # Enforce 100 char limit
                             record[COL_DESCRIPTION] = metadata['description'][:200]  # Enforce 200 char limit  
                             record[COL_KEYWORDS] = metadata['keywords']
-                            # Editorial is not saved - will be detected later by another script from description
                             
-                            # Update categories if provided
-                            if 'categories' in metadata:
-                                for photobank, cats in metadata['categories'].items():
-                                    if cats:  # Only update if categories selected
-                                        # Map photobank names to column names
-                                        if photobank == 'shutterstock':
-                                            record['Kategorie_Shutterstock_1'] = cats[0] if len(cats) > 0 else ''
-                                            record['Kategorie_Shutterstock_2'] = cats[1] if len(cats) > 1 else ''
-                                        elif photobank == 'adobe_stock':
-                                            record['Kategorie_Adobe_Stock_1'] = cats[0] if len(cats) > 0 else ''
-                                            record['Kategorie_Adobe_Stock_2'] = cats[1] if len(cats) > 1 else ''
-                                        # Add other photobanks as needed
+                            # Set preparation date
+                            record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+                            
+                            # Update categories for each photobank using dynamic column names
+                            categories_data = metadata.get('categories', {})
+                            for photobank, selected_categories in categories_data.items():
+                                if selected_categories:  # Only if categories were selected
+                                    category_column = get_category_column(photobank)
+                                    # Join categories with comma
+                                    record[category_column] = ', '.join(selected_categories)
+                                    logging.info(f"Set categories for {photobank}: {record[category_column]}")
+                            
+                            # Update status from STATUS_UNPROCESSED to STATUS_PREPARED for ALL photobanks (independent of categories)
+                            for field_name, field_value in record.items():
+                                if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
+                                    photobank = field_name.replace(COL_STATUS_SUFFIX, '')
+                                    record[field_name] = STATUS_PREPARED
+                                    logging.info(f"Updated status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_PREPARED}")
+                            
+                            # Editorial is not saved - will be detected later by another script from description
                             
                             record_updated = True
                             logging.info(f"Updated record for {file_basename}")
