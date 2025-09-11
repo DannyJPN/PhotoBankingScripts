@@ -11,7 +11,8 @@ from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
 from shared.config import get_config
 from givephotobankreadymediafileslib.constants import (
-    DEFAULT_MEDIA_CSV_PATH, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_LOG_DIR
+    DEFAULT_MEDIA_CSV_PATH, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_LOG_DIR, 
+    DEFAULT_PROCESSED_MEDIA_MAX_COUNT, DEFAULT_INTERVAL
 )
 from givephotobankreadymediafileslib.mediainfo_loader import (
     load_media_records, load_categories
@@ -36,6 +37,10 @@ def parse_arguments():
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--max_count", type=int, default=DEFAULT_PROCESSED_MEDIA_MAX_COUNT,
+                        help=f"Maximum number of files to process (default: {DEFAULT_PROCESSED_MEDIA_MAX_COUNT})")
+    parser.add_argument("--interval", type=int, default=DEFAULT_INTERVAL,
+                        help=f"Interval in seconds between processing files (default: {DEFAULT_INTERVAL})")
     
     return parser.parse_args()
 
@@ -80,8 +85,10 @@ def main():
     logging.info(f"Found {len(unprocessed_records)} files to process")
     print(f"Found {len(unprocessed_records)} files to process")
     
-    # Process files sequentially (default: max 1 file like PowerShell)
-    stats = process_unmatched_files(unprocessed_records, config=config, max_count=1, media_csv=args.media_csv)
+    # Process files sequentially with user-specified limits
+    stats = process_unmatched_files(unprocessed_records, config=config, 
+                                   max_count=args.max_count, interval=args.interval, 
+                                   media_csv=args.media_csv)
     
     # Summary
     total_attempted = stats['processed'] + stats['failed']

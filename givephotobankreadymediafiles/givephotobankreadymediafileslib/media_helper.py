@@ -6,6 +6,7 @@ import os
 import sys
 import logging
 import subprocess
+import time
 from typing import List, Dict, Tuple
 from givephotobankreadymediafileslib.constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
@@ -136,14 +137,15 @@ def process_single_file(file_path: str, media_csv: str = None) -> Tuple[bool, st
         return False, file_path, error_msg
 
 
-def process_unmatched_files(records: List[Dict[str, str]], config=None, max_count: int = 1, media_csv: str = None) -> Dict[str, int]:
+def process_unmatched_files(records: List[Dict[str, str]], config=None, max_count: int = 1, interval: int = 10, media_csv: str = None) -> Dict[str, int]:
     """
-    Process media records sequentially, like PowerShell version.
+    Process media records sequentially with interval between files.
     
     Args:
         records: List of unprocessed records
         config: Global configuration object (passed to GUI if needed)
         max_count: Maximum number of files to process (default: 1)
+        interval: Seconds to wait between processing files (default: 10)
         media_csv: Path to the media CSV file
         
     Returns:
@@ -182,6 +184,12 @@ def process_unmatched_files(records: List[Dict[str, str]], config=None, max_coun
             stats['failed'] += 1
             logging.error(f"Failed to prepare file {file_path}: {error_msg}")
             # Continue with next file even if one fails
+            
+        # Wait interval before processing next file (except for last file)
+        if interval > 0 and i < min(len(records), max_count) - 1:
+            logging.info(f"Waiting {interval} seconds before processing next file...")
+            print(f"Waiting {interval} seconds before next file...")
+            time.sleep(interval)
     
     logging.info(f"Sequential processing complete: {stats}")
     return stats
