@@ -7,7 +7,7 @@ import logging
 from typing import Dict, List, Optional, Any
 
 from updatemedialdatabaselib.constants import (
-    PHOTO_EXTENSIONS,
+    IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
     TYPE_PHOTO,
     TYPE_VIDEO,
@@ -48,7 +48,7 @@ def find_original_file(edited_filename: str, database: List[Dict[str, str]]) -> 
     # Search for original file in database
     for record in database:
         if record.get(COLUMN_FILENAME) == original_filename:
-            logging.info(f"Found original file for {edited_filename}: {original_filename}")
+            logging.debug(f"Found original file for {edited_filename}: {original_filename}")
             return record
     
     logging.debug(f"Original file not found in database: {original_filename}")
@@ -67,7 +67,7 @@ def determine_media_type(file_path: str, is_edited: bool) -> str:
     """
     ext = os.path.splitext(file_path)[1].lower()
     
-    if ext in PHOTO_EXTENSIONS:
+    if ext in IMAGE_EXTENSIONS:
         return TYPE_EDITED_PHOTO if is_edited else TYPE_PHOTO
     elif ext in VIDEO_EXTENSIONS:
         return TYPE_EDITED_VIDEO if is_edited else TYPE_VIDEO
@@ -157,5 +157,5 @@ def process_media_file(
     for bank, valid in validation_results.items():
         metadata[f"Valid_{bank}"] = "Yes" if valid else "No"
     
-    logging.info(f"Processed media file: {file_path}")
+    logging.debug(f"Processed media file: {file_path}")
     return metadata
