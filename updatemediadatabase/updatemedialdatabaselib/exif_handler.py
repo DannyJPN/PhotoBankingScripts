@@ -44,7 +44,7 @@ def update_exif_metadata(file_path: str, metadata: Dict[str, str], exiftool_path
         
         # Check for success
         if "1 image files updated" in result.stdout:
-            logging.info(f"Successfully updated metadata for: {file_path}")
+            logging.debug(f"Successfully updated metadata for: {file_path}")
             return True
         else:
             logging.warning(f"ExifTool did not report updating the file: {file_path}")

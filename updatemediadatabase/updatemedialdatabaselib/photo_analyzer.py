@@ -10,12 +10,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from updatemedialdatabaselib.constants import (
-    PHOTO_EXTENSIONS,
+    IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
     TYPE_PHOTO,
     TYPE_VIDEO,
     TYPE_EDITED_PHOTO,
-    TYPE_EDITED_VIDEO
+    TYPE_EDITED_VIDEO,
+    LIMITS_COLUMN_BANK,
+    LIMITS_COLUMN_WIDTH,
+    LIMITS_COLUMN_HEIGHT,
+    LIMITS_COLUMN_RESOLUTION
 )
 
 def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
@@ -38,13 +42,16 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         return {}
     
     try:
+        # Normalize file path for ExifTool (use forward slashes)
+        normalized_path = file_path.replace('\\', '/')
+        
         # Run ExifTool to extract metadata in JSON format
         command = [
             exiftool_path,
-            "-json",
-            "-charset", "utf8",
+            "-j",  # JSON output format
+            "-charset", "utf8", 
             "-n",  # Numeric values (no conversion)
-            file_path
+            normalized_path
         ]
         
         logging.debug(f"Running ExifTool command: {' '.join(command)}")
@@ -59,6 +66,11 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         # ExifTool returns a list with one item per file
         raw_metadata = metadata_list[0]
         
+        # Check for ExifTool errors - if corrupted, return minimal data
+        if "Error" in raw_metadata:
+            logging.debug(f"Corrupted file {file_path}: {raw_metadata['Error']}")
+            return {}
+        
         # Extract relevant metadata
         metadata = {
             "Filename": os.path.basename(file_path),
@@ -68,17 +80,26 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         
         # Determine file type
         ext = os.path.splitext(file_path)[1].lower()
-        if ext in PHOTO_EXTENSIONS:
+        if ext in IMAGE_EXTENSIONS:
             metadata["Type"] = TYPE_PHOTO
         elif ext in VIDEO_EXTENSIONS:
             metadata["Type"] = TYPE_VIDEO
         else:
             metadata["Type"] = "Unknown"
         
-        # Extract dimensions
-        if "ImageWidth" in raw_metadata and "ImageHeight" in raw_metadata:
-            metadata["Width"] = raw_metadata["ImageWidth"]
-            metadata["Height"] = raw_metadata["ImageHeight"]
+        # Extract dimensions (different fields for photos vs videos)
+        width_fields = ["ImageWidth", "SourceImageWidth", "VideoFrameWidth", "Width"]
+        height_fields = ["ImageHeight", "SourceImageHeight", "VideoFrameHeight", "Height"]
+        
+        for width_field in width_fields:
+            if width_field in raw_metadata and raw_metadata[width_field]:
+                metadata["Width"] = int(raw_metadata[width_field])
+                break
+        
+        for height_field in height_fields:
+            if height_field in raw_metadata and raw_metadata[height_field]:
+                metadata["Height"] = int(raw_metadata[height_field])
+                break
         
         # Extract date
         date_fields = ["DateTimeOriginal", "CreateDate", "ModifyDate"]
@@ -133,16 +154,28 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         if "ISO" in raw_metadata:
             metadata["ISO"] = str(raw_metadata["ISO"])
         
-        logging.info(f"Extracted metadata from: {file_path}")
+        logging.debug(f"Extracted metadata from: {file_path}")
         return metadata
     
     except subprocess.CalledProcessError as e:
-        logging.error(f"ExifTool failed for {file_path}: {e}")
-        logging.debug(f"ExifTool stderr: {e.stderr}")
-        return {}
+        logging.warning(f"ExifTool failed for {file_path}: {e.stderr.strip() if e.stderr else 'Unknown error'}")
+        logging.debug(f"ExifTool command: {' '.join(command)}")
+        # Return basic metadata even if ExifTool fails
+        return {
+            "Filename": os.path.basename(file_path),
+            "Path": os.path.dirname(file_path),
+            "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+            "Type": TYPE_PHOTO if os.path.splitext(file_path)[1].lower() in IMAGE_EXTENSIONS else TYPE_VIDEO,
+            "Date": datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S") if os.path.exists(file_path) else ""
+        }
     except Exception as e:
         logging.error(f"Error extracting metadata from {file_path}: {e}")
-        return {}
+        return {
+            "Filename": os.path.basename(file_path),
+            "Path": os.path.dirname(file_path),
+            "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+            "Type": "Unknown"
+        }
 
 def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str]]) -> Dict[str, bool]:
     """
@@ -157,9 +190,12 @@ def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str
     """
     results = {}
     
-    # Skip validation if no width/height
+    # If no dimensions available, assume file meets all limits
     if "Width" not in metadata or "Height" not in metadata:
-        logging.warning(f"Cannot validate {metadata.get('Filename', 'unknown file')}: missing dimensions")
+        logging.debug(f"No dimensions available for {metadata.get('Filename', 'unknown file')}: assuming all limits met")
+        for limit in limits:
+            bank_name = limit.get(LIMITS_COLUMN_BANK, "Unknown")
+            results[bank_name] = True
         return results
     
     width = int(metadata["Width"])
@@ -168,42 +204,56 @@ def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str
     size_mb = size_bytes / (1024 * 1024)  # Convert to MB
     
     for limit in limits:
-        bank_name = limit.get("BankName", "Unknown")
+        bank_name = limit.get(LIMITS_COLUMN_BANK, "Unknown")
         
-        # Skip if no limits defined
-        if not all(k in limit for k in ["MinWidth", "MinHeight", "MaxWidth", "MaxHeight", "MaxSizeMB"]):
-            logging.warning(f"Skipping validation for {bank_name}: incomplete limits")
+        # Check available fields (using actual CSV column names)
+        required_fields = [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]
+        missing_fields = [field for field in required_fields if field not in limit]
+        if missing_fields:
+            available_fields = list(limit.keys())
+            logging.warning(f"PHOTOBANK '{bank_name}': Missing required limit fields {missing_fields}. Available fields: {available_fields}. Skipping validation for this bank.")
             continue
         
-        # Convert limits to integers
+        # Convert limits to integers/floats
         try:
-            min_width = int(limit["MinWidth"])
-            min_height = int(limit["MinHeight"])
-            max_width = int(limit["MaxWidth"])
-            max_height = int(limit["MaxHeight"])
-            max_size_mb = float(limit["MaxSizeMB"])
+            min_width = int(limit[LIMITS_COLUMN_WIDTH]) if limit[LIMITS_COLUMN_WIDTH] != '0' else 0
+            min_height = int(limit[LIMITS_COLUMN_HEIGHT]) if limit[LIMITS_COLUMN_HEIGHT] != '0' else 0
+            min_resolution_mp = float(limit[LIMITS_COLUMN_RESOLUTION])
         except (ValueError, TypeError) as e:
-            logging.warning(f"Skipping validation for {bank_name}: invalid limits ({e})")
+            invalid_values = {}
+            for field in [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]:
+                try:
+                    if field == LIMITS_COLUMN_RESOLUTION:
+                        float(limit[field])
+                    else:
+                        int(limit[field])
+                except (ValueError, TypeError):
+                    invalid_values[field] = limit.get(field, 'missing')
+            
+            logging.warning(f"PHOTOBANK '{bank_name}': Invalid limit values {invalid_values} - expected numeric values. Skipping validation for this bank.")
             continue
         
-        # Validate dimensions and size
-        width_ok = min_width <= width <= max_width
-        height_ok = min_height <= height <= max_height
-        size_ok = size_mb <= max_size_mb
+        # Calculate actual resolution in megapixels
+        actual_resolution_mp = (width * height) / 1_000_000
+        
+        # Validate dimensions and resolution
+        width_ok = (min_width == 0) or (width >= min_width)
+        height_ok = (min_height == 0) or (height >= min_height)
+        resolution_ok = actual_resolution_mp >= min_resolution_mp
         
         # Overall validation result
-        valid = width_ok and height_ok and size_ok
+        valid = width_ok and height_ok and resolution_ok
         results[bank_name] = valid
         
         # Log validation details
         if not valid:
             issues = []
             if not width_ok:
-                issues.append(f"width {width}px not in range {min_width}-{max_width}px")
+                issues.append(f"width {width}px < minimum {min_width}px")
             if not height_ok:
-                issues.append(f"height {height}px not in range {min_height}-{max_height}px")
-            if not size_ok:
-                issues.append(f"size {size_mb:.2f}MB exceeds {max_size_mb}MB")
+                issues.append(f"height {height}px < minimum {min_height}px")
+            if not resolution_ok:
+                issues.append(f"resolution {actual_resolution_mp:.2f}MP < minimum {min_resolution_mp}MP")
             
             logging.debug(f"File {metadata.get('Filename', 'unknown')} invalid for {bank_name}: {', '.join(issues)}")
     

@@ -3,9 +3,9 @@ Constants for the UpdateMediaDatabase project.
 Contains default paths and configuration values.
 """
 
-# Default paths for CSV files
-DEFAULT_PHOTO_CSV = "L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv"
-DEFAULT_LIMIT_CSV = "L:/Můj disk/XLS/Fotobanky/PhotoLimits.csv"
+# Default paths for CSV files (consistent with givephotobankreadymediafiles)
+DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
+DEFAULT_LIMITS_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoLimits.csv"
 
 # Default media directories
 DEFAULT_PHOTO_DIR = "J:/Foto"
@@ -15,11 +15,14 @@ DEFAULT_EDIT_VIDEO_DIR = "J:/Upravené video"
 
 # Default tool and log directories
 DEFAULT_LOG_DIR = "H:/Logs"
-DEFAULT_EXIFTOOL_DIR = "H:/Tools/ExifTool"
 
-# Media file extensions
-PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.gif', '.bmp', '.webp']
-VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.mkv', '.webm']
+# ExifTool path (consistent with other scripts)
+EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
+
+# Media file extensions (consistent with givephotobankreadymediafiles)
+IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw']
+VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
+VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
 
 # CSV column names
 COLUMN_FILENAME = "Filename"
@@ -40,6 +43,12 @@ COLUMN_FOCAL_LENGTH = "FocalLength"
 COLUMN_APERTURE = "Aperture"
 COLUMN_SHUTTER = "Shutter"
 COLUMN_ISO = "ISO"
+
+# PhotoLimits.csv column names
+LIMITS_COLUMN_BANK = "Banka"
+LIMITS_COLUMN_WIDTH = "šířka"
+LIMITS_COLUMN_HEIGHT = "výška" 
+LIMITS_COLUMN_RESOLUTION = "rozlišení"
 
 # Media types
 TYPE_PHOTO = "Photo"
