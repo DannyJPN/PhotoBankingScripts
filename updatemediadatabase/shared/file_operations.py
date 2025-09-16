@@ -157,29 +157,6 @@ def ensure_directory(path: str) -> None:
         raise
 
 
-def load_csv(path: str) -> List[Dict[str, str]]:
-    """
-    Load a CSV file and return a list of records as dictionaries.
-    Assumes comma delimiter and UTF-8 with BOM (utf-8-sig).
-    Shows a progress bar during loading.
-    """
-    logging.debug("Loading CSV file from %s", path)
-    records: List[Dict[str, str]] = []
-    try:
-        # Count total data rows (excluding header)
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
-            total_rows = sum(1 for _ in csvfile) - 1
-        # Read and load records with progress bar
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
-            for row in tqdm(reader, total=total_rows, desc="Loading CSV", unit="rows"):
-                records.append(row)
-        logging.info("Loaded %d records from CSV %s", len(records), path)
-    except Exception as e:
-        logging.error("Failed to load CSV file %s: %s", path, e)
-        raise
-    return records
-
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     """
     V dané složce (a volitelně jejích podsložkách) sjednotí
@@ -246,3 +223,65 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
             logging.error("Failed to hash %s: %s", path, e)
     logging.info("Built hash map with %d entries from %s", len(result), folder)
     return result
+
+def load_csv(path: str) -> List[Dict[str, str]]:
+    """
+    Load a CSV file and return a list of records as dictionaries.
+    Assumes comma delimiter and UTF-8 with BOM (utf-8-sig).
+    Shows a progress bar during loading.
+    """
+    logging.debug("Loading CSV file from %s", path)
+    records: List[Dict[str, str]] = []
+    try:
+        # Count total data rows (excluding header)
+        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
+            total_rows = sum(1 for _ in csvfile) - 1
+        # Read and load records with progress bar
+        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
+            for row in tqdm(reader, total=total_rows, desc="Loading CSV", unit="rows"):
+                records.append(row)
+        logging.info("Loaded %d records from CSV %s", len(records), path)
+    except Exception as e:
+        logging.error("Failed to load CSV file %s: %s", path, e)
+        raise
+    return records
+
+def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
+    """
+    Creates a backup of the original CSV and saves the new data.
+    Preserves column order from the first record.
+
+    Args:
+        data: List of dictionaries representing CSV rows
+        path: Path to the CSV file
+    """
+    from datetime import datetime
+
+    logging.info("Saving CSV with backup: %s", path)
+
+    # Create backup with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{os.path.splitext(path)[0]}_{timestamp}.csv"
+
+    # Create backup
+    copy_file(path, backup_path)
+    logging.info("Created backup at: %s", backup_path)
+
+    # Ensure the directory exists
+    ensure_directory(os.path.dirname(path))
+
+    # Write the updated CSV
+    try:
+        # Get fieldnames from the first row - this preserves order!
+        fieldnames = list(data[0].keys()) if data else []
+
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
+            writer.writeheader()
+            writer.writerows(data)
+
+        logging.info("Successfully saved %d records to %s", len(data), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise

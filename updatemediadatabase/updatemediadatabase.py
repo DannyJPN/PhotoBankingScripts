@@ -15,9 +15,8 @@ from typing import List, Dict, Any
 
 # Import shared modules
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory, list_files
+from shared.file_operations import ensure_directory, list_files, load_csv, save_csv_with_backup
 from shared.logging_config import setup_logging
-from shared.csv_operations import load_csv, save_csv
 from tqdm import tqdm
 
 # Import project-specific modules
@@ -28,10 +27,52 @@ from updatemedialdatabaselib.constants import (
     DEFAULT_VIDEO_DIR,
     DEFAULT_EDIT_PHOTO_DIR,
     DEFAULT_EDIT_VIDEO_DIR,
-    DEFAULT_LOG_DIR
+    DEFAULT_LOG_DIR,
+    COLUMN_FILENAME
 )
 from updatemedialdatabaselib.exif_downloader import ensure_exiftool
 from updatemedialdatabaselib.media_processor import process_media_file
+
+def apply_jpg_first_logic(all_files: List[str]) -> List[str]:
+    """
+    Apply JPG-first logic to file list.
+    
+    Rules:
+    1. Always include JPG files
+    2. For non-JPG files, include only if no JPG with same basename exists
+    
+    Args:
+        all_files: List of all file paths
+        
+    Returns:
+        Filtered list of files to process
+    """
+    import os
+    from collections import defaultdict
+    
+    # Group files by basename (without extension)
+    files_by_basename = defaultdict(list)
+    
+    for file_path in all_files:
+        basename = os.path.splitext(os.path.basename(file_path))[0]
+        files_by_basename[basename].append(file_path)
+    
+    files_to_process = []
+    
+    for basename, file_paths in files_by_basename.items():
+        # Check if any JPG files exist for this basename
+        jpg_files = [f for f in file_paths if f.lower().endswith(('.jpg', '.jpeg'))]
+        
+        if jpg_files:
+            # If JPG files exist, add all JPG files
+            files_to_process.extend(jpg_files)
+            logging.debug(f"Added {len(jpg_files)} JPG files for basename '{basename}'")
+        else:
+            # If no JPG files, add all non-JPG files for this basename
+            files_to_process.extend(file_paths)
+            logging.debug(f"Added {len(file_paths)} non-JPG files for basename '{basename}' (no JPG found)")
+    
+    return files_to_process
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -83,6 +124,14 @@ def main():
     except Exception as e:
         logging.error(f"Failed to load media database: {e}")
         database = []
+
+    # Extract filenames from database for efficient lookup
+    existing_filenames = set()
+    for record in database:
+        filename = record.get(COLUMN_FILENAME)
+        if filename:
+            existing_filenames.add(filename)
+    logging.debug(f"Extracted {len(existing_filenames)} existing filenames for lookup")
     
     # Load limits
     try:
@@ -100,7 +149,7 @@ def main():
         args.edit_video_dir
     ]
     
-    # Process each directory
+    # Process each directory with JPG-first logic
     new_records = []
     for directory in media_dirs:
         if not os.path.exists(directory):
@@ -111,18 +160,27 @@ def main():
         logging.debug(f"Processing directory: {directory}")
         
         # Get all files in the directory
-        files = list_files(directory, recursive=True)
-        print(f"Found {len(files)} files in {directory}")
-        logging.debug(f"Found {len(files)} files in {directory}")
+        all_files = list_files(directory, recursive=True)
+        print(f"Found {len(all_files)} files in {directory}")
+        logging.debug(f"Found {len(all_files)} files in {directory}")
         
-        # Process each file with progress bar
-        if files:
-            with tqdm(files, desc=f"Processing {os.path.basename(directory)}", unit="file") as pbar:
-                for file_path in pbar:
-                    pbar.set_postfix_str(f"Current: {os.path.basename(file_path)}")
-                    record = process_media_file(file_path, database, limits, exiftool_path)
-                    if record:
-                        new_records.append(record)
+        if not all_files:
+            continue
+            
+        # Apply JPG-first logic: prioritize JPG files, add non-JPG only if no JPG with same basename exists
+        files_to_process = apply_jpg_first_logic(all_files)
+        print(f"After JPG-first filtering: {len(files_to_process)} files to process")
+        logging.debug(f"After JPG-first filtering: {len(files_to_process)} files to process")
+        
+        # Process filtered files with progress bar
+        with tqdm(files_to_process, desc=f"Processing {os.path.basename(directory)}", unit="file") as pbar:
+            for file_path in pbar:
+                pbar.set_postfix_str(f"Current: {os.path.basename(file_path)}")
+                record = process_media_file(file_path, database, limits, exiftool_path, existing_filenames)
+                if record:
+                    new_records.append(record)
+                    # Add to existing filenames to prevent processing duplicates within this run
+                    existing_filenames.add(record.get(COLUMN_FILENAME))
     
     # Update database with new records
     if new_records:
@@ -133,7 +191,7 @@ def main():
         # Save updated database
         try:
             print("Saving updated database...")
-            save_csv(args.media_csv, updated_database, backup=True)
+            save_csv_with_backup(updated_database, args.media_csv)
             print(f"✅ Successfully saved database with {len(updated_database)} total records")
             logging.debug(f"Saved updated database with {len(updated_database)} records")
         except Exception as e:
