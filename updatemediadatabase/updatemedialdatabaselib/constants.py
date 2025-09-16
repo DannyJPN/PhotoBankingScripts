@@ -20,29 +20,49 @@ DEFAULT_LOG_DIR = "H:/Logs"
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
 
 # Media file extensions (consistent with givephotobankreadymediafiles)
-IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw']
+IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw', '.psd']
 VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
 VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
 
-# CSV column names
-COLUMN_FILENAME = "Filename"
-COLUMN_PATH = "Path"
-COLUMN_TYPE = "Type"
-COLUMN_WIDTH = "Width"
-COLUMN_HEIGHT = "Height"
-COLUMN_SIZE = "Size"
-COLUMN_DATE = "Date"
-COLUMN_TITLE = "Title"
-COLUMN_DESCRIPTION = "Description"
-COLUMN_KEYWORDS = "Keywords"
-COLUMN_ORIGINAL = "Original"
-COLUMN_EDIT_TYPE = "EditType"
-COLUMN_CAMERA = "Camera"
-COLUMN_LENS = "Lens"
-COLUMN_FOCAL_LENGTH = "FocalLength"
-COLUMN_APERTURE = "Aperture"
-COLUMN_SHUTTER = "Shutter"
-COLUMN_ISO = "ISO"
+# CSV column names (Czech - matching PhotoMediaTest.csv structure)
+COLUMN_FILENAME = "Soubor"
+COLUMN_PATH = "Cesta"
+COLUMN_TITLE = "Název"
+COLUMN_DESCRIPTION = "Popis"
+COLUMN_DATE_PREPARED = "Datum přípravy"
+COLUMN_WIDTH = "Šířka"
+COLUMN_HEIGHT = "Výška"
+COLUMN_RESOLUTION = "Rozlišení"
+COLUMN_KEYWORDS = "Klíčová slova"
+COLUMN_CATEGORIES = "Kategorie"
+COLUMN_DATE_CREATED = "Datum vytvoření"
+COLUMN_ORIGINAL = "Originál"
+
+# Photo bank status columns
+COLUMN_SHUTTERSTOCK_STATUS = "ShutterStock status"
+COLUMN_BIGSTOCKPHOTO_STATUS = "BigStockPhoto status"
+COLUMN_ADOBESTOCK_STATUS = "AdobeStock status"
+COLUMN_DEPOSITPHOTOS_STATUS = "DepositPhotos status"
+COLUMN_123RF_STATUS = "123RF status"
+COLUMN_ALAMY_STATUS = "Alamy status"
+COLUMN_GETTYIMAGES_STATUS = "GettyImages status"
+COLUMN_COLOURBOX_STATUS = "ColourBox status"
+COLUMN_DREAMSTIME_STATUS = "Dreamstime status"
+COLUMN_CANSTOCKPHOTO_STATUS = "CanStockPhoto status"
+COLUMN_POND5_STATUS = "Pond5 status"
+
+# Photo bank category columns
+COLUMN_SHUTTERSTOCK_CATEGORY = "ShutterStock kategorie"
+COLUMN_BIGSTOCKPHOTO_CATEGORY = "BigStockPhoto kategorie"
+COLUMN_ADOBESTOCK_CATEGORY = "AdobeStock kategorie"
+COLUMN_DEPOSITPHOTOS_CATEGORY = "DepositPhotos kategorie"
+COLUMN_123RF_CATEGORY = "123RF kategorie"
+COLUMN_ALAMY_CATEGORY = "Alamy kategorie"
+COLUMN_GETTYIMAGES_CATEGORY = "GettyImages kategorie"
+COLUMN_COLOURBOX_CATEGORY = "ColourBox kategorie"
+COLUMN_DREAMSTIME_CATEGORY = "Dreamstime kategorie"
+COLUMN_CANSTOCKPHOTO_CATEGORY = "CanStockPhoto kategorie"
+COLUMN_POND5_CATEGORY = "Pond5 kategorie"
 
 # PhotoLimits.csv column names
 LIMITS_COLUMN_BANK = "Banka"

@@ -55,8 +55,13 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         ]
         
         logging.debug(f"Running ExifTool command: {' '.join(command)}")
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        
+        result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True)
+
+        # Check if we have valid output
+        if not result.stdout:
+            logging.warning(f"No stdout from ExifTool for: {file_path}")
+            return {}
+
         # Parse JSON output
         metadata_list = json.loads(result.stdout)
         if not metadata_list:
@@ -74,7 +79,7 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         # Extract relevant metadata
         metadata = {
             "Filename": os.path.basename(file_path),
-            "Path": os.path.dirname(file_path),
+            "Path": file_path,  # Store full path for category extraction
             "Size": os.path.getsize(file_path),
         }
         
@@ -109,14 +114,14 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
                 try:
                     # Parse date in format "YYYY:MM:DD HH:MM:SS"
                     date_obj = datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
-                    metadata["Date"] = date_obj.strftime("%Y-%m-%d %H:%M:%S")
+                    metadata["Date"] = date_obj.strftime("%d.%m.%Y")  # Format as DD.MM.YYYY
                     break
                 except ValueError:
                     logging.warning(f"Could not parse date '{date_str}' from field '{field}'")
         
         # If no date found, use file modification time
         if "Date" not in metadata:
-            metadata["Date"] = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
+            metadata["Date"] = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%d.%m.%Y")
         
         # Extract title and description
         if "Title" in raw_metadata:
@@ -132,27 +137,44 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
             else:
                 metadata["Keywords"] = keywords
         
-        # Extract camera and lens info
+        # Extract camera info
         if "Model" in raw_metadata:
             metadata["Camera"] = raw_metadata["Model"]
-        if "LensModel" in raw_metadata or "Lens" in raw_metadata:
-            metadata["Lens"] = raw_metadata.get("LensModel", raw_metadata.get("Lens", ""))
-        
-        # Extract shooting parameters
-        if "FocalLength" in raw_metadata:
-            metadata["FocalLength"] = f"{raw_metadata['FocalLength']}mm"
-        if "FNumber" in raw_metadata:
-            metadata["Aperture"] = f"f/{raw_metadata['FNumber']}"
-        if "ExposureTime" in raw_metadata:
-            # Convert to fraction if needed
-            exp_time = raw_metadata["ExposureTime"]
-            if exp_time < 1:
-                denominator = int(1 / exp_time)
-                metadata["Shutter"] = f"1/{denominator}s"
-            else:
-                metadata["Shutter"] = f"{exp_time}s"
-        if "ISO" in raw_metadata:
-            metadata["ISO"] = str(raw_metadata["ISO"])
+
+        # Extract resolution in Mpx - try to find existing resolution field or calculate from dimensions
+        resolution_mpx = None
+
+        # First, try to find existing resolution fields that might contain Mpx values
+        resolution_fields = ["MegaPixels", "Resolution", "EffectivePixels"]
+        for field in resolution_fields:
+            if field in raw_metadata and raw_metadata[field]:
+                try:
+                    # Try to parse as number (might already be in Mpx)
+                    res_value = float(raw_metadata[field])
+                    if res_value > 0:
+                        resolution_mpx = res_value
+                        break
+                except (ValueError, TypeError):
+                    continue
+
+        # If no resolution found but we have dimensions, calculate it
+        if resolution_mpx is None and "Width" in metadata and "Height" in metadata:
+            width = metadata["Width"]
+            height = metadata["Height"]
+            if width and height:
+                resolution_mpx = (width * height) / 1_000_000
+
+        # Store resolution in Mpx format if found/calculated
+        if resolution_mpx is not None:
+            metadata["Resolution"] = f"{resolution_mpx:.1f}"
+
+        # Extract duration for videos
+        if metadata["Type"] in [TYPE_VIDEO, TYPE_EDITED_VIDEO]:
+            duration_fields = ["Duration", "MovieDuration", "MediaDuration", "TrackDuration"]
+            for field in duration_fields:
+                if field in raw_metadata and raw_metadata[field]:
+                    metadata["Duration"] = str(raw_metadata[field])
+                    break
         
         logging.debug(f"Extracted metadata from: {file_path}")
         return metadata
@@ -163,16 +185,16 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         # Return basic metadata even if ExifTool fails
         return {
             "Filename": os.path.basename(file_path),
-            "Path": os.path.dirname(file_path),
+            "Path": file_path,
             "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "Type": TYPE_PHOTO if os.path.splitext(file_path)[1].lower() in IMAGE_EXTENSIONS else TYPE_VIDEO,
-            "Date": datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S") if os.path.exists(file_path) else ""
+            "Date": datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%d.%m.%Y") if os.path.exists(file_path) else ""
         }
     except Exception as e:
         logging.error(f"Error extracting metadata from {file_path}: {e}")
         return {
             "Filename": os.path.basename(file_path),
-            "Path": os.path.dirname(file_path),
+            "Path": file_path,
             "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "Type": "Unknown"
         }
