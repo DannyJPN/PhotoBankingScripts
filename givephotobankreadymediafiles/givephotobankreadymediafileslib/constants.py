@@ -48,6 +48,23 @@ def get_category_column(photobank: str) -> str:
 ORIGINAL_YES = "ano"
 ORIGINAL_NO = "ne"
 
+
+
+# Alternative edit tags for processed versions
+ALTERNATIVE_EDIT_TAGS = {
+    "_bw": "Black and white",
+    "_negative": "Color negative",
+    "_sharpen": "Sharpened",
+    "_misty": "Misty/foggy effect",
+    "_blurred": "Gaussian blur"
+}
+
+# Alternative output formats (beyond original JPG)
+ALTERNATIVE_FORMATS = ['.png', '.tif']
+
+# File extensions allowed in CSV database (JPG, video, vector formats - no PNG/TIF)
+CSV_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.mp4', '.avi', '.mov', '.wmv', '.svg', '.eps', '.ai']
+
 # Default paths for files and directories
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

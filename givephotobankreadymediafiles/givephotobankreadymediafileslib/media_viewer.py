@@ -250,10 +250,14 @@ class MediaViewer:
                                     command=self.save_metadata)
         self.save_button.pack(side=tk.LEFT, padx=2)
         
-        self.reject_button = ttk.Button(action_frame, text="Reject", 
-                                      command=self.reject_metadata, 
+        self.reject_button = ttk.Button(action_frame, text="Reject",
+                                      command=self.reject_metadata,
                                       style='Reject.TButton')
         self.reject_button.pack(side=tk.LEFT, padx=2)
+
+        self.explorer_button = ttk.Button(action_frame, text="Otevřít v průzkumníku",
+                                        command=self.open_in_explorer)
+        self.explorer_button.pack(side=tk.LEFT, padx=2)
         
     def setup_ai_model_panel(self, parent):
         """Setup AI model selection panel - simple dropdown only."""
@@ -1358,11 +1362,39 @@ class MediaViewer:
         
         return result_container['result']
 
+    def open_in_explorer(self):
+        """Open the current file location in Windows Explorer."""
+        if not self.current_file_path:
+            messagebox.showwarning("No File", "No file is currently loaded.")
+            return
+
+        try:
+            import subprocess
+            import platform
+
+            if platform.system() == "Windows":
+                # Use Windows Explorer to show file and select it
+                # Don't use check=True as Explorer sometimes returns non-zero exit codes even on success
+                result = subprocess.run(['explorer', '/select,', self.current_file_path])
+                logging.info(f"Opened file location in Explorer: {self.current_file_path} (exit code: {result.returncode})")
+            else:
+                # For other systems, just open the directory
+                directory = os.path.dirname(self.current_file_path)
+                if platform.system() == "Darwin":  # macOS
+                    subprocess.run(['open', directory])
+                else:  # Linux and others
+                    subprocess.run(['xdg-open', directory])
+                logging.info(f"Opened directory: {directory}")
+
+        except Exception as e:
+            logging.error(f"Failed to open file location: {e}")
+            messagebox.showerror("Error", f"Failed to open file location:\n{str(e)}")
+
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
         logging.info("Window closed by user - terminating script")
         self.root.destroy()
-        
+
         # Exit the entire script (equivalent to Ctrl+C)
         import sys
         sys.exit(0)
