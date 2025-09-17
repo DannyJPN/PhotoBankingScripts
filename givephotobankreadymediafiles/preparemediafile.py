@@ -168,7 +168,54 @@ def main():
                             break
                     
                     if record_updated:
-                        # Save updated CSV with backup
+                        # Generate alternative versions if not rejected
+                        if not metadata.get('rejected', False):
+                            try:
+                                from givephotobankreadymediafileslib.alternative_generator import AlternativeGenerator, get_alternative_output_dirs
+                                from givephotobankreadymediafileslib.constants import ORIGINAL_NO, COL_PATH, COL_FILE, COL_TITLE, COL_ORIGINAL, CSV_ALLOWED_EXTENSIONS
+
+                                # Generate alternative versions
+                                generator = AlternativeGenerator()
+                                target_dir, edited_dir = get_alternative_output_dirs(args.file)
+
+                                logging.info(f"Generating alternative versions for {args.file}")
+                                print("Generating alternative versions...")
+
+                                alternative_files = generator.generate_all_versions(args.file, target_dir, edited_dir)
+
+                                # Add alternative files to CSV records (only JPG, video, vector formats)
+                                for alt_info in alternative_files:
+                                    file_ext = os.path.splitext(alt_info['path'])[1].lower()
+
+                                    # Only add allowed formats to CSV (not PNG/TIF)
+                                    if file_ext not in CSV_ALLOWED_EXTENSIONS:
+                                        logging.info(f"Skipping CSV entry for {file_ext} file: {os.path.basename(alt_info['path'])}")
+                                        continue
+
+                                    alt_record = record.copy()  # Copy original metadata
+
+                                    # Update file-specific fields
+                                    alt_record[COL_FILE] = os.path.basename(alt_info['path'])
+                                    alt_record[COL_PATH] = alt_info['path']
+                                    alt_record[COL_ORIGINAL] = ORIGINAL_NO  # Alternatives are not originals
+
+                                    # Add edit tag info to title if it's an edit (not just format conversion)
+                                    if alt_info['type'] == 'edit':
+                                        edit_suffix = f" ({alt_info['description']})"
+                                        if not alt_record[COL_TITLE].endswith(edit_suffix):
+                                            alt_record[COL_TITLE] = (alt_record[COL_TITLE] + edit_suffix)[:100]
+
+                                    records.append(alt_record)
+                                    logging.info(f"Added alternative to CSV: {alt_record[COL_FILE]}")
+
+                                logging.info(f"Generated {len(alternative_files)} alternative versions")
+                                print(f"Generated {len(alternative_files)} alternative versions")
+
+                            except Exception as e:
+                                logging.error(f"Failed to generate alternative versions: {e}")
+                                print(f"Warning: Failed to generate alternatives: {e}")
+
+                        # Save updated CSV with backup (including alternatives)
                         save_csv_with_backup(records, args.media_csv)
                         logging.info(f"Successfully saved metadata to CSV: {args.media_csv}")
                         print(f"✅ Metadata saved to CSV: {metadata['title']}")
