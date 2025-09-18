@@ -11,7 +11,11 @@ from typing import List, Optional
 
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
-from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, IMAGE_EXTENSIONS
+from givephotobankreadymediafileslib.constants import (
+    DEFAULT_LOG_DIR, IMAGE_EXTENSIONS,
+    DEFAULT_ALTERNATIVE_EFFECTS, DEFAULT_ALTERNATIVE_FORMATS,
+    EFFECT_NAME_MAPPING, FORMAT_NAME_MAPPING, ALTERNATIVE_EDIT_TAGS, ALTERNATIVE_FORMATS
+)
 from givephotobankreadymediafileslib.alternative_generator import AlternativeGenerator, get_alternative_output_dirs
 
 
@@ -20,21 +24,22 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Generate alternative versions of media files (format conversions + edit effects)."
     )
-    parser.add_argument("file", type=str, help="Path to the source media file")
+    parser.add_argument("--file", type=str, help="Path to the source media file")
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     # Format options
-    parser.add_argument("--formats", type=str, nargs="+",
-                        choices=[".png", ".tif"], default=[".png", ".tif"],
-                        help="Output formats to generate (default: .png .tif)")
+    available_formats = ', '.join(sorted(FORMAT_NAME_MAPPING.keys()))
+    parser.add_argument("--formats", type=str,
+                        default=DEFAULT_ALTERNATIVE_FORMATS,
+                        help=f"Comma-separated output formats to generate. Available: {available_formats} (default: {DEFAULT_ALTERNATIVE_FORMATS})")
 
     # Edit effect options
-    parser.add_argument("--effects", type=str, nargs="+",
-                        choices=["_bw", "_negative", "_sharpen", "_misty", "_blurred"],
-                        default=["_bw", "_negative", "_sharpen", "_misty", "_blurred"],
-                        help="Edit effects to generate (default: all)")
+    available_effects = ', '.join(sorted(EFFECT_NAME_MAPPING.keys()))
+    parser.add_argument("--effects", type=str,
+                        default=DEFAULT_ALTERNATIVE_EFFECTS,
+                        help=f"Comma-separated edit effects to generate. Available: {available_effects} (default: {DEFAULT_ALTERNATIVE_EFFECTS})")
 
     # Output control
     parser.add_argument("--formats-only", action="store_true",
@@ -43,6 +48,47 @@ def parse_arguments():
                         help="Generate only edit effects, no format conversions")
 
     return parser.parse_args()
+
+
+def parse_comma_separated(value: str) -> List[str]:
+    """Parse comma-separated string into list, trimming whitespace."""
+    if not value:
+        return []
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def map_user_effects_to_tags(user_effects: List[str]) -> List[str]:
+    """Map user-friendly effect names to technical tags."""
+    technical_tags = []
+    for effect in user_effects:
+        effect_lower = effect.lower()
+        if effect_lower in EFFECT_NAME_MAPPING:
+            technical_tags.append(EFFECT_NAME_MAPPING[effect_lower])
+        else:
+            # Check if it's already a technical tag
+            if effect in ALTERNATIVE_EDIT_TAGS:
+                technical_tags.append(effect)
+            else:
+                available_names = ', '.join(sorted(EFFECT_NAME_MAPPING.keys()))
+                raise ValueError(f"Unknown effect '{effect}'. Available effects: {available_names}")
+    return technical_tags
+
+
+def map_user_formats_to_extensions(user_formats: List[str]) -> List[str]:
+    """Map user-friendly format names to technical extensions."""
+    technical_extensions = []
+    for format_name in user_formats:
+        format_lower = format_name.lower()
+        if format_lower in FORMAT_NAME_MAPPING:
+            technical_extensions.append(FORMAT_NAME_MAPPING[format_lower])
+        else:
+            # Check if it's already a technical extension
+            if format_name in ALTERNATIVE_FORMATS:
+                technical_extensions.append(format_name)
+            else:
+                available_formats = ', '.join(sorted(FORMAT_NAME_MAPPING.keys()))
+                raise ValueError(f"Unknown format '{format_name}'. Available formats: {available_formats}")
+    return technical_extensions
 
 
 def validate_file(file_path: str) -> bool:
@@ -81,9 +127,17 @@ def main():
         return 1
 
     try:
+        # Parse comma-separated strings into lists
+        formats_list = parse_comma_separated(args.formats)
+        effects_list = parse_comma_separated(args.effects)
+
+        # Map user-friendly names to technical tags/extensions
+        mapped_formats = map_user_formats_to_extensions(formats_list) if formats_list else []
+        mapped_effects = map_user_effects_to_tags(effects_list) if effects_list else []
+
         # Determine what to generate
-        enabled_formats = [] if args.effects_only else args.formats
-        enabled_effects = [] if args.formats_only else args.effects
+        enabled_formats = [] if args.effects_only else mapped_formats
+        enabled_effects = [] if args.formats_only else mapped_effects
 
         if not enabled_formats and not enabled_effects:
             print("ERROR: Nothing to generate. Use --formats-only or --effects-only, or specify formats/effects.")
