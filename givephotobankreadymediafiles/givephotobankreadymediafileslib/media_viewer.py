@@ -727,6 +727,7 @@ class MediaViewer:
                 messagebox.showerror("Generation Failed", f"Failed to generate title: {error}")
             elif title and not self.ai_cancelled['title']:
                 self.title_entry.delete(0, tk.END)
+
                 self.title_entry.insert(0, title)
                 self.on_title_change()
         finally:
