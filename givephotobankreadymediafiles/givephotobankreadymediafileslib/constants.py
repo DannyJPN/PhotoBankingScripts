@@ -62,6 +62,34 @@ ALTERNATIVE_EDIT_TAGS = {
 # Alternative output formats (beyond original JPG)
 ALTERNATIVE_FORMATS = ['.png', '.tif']
 
+# User-friendly effect names mapping to technical tags
+EFFECT_NAME_MAPPING = {
+    "blackwhite": "_bw",
+    "bw": "_bw",
+    "grayscale": "_bw",
+    "negative": "_negative",
+    "invert": "_negative",
+    "sharpen": "_sharpen",
+    "sharp": "_sharpen",
+    "misty": "_misty",
+    "foggy": "_misty",
+    "fog": "_misty",
+    "blur": "_blurred",
+    "blurred": "_blurred",
+    "soft": "_blurred"
+}
+
+# User-friendly format names mapping to technical extensions
+FORMAT_NAME_MAPPING = {
+    "png": ".png",
+    "tif": ".tif",
+    "tiff": ".tif"
+}
+
+# Default alternatives configuration (user-friendly names)
+DEFAULT_ALTERNATIVE_EFFECTS = "blackwhite,negative,sharpen,misty,blur"
+DEFAULT_ALTERNATIVE_FORMATS = "png,tif"
+
 # File extensions allowed in CSV database (JPG, video, vector formats - no PNG/TIF)
 CSV_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.mp4', '.avi', '.mov', '.wmv', '.svg', '.eps', '.ai']
 

@@ -258,11 +258,11 @@ class AlternativeGenerator:
                 # Screen formula: 1 - (1-base) * (1-overlay)
                 fog_overlay = noise_blurred / 255.0
 
-                # Apply screen blending to each channel
+                # Apply screen blending to each channel with stronger fog intensity
                 for channel in range(3):
                     base = img_array[:, :, channel] / 255.0
-                    # Screen blend mode
-                    result = 1.0 - (1.0 - base) * (1.0 - fog_overlay * 0.3)  # 0.3 controls fog intensity
+                    # Screen blend mode with stronger fog effect
+                    result = 1.0 - (1.0 - base) * (1.0 - fog_overlay * 0.8)  # 0.8 for strong vapor/steam effect
                     img_array[:, :, channel] = result * 255.0
 
                 # Ensure values are in valid range
