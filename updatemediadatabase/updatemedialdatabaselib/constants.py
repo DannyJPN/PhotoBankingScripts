@@ -4,7 +4,7 @@ Contains default paths and configuration values.
 """
 
 # Default paths for CSV files (consistent with givephotobankreadymediafiles)
-DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
+DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_LIMITS_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoLimits.csv"
 
 # Default media directories
@@ -24,7 +24,7 @@ IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.
 VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
 VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
 
-# CSV column names (Czech - matching PhotoMediaTest.csv structure)
+# CSV column names (Czech - matching PhotoMedia.csv structure)
 COLUMN_FILENAME = "Soubor"
 COLUMN_PATH = "Cesta"
 COLUMN_TITLE = "Název"

@@ -80,7 +80,7 @@ def parse_arguments():
         description="Update media database with photo and video metadata."
     )
     parser.add_argument("--media_csv", type=str, default=DEFAULT_MEDIA_CSV_PATH,
-                        help="Path to the media CSV database (PhotoMediaTest.csv)")
+                        help="Path to the media CSV database (PhotoMedia.csv)")
     parser.add_argument("--limits_csv", type=str, default=DEFAULT_LIMITS_CSV_PATH,
                         help="Path to the photo limits CSV file")
     parser.add_argument("--photo_dir", type=str, default=DEFAULT_PHOTO_DIR,

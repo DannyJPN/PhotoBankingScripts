@@ -242,19 +242,19 @@ class MediaViewer:
             radio_frame = ttk.Frame(bank_frame)
             radio_frame.pack(fill=tk.X, padx=5, pady=5)
             
-            clear_radio = ttk.Radiobutton(radio_frame, text="Žádný", 
+            clear_radio = ttk.Radiobutton(radio_frame, text="None",
                                         variable=bank_var, value="")
             clear_radio.pack(side=tk.LEFT, padx=5)
-            
-            approved_radio = ttk.Radiobutton(radio_frame, text="Schváleno", 
+
+            approved_radio = ttk.Radiobutton(radio_frame, text="Approved",
                                            variable=bank_var, value=STATUS_APPROVED)
             approved_radio.pack(side=tk.LEFT, padx=5)
-            
-            rejected_radio = ttk.Radiobutton(radio_frame, text="Zamítnuto", 
+
+            rejected_radio = ttk.Radiobutton(radio_frame, text="Rejected",
                                            variable=bank_var, value=STATUS_REJECTED)
             rejected_radio.pack(side=tk.LEFT, padx=5)
-            
-            maybe_radio = ttk.Radiobutton(radio_frame, text="Schváleno?", 
+
+            maybe_radio = ttk.Radiobutton(radio_frame, text="Approved?", 
                                         variable=bank_var, value=STATUS_MAYBE)
             maybe_radio.pack(side=tk.LEFT, padx=5)
             
