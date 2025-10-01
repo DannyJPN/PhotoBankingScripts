@@ -255,7 +255,7 @@ class MediaViewer:
                                       style='Reject.TButton')
         self.reject_button.pack(side=tk.LEFT, padx=2)
 
-        self.explorer_button = ttk.Button(action_frame, text="Otevřít v průzkumníku",
+        self.explorer_button = ttk.Button(action_frame, text="Open in Explorer",
                                         command=self.open_in_explorer)
         self.explorer_button.pack(side=tk.LEFT, padx=2)
         

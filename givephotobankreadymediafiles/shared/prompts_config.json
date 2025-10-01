@@ -1,0 +1,66 @@
+{
+  "metadata_generation": {
+    "title": {
+      "template": "Create a compelling, SEO-optimized title for this image suitable for stock photography.\n\nRequirements:\n- Maximum {max_length} characters\n- Descriptive and specific\n- Include key visual elements\n- Professional and marketable\n- No generic words like \"image\", \"photo\", \"picture\"\n\n{context_section}Return ONLY the title, no other text.",
+      "context_template": "Context/existing title to improve: {context}\n\n",
+      "variables": {
+        "max_length": 100,
+        "context": null
+      }
+    },
+    "description": {
+      "template": "Create a detailed, SEO-optimized description for this image suitable for stock photography.\n\nRequirements:\n- Maximum {max_length} characters\n- Describe key visual elements, mood, setting\n- Include relevant details for searchability\n- Professional and marketable tone\n- Expand on concepts from the title\n\n{title_section}{context_section}Return ONLY the description, no other text.",
+      "title_template": "Title: {title}\n",
+      "context_template": "Context/existing description to improve: {context}\n",
+      "variables": {
+        "max_length": 200,
+        "title": null,
+        "context": null
+      }
+    },
+    "keywords": {
+      "template": "Generate {count} relevant, SEO-optimized keywords for this image suitable for stock photography.\n\nRequirements:\n- PREFER single-word keywords (e.g., \"sunset\", \"mountain\", \"urban\")\n- Multi-word keywords are allowed when necessary for specificity (e.g., \"golden hour\", \"aerial view\")\n- Mix of broad and specific terms\n- Include objects, concepts, moods, colors, styles, abstractions\n- Avoid meaningless generic terms like \"image\", \"photo\", \"picture\"\n- Keywords should be searchable and relevant\n- Separate with commas\n\n{title_section}{description_section}Return ONLY {count} keywords separated by commas, no other text.",
+      "title_template": "Title: {title}\n",
+      "description_template": "Description: {description}\n",
+      "variables": {
+        "count": 30,
+        "title": null,
+        "description": null
+      }
+    },
+    "categories": {
+      "template": "Select the {max_categories} most appropriate categor{category_word} for this image from the {photobank} categories below.\n\nAvailable categories:\n{categories_list}\n\n{title_section}{description_section}Return ONLY {max_categories} category name{category_plural} separated by commas, no other text.",
+      "title_template": "Title: {title}\n",
+      "description_template": "Description: {description}\n",
+      "variables": {
+        "max_categories": 1,
+        "category_word": "y",
+        "category_plural": "",
+        "photobank": null,
+        "categories_list": null,
+        "title": null,
+        "description": null
+      }
+    },
+    "editorial": {
+      "template": "Analyze if this image contains editorial content that would require editorial licensing.\n\nEditorial content includes:\n- Recognizable people (not models in commercial contexts)\n- News events, protests, accidents\n- Trademarked products prominently featured\n- Copyrighted artwork or logos\n- Private property with identifying features\n\nCommercial content includes:\n- Professional models in commercial settings\n- Generic objects, nature, concepts\n- Stock photography scenarios\n\n{title_section}{description_section}Return ONLY 'YES' if editorial content, 'NO' if commercial content.",
+      "title_template": "Title: {title}\n",
+      "description_template": "Description: {description}\n",
+      "variables": {
+        "title": null,
+        "description": null
+      }
+    }
+  },
+  "photobank_limits": {
+    "shutterstock": 2,
+    "adobestock": 1,
+    "dreamstime": 3,
+    "alamy": 2
+  },
+  "character_limits": {
+    "title": 100,
+    "description": 200,
+    "keywords_max": 50
+  }
+}

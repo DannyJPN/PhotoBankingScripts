@@ -21,11 +21,34 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git config --get:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git describe:*)",
+
+      "Bash(gh --version:*)",
+      "Bash(gh auth status:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh repo list:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr status:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh release list:*)",
+      "Bash(gh release view:*)",
+      "Bash(gh api:*)",
 
       "Bash(git checkout -b claude/*:*)",
       "Bash(git switch -c claude/*:*)",
 
       "Bash(ping:*)",
+
+      "Delete(./**/*.tmp.*)",
 
       "WebFetch(domain:docs.python.org)",
       "WebFetch(domain:pypi.org)",
@@ -72,7 +95,11 @@
       "WebFetch(domain:docs.huggingface.co)",
 
       "WebFetch(domain:rfc-editor.org)",
-      "WebFetch(domain:ietf.org)"
+      "WebFetch(domain:ietf.org)",
+
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "ask": [
       "Write(./**)",
@@ -142,5 +169,10 @@
 
   "editor": {
     "type": "pycharm"
+  },
+
+  "autocompact": {
+    "enabled": true,
+    "threshold": 0.75
   }
 }

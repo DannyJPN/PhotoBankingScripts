@@ -97,7 +97,7 @@ CSV_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.mp4', '.avi', '.mov', '.wmv', '.svg
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Default paths from original scripts
-DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMediaTest.csv"
+DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_LIMITS_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoLimits.csv"
 DEFAULT_CATEGORIES_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoCategories.csv"
 
@@ -105,5 +105,5 @@ DEFAULT_CATEGORIES_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoCategories.csv"
 DEFAULT_LOG_DIR = r"H:\Logs"
 
 # Processing settings
-DEFAULT_PROCESSED_MEDIA_MAX_COUNT = 3
-DEFAULT_INTERVAL = 10
+DEFAULT_PROCESSED_MEDIA_MAX_COUNT = 20
+DEFAULT_INTERVAL = 60
