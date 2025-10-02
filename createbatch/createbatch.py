@@ -53,6 +53,11 @@ def parse_arguments():
         action='store_true',
         help="Include edited/processed photos from 'Upravené foto' folders (default: only original photos)"
     )
+    parser.add_argument(
+        "--include-alternative-formats",
+        action='store_true',
+        help="Include alternative formats (PNG, TIFF, RAW) in batch creation (default: only JPG)"
+    )
     return parser.parse_args()
 
 
@@ -112,7 +117,8 @@ def main():
                     args.output_folder,
                     exif_tool_path,
                     overwrite=args.overwrite,
-                    bank=bank
+                    bank=bank,
+                    include_alternative_formats=args.include_alternative_formats
                 )
                 processed.extend(paths)
             except Exception as e:
