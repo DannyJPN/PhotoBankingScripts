@@ -24,6 +24,12 @@ from exportpreparedmedialib.banks_logic import (
 from exportpreparedmedialib.exporters import export_to_photobanks
 
 
+def _is_not_edited(item: dict) -> bool:
+    """Check if item is not from edited/processed folder."""
+    path = item.get('Cesta', '')
+    return 'upravené' not in path.lower()
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Export prepared media to various stock photo banks."
@@ -65,6 +71,12 @@ def parse_arguments():
                         help="Export to Alamy")
     parser.add_argument("--all", action="store_true", default=True,
                         help="Export to all supported banks (default: True)")
+
+    # Filtering options
+    parser.add_argument("--include-edited", action="store_true",
+                        help="Include edited/processed photos from 'Upravené foto' folders (default: only original photos)")
+    parser.add_argument("--include-alternative-formats", action="store_true",
+                        help="Include alternative formats (PNG, TIFF, RAW) in export (default: only JPG)")
 
     return parser.parse_args()
 
@@ -131,9 +143,19 @@ def main():
     filtered_items = [item for item in items if should_include_item(item)]
     logging.info(f"Filtered {len(filtered_items)} items with status '{VALID_STATUS}' in any column")
 
+    # Apply additional filtering based on switches
+    if not args.include_edited:
+        original_count = len(filtered_items)
+        filtered_items = [item for item in filtered_items if _is_not_edited(item)]
+        excluded_count = original_count - len(filtered_items)
+        logging.info(f"Excluded {excluded_count} edited photos (--include-edited not set)")
+
     # Export do fotobank - použij funkci should_include_item pro filtrování záznamů podle statusu pro každou fotobanku
     # Rozšířené záznamy budou vytvořeny uvnitř funkce export_to_photobanks
-    export_to_photobanks(filtered_items, enabled_banks, output_paths, filter_func=should_include_item)
+    # Alternative formats are handled per-bank by expand_item_with_alternative_formats based on bank's supported formats
+    export_to_photobanks(filtered_items, enabled_banks, output_paths,
+                        filter_func=should_include_item,
+                        include_alternative_formats=args.include_alternative_formats)
 
     logging.info("Export process completed successfully")
 
