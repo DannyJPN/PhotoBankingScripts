@@ -3,9 +3,93 @@ import csv
 import logging
 import json
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 
 from shared.file_operations import save_csv
 from exportpreparedmedialib.column_maps import get_column_map
+from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS
+
+
+def expand_item_with_alternative_formats(item: Dict[str, str], bank: str, include_alternatives: bool = False) -> List[Dict[str, str]]:
+    """
+    Expand single item with alternative format versions for given photobank.
+
+    Args:
+        item: Original item from CSV
+        bank: Photobank name to check supported formats
+        include_alternatives: Whether to search for alternative formats
+
+    Returns:
+        List of items (original + alternative formats that exist and are supported)
+    """
+    items = []
+
+    source_file = item.get('Cesta', '')
+    if not source_file or not os.path.exists(source_file):
+        return items
+
+    source_path = Path(source_file)
+    source_ext = source_path.suffix.lower()
+
+    # Get supported formats for this bank
+    supported_formats = PHOTOBANK_SUPPORTED_FORMATS.get(bank, {'.jpg'})
+
+    # Add source file only if its format is supported by this bank
+    if source_ext in supported_formats:
+        items.append(item)
+    else:
+        logging.debug(f"Source format {source_ext} not supported by {bank}, skipping: {source_file}")
+        return items
+
+    # If not including alternatives, return just the source
+    if not include_alternatives:
+        return items
+
+    # Find format directory in path (case-insensitive)
+    valid_format_dirs = {subdir.upper() for subdir in FORMAT_SUBDIRS.values()}
+    source_parts = source_path.parts
+    format_dir_index = None
+    original_format_dir = None
+
+    for i, part in enumerate(source_parts):
+        if part.upper() in valid_format_dirs:
+            format_dir_index = i
+            original_format_dir = part
+            break
+
+    if format_dir_index is None:
+        logging.debug(f"Could not identify format directory in path: {source_file}")
+        return items
+
+    # Determine case style from original format directory (lowercase or uppercase)
+    use_lowercase = original_format_dir.islower()
+
+    # Search for alternative formats
+    for ext in supported_formats:
+        if ext == source_ext:
+            continue  # Skip source format
+
+        # Build alternative file path with same case as original
+        target_format_dir = FORMAT_SUBDIRS.get(ext, ext.lstrip('.').upper())
+        if use_lowercase:
+            target_format_dir = target_format_dir.lower()
+
+        alternative_parts = list(source_parts)
+        alternative_parts[format_dir_index] = target_format_dir
+        alternative_parts[-1] = source_path.stem + ext
+
+        alternative_file = Path(*alternative_parts)
+
+        if alternative_file.exists():
+            # Create copy of original item with updated path
+            alt_item = item.copy()
+            alt_item['Cesta'] = str(alternative_file)
+            alt_item['Soubor'] = alternative_file.name
+            items.append(alt_item)
+            logging.debug(f"Added alternative format for {bank}: {alternative_file}")
+
+    return items
+
 
 def load_photobank_headers(headers_file: str) -> Dict[str, Dict[str, str]]:
     """
@@ -167,7 +251,7 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         return False
 
 def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], output_paths: Dict[str, str],
-                        filter_func=None) -> None:
+                        filter_func=None, include_alternative_formats: bool = False) -> None:
     """
     Exportuje záznamy do výstupních souborů pro aktivované banky.
 
@@ -176,6 +260,7 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
         enabled_banks: Seznam aktivovaných bank
         output_paths: Slovník cest k výstupním souborům
         filter_func: Volitelná funkce pro filtrování záznamů podle banky
+        include_alternative_formats: Zda zahrnout alternativní formáty (PNG, TIF, RAW)
     """
     logging.debug(f"Starting export to photobanks. Enabled banks: {enabled_banks}")
     logging.debug(f"Output paths: {json.dumps(output_paths)}")
@@ -255,14 +340,18 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
 
         # Pro každou položku vytvoř rozšířený záznam a exportuj ho
         for item in bank_items:
-            attempted_count += 1
-            # Vytvoření rozšířeného záznamu pro aktuální položku
-            record = extract_media_properties(item, category_maps, pond_prices)
+            # Expand to alternative formats if supported by this bank
+            expanded_items = expand_item_with_alternative_formats(item, bank, include_alternative_formats)
 
-            if export_mediafile(bank, record, output_file, export_formats):
-                export_count += 1
-                if export_count % 10 == 0:
-                    logging.debug(f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})")
+            for expanded_item in expanded_items:
+                attempted_count += 1
+                # Vytvoření rozšířeného záznamu pro aktuální položku
+                record = extract_media_properties(expanded_item, category_maps, pond_prices)
+
+                if export_mediafile(bank, record, output_file, export_formats):
+                    export_count += 1
+                    if export_count % 10 == 0:
+                        logging.debug(f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})")
 
         if attempted_count > 0:
             logging.info(f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)")

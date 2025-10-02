@@ -28,3 +28,32 @@ VALID_STATUS = "připraveno"
 
 # Default log directory
 DEFAULT_LOG_DIR = "H:/Logs"
+
+# RAW image formats
+RAW_FORMATS = {
+    '.raw', '.nef', '.arw', '.pmp', '.srf', '.crw', '.cr2', '.cr3',
+    '.cmt', '.dcr', '.dng', '.j6i', '.mos', '.mrw', '.orf', '.pef',
+    '.raf', '.x3f', '.rw2'
+}
+
+# Supported image formats by photobank
+PHOTOBANK_SUPPORTED_FORMATS = {
+    'DreamsTime': {'.jpg', '.png'} | RAW_FORMATS,
+    'Pond5': {'.jpg', '.png', '.tif'},
+    'ShutterStock': {'.jpg'},
+    'AdobeStock': {'.jpg'},
+    'GettyImages': {'.jpg'},
+    '123RF': {'.jpg'},
+    'DepositPhotos': {'.jpg', '.png'},
+    'Alamy': {'.jpg'},
+    'BigStockPhoto': {'.jpg'},
+    'CanStockPhoto': {'.jpg'},
+}
+
+# Format subdirectory names (for finding files in parallel directories)
+FORMAT_SUBDIRS = {
+    '.jpg': 'JPG',
+    '.png': 'PNG',
+    '.tif': 'TIF',
+    **{ext: 'RAW' for ext in RAW_FORMATS}
+}

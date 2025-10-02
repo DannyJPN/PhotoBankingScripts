@@ -17,7 +17,7 @@ HEADER_MAPPINGS = {
         "Category": "category",
         "Releases": "releases"
     },
-    "Dreamstime": {
+    "DreamsTime": {
         "Filename": "filename",
         "Image Name": "image_name",
         "Description": "description",
