@@ -48,6 +48,11 @@ def parse_arguments():
         action='store_true',
         help="Enable debug logging"
     )
+    parser.add_argument(
+        "--include-edited",
+        action='store_true',
+        help="Include edited/processed photos from 'Upravené foto' folders (default: only original photos)"
+    )
     return parser.parse_args()
 
 
@@ -66,7 +71,7 @@ def main():
 
     # Load and filter records
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
-    prepared = filter_prepared_media(records)
+    prepared = filter_prepared_media(records, include_edited=args.include_edited)
     if not prepared:
         logging.warning("No prepared media records found. Exiting.")
         return
