@@ -2,7 +2,7 @@
 Alternative versions generator for photobank media files.
 Creates processed variants (B&W, negative, sharpened, misty, blurred) and format conversions.
 """
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, TYPE_CHECKING
 import os
 import cv2
 import numpy as np
@@ -16,13 +16,19 @@ from .constants import (
     ORIGINAL_YES, ORIGINAL_NO
 )
 
+if TYPE_CHECKING:
+    from .metadata_generator import MetadataGenerator
+
 logger = logging.getLogger(__name__)
 
 
 class AlternativeGenerator:
     """Generator for alternative versions and format conversions of media files."""
 
-    def __init__(self, enabled_alternatives: Optional[List[str]] = None, enabled_formats: Optional[List[str]] = None):
+    def __init__(self, enabled_alternatives: Optional[List[str]] = None, enabled_formats: Optional[List[str]] = None,
+                 metadata_generator: Optional['MetadataGenerator'] = None,
+                 original_title: Optional[str] = None, original_description: Optional[str] = None,
+                 original_keywords: Optional[List[str]] = None):
         """
         Initialize alternative generator.
 
@@ -33,10 +39,19 @@ class AlternativeGenerator:
             enabled_formats: List of additional formats to generate.
                            If None, generates all available formats.
                            If empty list [], generates no format conversions.
+            metadata_generator: Optional MetadataGenerator for AI-powered metadata regeneration.
+                              If None, metadata will not be regenerated for alternatives.
+            original_title: Original image title (required if metadata_generator is provided)
+            original_description: Original image description (required if metadata_generator is provided)
+            original_keywords: Original image keywords (required if metadata_generator is provided)
         """
         self.enabled_alternatives = enabled_alternatives if enabled_alternatives is not None else list(ALTERNATIVE_EDIT_TAGS.keys())
         self.enabled_formats = enabled_formats if enabled_formats is not None else ALTERNATIVE_FORMATS
-        logger.info(f"Alternative generator initialized - Effects: {self.enabled_alternatives}, Formats: {self.enabled_formats}")
+        self.metadata_generator = metadata_generator
+        self.original_title = original_title
+        self.original_description = original_description
+        self.original_keywords = original_keywords or []
+        logger.info(f"Alternative generator initialized - Effects: {self.enabled_alternatives}, Formats: {self.enabled_formats}, AI metadata: {metadata_generator is not None}")
 
     def generate_all_versions(self, source_file: str, target_dir: str, edited_dir: str) -> List[Dict[str, str]]:
         """
@@ -124,14 +139,40 @@ class AlternativeGenerator:
             try:
                 alt_file = self._generate_single_edit(source_file, edited_dir, edit_tag)
                 if alt_file:
-                    generated_files.append({
+                    alt_info = {
                         'type': 'edit',
                         'edit': edit_tag,
                         'format': os.path.splitext(alt_file)[1],
                         'path': alt_file,
                         'original': source_file,
                         'description': ALTERNATIVE_EDIT_TAGS[edit_tag]
-                    })
+                    }
+
+                    # Generate AI metadata if metadata_generator is available
+                    if self.metadata_generator and self.original_title:
+                        try:
+                            logger.info(f"Generating AI metadata for {edit_tag} alternative")
+                            metadata = self.metadata_generator.generate_metadata_for_alternative(
+                                image_path=alt_file,
+                                original_title=self.original_title,
+                                original_description=self.original_description or "",
+                                original_keywords=self.original_keywords,
+                                effect_tag=edit_tag
+                            )
+
+                            # Add metadata to alternative info
+                            alt_info['metadata'] = metadata
+                            alt_info['title'] = metadata['title']
+                            alt_info['alt_description'] = metadata['description']  # Rename to avoid conflict
+                            alt_info['keywords'] = metadata['keywords']
+
+                            logger.info(f"AI metadata generated for {edit_tag}: {metadata['title'][:50]}...")
+
+                        except Exception as e:
+                            logger.error(f"Failed to generate AI metadata for {edit_tag}: {e}")
+                            # Continue without metadata - alternative file was still created
+
+                    generated_files.append(alt_info)
                     logger.info(f"Generated {edit_tag} alternative: {alt_file}")
 
             except Exception as e:

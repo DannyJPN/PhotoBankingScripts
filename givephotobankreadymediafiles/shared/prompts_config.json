@@ -52,6 +52,38 @@
       }
     }
   },
+  "alternative_effects": {
+    "_bw": {
+      "name": "Black and white",
+      "title_modifier": "Adjust title to reflect black and white / monochrome / grayscale nature. Keep original subject, add 'black and white', 'monochrome', 'B&W', or 'grayscale' where appropriate.",
+      "description_modifier": "Adjust description to emphasize monochrome aesthetic, contrast, tones, and timeless quality. Mention lack of color as artistic choice.",
+      "keywords_modifier": "Add keywords: black-and-white, monochrome, grayscale, bw, contrast, tones. Remove color-specific keywords."
+    },
+    "_negative": {
+      "name": "Color negative",
+      "title_modifier": "Adjust title to reflect inverted/negative color effect. Add 'negative', 'inverted', or 'reversed colors' where appropriate.",
+      "description_modifier": "Adjust description to emphasize surreal inverted color palette, artistic effect, and unique visual impact of color reversal.",
+      "keywords_modifier": "Add keywords: negative, inverted, reversed-colors, surreal, artistic-effect, color-inversion. Adjust color keywords to reflect inverted palette."
+    },
+    "_sharpen": {
+      "name": "Sharpened",
+      "title_modifier": "Adjust title to emphasize crisp detail and clarity. Add 'sharp', 'detailed', 'crisp', or 'high-definition' where appropriate.",
+      "description_modifier": "Adjust description to highlight enhanced sharpness, fine details, crystal-clear quality, and professional precision.",
+      "keywords_modifier": "Add keywords: sharp, sharpened, detailed, crisp, clarity, high-definition, enhanced-detail, precision."
+    },
+    "_misty": {
+      "name": "Misty/foggy effect",
+      "title_modifier": "Adjust title to reflect ethereal misty/foggy atmosphere. Add 'misty', 'foggy', 'hazy', or 'dreamy' where appropriate.",
+      "description_modifier": "Adjust description to emphasize soft ethereal atmosphere, fog/mist effect, dreamy quality, and mysterious ambiance.",
+      "keywords_modifier": "Add keywords: misty, foggy, hazy, fog, mist, vapor, steam, ethereal, dreamy, atmospheric, soft-focus."
+    },
+    "_blurred": {
+      "name": "Gaussian blur",
+      "title_modifier": "Adjust title to reflect soft blurred artistic effect. Add 'blurred', 'soft', 'abstract', or 'dreamy' where appropriate.",
+      "description_modifier": "Adjust description to emphasize soft blur effect, abstract quality, dreamy atmosphere, and artistic interpretation.",
+      "keywords_modifier": "Add keywords: blurred, blur, soft-focus, gaussian-blur, abstract, dreamy, soft, artistic-blur, motion."
+    }
+  },
   "photobank_limits": {
     "shutterstock": 2,
     "adobestock": 1,
