@@ -6,3 +6,54 @@ PREPARED_STATUS_VALUE = "připraveno"
 
 # ExifTool path
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
+
+# RAW image formats
+RAW_FORMATS = {
+    '.raw',  # Generic RAW
+    '.nef',  # Nikon
+    '.arw', '.pmp', '.srf',  # Sony
+    '.crw', '.cr2', '.cr3',  # Canon
+    '.cmt',  # Chinon
+    '.dcr',  # Kodak
+    '.dng',  # Digital Negative
+    '.j6i',  # Ricoh
+    '.mos',  # Leaf Valeo
+    '.mrw',  # Minolta
+    '.orf',  # Olympus
+    '.pef',  # Pentax
+    '.raf',  # Fuji
+    '.x3f',  # Sigma
+    '.rw2',  # Panasonic Lumix
+}
+
+# Supported image formats by photobank
+PHOTOBANK_SUPPORTED_FORMATS = {
+    'Dreamstime': {'.jpg', '.png'} | RAW_FORMATS,
+    'Pond5': {'.jpg', '.png', '.tif'},
+    'Shutterstock': {'.jpg'},
+    'Adobe Stock': {'.jpg'},
+    'Getty Images': {'.jpg'},
+    '123RF': {'.jpg'},
+    'Depositphotos': {'.jpg', '.png'},
+    'Alamy': {'.jpg'},
+    'Bigstock': {'.jpg'},
+    'CanStockPhoto': {'.jpg'},
+    'iStock': {'.jpg'},
+}
+
+# Format subdirectory names
+FORMAT_SUBDIRS = {
+    '.jpg': 'jpg',
+    '.png': 'png',
+    '.tif': 'tif',
+    **{ext: 'raw' for ext in RAW_FORMATS}
+}
+
+# Alternative edit tags (from givephotobankreadymediafiles)
+ALTERNATIVE_EDIT_TAGS = {
+    "_bw": "Black and white",
+    "_negative": "Color negative",
+    "_sharpen": "Sharpened",
+    "_misty": "Misty/foggy effect",
+    "_blurred": "Gaussian blur"
+}
