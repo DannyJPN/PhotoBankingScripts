@@ -48,7 +48,7 @@ class MediaViewer:
         # AI generation state - separate threads for each type
         self.ai_threads = {
             'title': None,
-            'description': None, 
+            'description': None,
             'keywords': None,
             'categories': None,
             'all': None
@@ -56,10 +56,14 @@ class MediaViewer:
         self.ai_cancelled = {
             'title': False,
             'description': False,
-            'keywords': False, 
+            'keywords': False,
             'categories': False
         }
         self.generation_lock = threading.Lock()
+
+        # Storage for alternative metadata (for edited versions)
+        # Structure: {'_bw': {'title': '...', 'description': '...', 'keywords': [...]}, '_negative': {...}, ...}
+        self.alternative_metadata = {}
         
         # Configure styles for tags
         self.setup_styles()
@@ -684,37 +688,49 @@ class MediaViewer:
             # Get AI provider from config
             from shared.config import get_config
             from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
-            
+
             config = get_config()
             available_models = config.get_available_ai_models()
-            
+
             # Find model key
             model_key = None
             for model in available_models:
                 if model["display_name"] == selected_model:
                     model_key = model["key"]
                     break
-            
+
             if not model_key:
                 raise ValueError(f"Model key not found for: {selected_model}")
-            
+
             # Check for cancellation
             if self.ai_cancelled['title']:
                 return
-            
-            # Create generator and generate title
+
+            # Create generator and generate titles (returns dict with original + alternatives)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
-            title = generator.generate_title(self.current_file_path, 
-                                           existing_title if existing_title else None)
-            
+            titles_dict = generator.generate_title(self.current_file_path,
+                                                   existing_title if existing_title else None)
+
             # Check for cancellation before updating UI
             if self.ai_cancelled['title']:
                 return
-            
-            # Update UI in main thread
-            self.root.after(0, self._update_title_result, title, None)
-            
+
+            # Extract original title for UI
+            original_title = titles_dict.get('original', '')
+
+            # Store alternative titles in metadata
+            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
+            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
+                if edit_tag in titles_dict:
+                    if edit_tag not in self.alternative_metadata:
+                        self.alternative_metadata[edit_tag] = {}
+                    self.alternative_metadata[edit_tag]['title'] = titles_dict[edit_tag]
+                    logging.debug(f"Alternative title for {edit_tag}: {titles_dict[edit_tag][:50]}...")
+
+            # Update UI in main thread with original title
+            self.root.after(0, self._update_title_result, original_title, None)
+
         except Exception as e:
             logging.error(f"Title generation failed: {e}")
             # Update UI with error in main thread
@@ -807,24 +823,36 @@ class MediaViewer:
                 else:
                     editorial_data = extracted_data
             
-            # Create generator and generate description
+            # Create generator and generate descriptions (returns dict with original + alternatives)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
-            
-            description = generator.generate_description(
-                self.current_file_path, 
+
+            descriptions_dict = generator.generate_description(
+                self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
                 editorial_data
             )
-            
+
             # Check for cancellation before updating UI
             if self.ai_cancelled['description']:
                 return
-            
-            # Update UI in main thread
-            self.root.after(0, self._update_description_result, description, None)
+
+            # Extract original description for UI
+            original_description = descriptions_dict.get('original', '')
+
+            # Store alternative descriptions in metadata
+            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
+            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
+                if edit_tag in descriptions_dict:
+                    if edit_tag not in self.alternative_metadata:
+                        self.alternative_metadata[edit_tag] = {}
+                    self.alternative_metadata[edit_tag]['description'] = descriptions_dict[edit_tag]
+                    logging.debug(f"Alternative description for {edit_tag}: {descriptions_dict[edit_tag][:50]}...")
+
+            # Update UI in main thread with original description
+            self.root.after(0, self._update_description_result, original_description, None)
             
         except Exception as e:
             logging.error(f"Description generation failed: {e}")
@@ -899,28 +927,40 @@ class MediaViewer:
             if self.ai_cancelled['keywords']:
                 return
             
-            # Create generator and generate keywords
+            # Create generator and generate keywords (returns dict with original + alternatives)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
-            
+
             # Ask for keyword count
             keyword_count = min(50, 50 - len(self.keywords_list))  # Don't exceed 50 total
-            
-            keywords = generator.generate_keywords(
+
+            keywords_dict = generator.generate_keywords(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
                 keyword_count,
                 self.editorial_var.get()  # Pass editorial flag
             )
-            
+
             # Check for cancellation before updating UI
             if self.ai_cancelled['keywords']:
                 return
-            
-            # Update UI in main thread
-            self.root.after(0, self._update_keywords_result, keywords, None)
+
+            # Extract original keywords for UI
+            original_keywords = keywords_dict.get('original', [])
+
+            # Store alternative keywords in metadata
+            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
+            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
+                if edit_tag in keywords_dict:
+                    if edit_tag not in self.alternative_metadata:
+                        self.alternative_metadata[edit_tag] = {}
+                    self.alternative_metadata[edit_tag]['keywords'] = keywords_dict[edit_tag]
+                    logging.debug(f"Alternative keywords for {edit_tag}: {len(keywords_dict[edit_tag])} keywords")
+
+            # Update UI in main thread with original keywords
+            self.root.after(0, self._update_keywords_result, original_keywords, None)
             
         except Exception as e:
             logging.error(f"Keywords generation failed: {e}")
@@ -1218,19 +1258,20 @@ class MediaViewer:
                     if value:  # Only add non-empty selections
                         selected_categories[photobank].append(value)
         
-        # Update record with metadata
+        # Update record with metadata including alternative metadata
         metadata = {
             'title': title,
             'description': description,
             'keywords': keywords,
             'editorial': self.editorial_var.get(),
-            'categories': selected_categories
+            'categories': selected_categories,
+            'alternative_metadata': self.alternative_metadata  # Pass generated alternative metadata
         }
-        
+
         # Call completion callback with metadata
         if self.completion_callback:
             self.completion_callback(metadata)
-            
+
         self.root.destroy()
     
     def reject_metadata(self):
@@ -1315,24 +1356,36 @@ class MediaViewer:
             if self.ai_cancelled['description']:
                 return
             
-            # Create generator and generate description with editorial data
+            # Create generator and generate descriptions with editorial data (returns dict)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
-            
-            description = generator.generate_description(
+
+            descriptions_dict = generator.generate_description(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
                 editorial_data
             )
-            
+
             # Check for cancellation before updating UI
             if self.ai_cancelled['description']:
                 return
-            
-            # Update UI in main thread
-            self.root.after(0, self._update_description_result, description, None)
+
+            # Extract original description for UI
+            original_description = descriptions_dict.get('original', '')
+
+            # Store alternative descriptions in metadata
+            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
+            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
+                if edit_tag in descriptions_dict:
+                    if edit_tag not in self.alternative_metadata:
+                        self.alternative_metadata[edit_tag] = {}
+                    self.alternative_metadata[edit_tag]['description'] = descriptions_dict[edit_tag]
+                    logging.debug(f"Alternative description for {edit_tag}: {descriptions_dict[edit_tag][:50]}...")
+
+            # Update UI in main thread with original description
+            self.root.after(0, self._update_description_result, original_description, None)
             
         except Exception as e:
             logging.error(f"Description generation with editorial failed: {e}")

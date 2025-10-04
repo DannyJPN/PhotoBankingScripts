@@ -19,6 +19,9 @@ MAX_TITLE_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 200
 MAX_KEYWORDS_COUNT = 50
 
+# AI generation settings
+AI_MAX_RETRY_ATTEMPTS = 10
+
 # CSV column names
 COL_FILE = "Soubor"
 COL_TITLE = "Název"

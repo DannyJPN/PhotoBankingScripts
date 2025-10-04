@@ -13,10 +13,13 @@ from pathlib import Path
 
 # Import shared AI module
 from shared.ai_module import (
-    AIProvider, Message, ContentBlock, 
+    AIProvider, Message, ContentBlock,
     create_from_model_key, get_ai_factory, ProviderType
 )
 from shared.prompt_manager import get_prompt_manager
+
+# Import constants
+from .constants import ALTERNATIVE_EDIT_TAGS, AI_MAX_RETRY_ATTEMPTS
 
 
 @dataclass
@@ -66,131 +69,256 @@ class MetadataGenerator:
         """
         self.photobank_categories = categories
     
-    def generate_title(self, image_path: str, context: Optional[str] = None) -> str:
+    def generate_title(self, image_path: str, context: Optional[str] = None) -> Dict[str, str]:
         """
-        Generate SEO-optimized title for image.
-        
+        Generate SEO-optimized titles for image and all alternative versions.
+
         Args:
             image_path: Path to image file
             context: Optional context or existing title to refine
-            
+
         Returns:
-            Generated title (max 100 characters)
+            Dict with keys: 'original', '_bw', '_negative', '_sharpen', '_misty', '_blurred'
+            Each value is a title string (max 100 characters)
+
+        Raises:
+            ValueError: If AI provider doesn't support images or all retry attempts fail
         """
         # Validate input type support
         if not self.ai_provider.supports_images():
-            logging.error(f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis")
-            return self._fallback_title(image_path)
-        
+            error_msg = f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis"
+            logging.error(error_msg)
+            raise ValueError(error_msg)
+
         prompt = self.prompt_manager.get_title_prompt(context)
-        
-        try:
-            response = self.ai_provider.analyze_image(image_path, prompt)
-            title = self._clean_title(response)
-            
-            # Ensure length limit
-            if len(title) > self.max_title_length:
-                title = title[:self.max_title_length].rsplit(' ', 1)[0] + '...'
-            
-            return title
-            
-        except Exception as e:
-            logging.error(f"Failed to generate title for {image_path}: {e}")
-            return self._fallback_title(image_path)
+
+        import json
+        from shared.ai_module import Message
+
+        messages = [Message.user_image(image_path, prompt)]
+
+        # Determine if provider supports response_format
+        provider_name = self.ai_provider.__class__.__name__.lower()
+        kwargs = {}
+        if 'openai' in provider_name:
+            kwargs['response_format'] = {'type': 'json_object'}
+
+        # Retry loop
+        last_exception = None
+        for attempt in range(1, AI_MAX_RETRY_ATTEMPTS + 1):
+            try:
+                logging.debug(f"AI title generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS}")
+                response = self.ai_provider.generate_text(messages, **kwargs)
+                response_text = response.content
+
+                # Parse JSON
+                titles_dict = json.loads(response_text)
+
+                # Clean and validate each title
+                all_keys = ['original'] + list(ALTERNATIVE_EDIT_TAGS.keys())
+                for key in all_keys:
+                    if key in titles_dict:
+                        titles_dict[key] = self._clean_title(titles_dict[key])
+                        if len(titles_dict[key]) > self.max_title_length:
+                            titles_dict[key] = titles_dict[key][:self.max_title_length].rsplit(' ', 1)[0] + '...'
+
+                logging.info(f"Successfully generated titles on attempt {attempt}")
+                return titles_dict
+
+            except Exception as e:
+                last_exception = e
+                logging.warning(f"Title generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS} failed: {e}")
+
+        # All attempts failed
+        error_msg = f"AI failed to generate titles after {AI_MAX_RETRY_ATTEMPTS} attempts. Last error: {last_exception}"
+        logging.error(error_msg)
+        raise RuntimeError(error_msg)
     
     def generate_description(self, image_path: str, title: Optional[str] = None,
-                           context: Optional[str] = None, editorial_data: Optional[Dict[str, str]] = None) -> str:
+                           context: Optional[str] = None, editorial_data: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         """
-        Generate detailed description for image.
-        
+        Generate detailed descriptions for image and all alternative versions.
+
         Args:
             image_path: Path to image file
-            title: Optional title to reference
+            title: Optional title to reference (will use 'original' from title dict if dict provided)
             context: Optional context or existing description
             editorial_data: Optional editorial metadata (city, country, date) for editorial format
-            
+
         Returns:
-            Generated description (max 200 characters, including editorial prefix if applicable)
+            Dict with keys: 'original', '_bw', '_negative', '_sharpen', '_misty', '_blurred'
+            Each value is a description string (max 200 characters, including editorial prefix if applicable)
+
+        Raises:
+            ValueError: If AI provider doesn't support images or editorial prefix too long or all retry attempts fail
         """
         # Validate input type support
         if not self.ai_provider.supports_images():
-            logging.error(f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis")
-            return self._fallback_description(image_path, title, editorial_data)
-        
+            error_msg = f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis"
+            logging.error(error_msg)
+            raise ValueError(error_msg)
+
         # Handle editorial format
         editorial_prefix = ""
         available_chars = self.max_description_length
-        
+
         if editorial_data:
             city = editorial_data.get('city', '')
             country = editorial_data.get('country', '')
             date_str = editorial_data.get('date', '')
-            
+
             if city and country and date_str:
                 editorial_prefix = f"{city.upper()}, {country.upper()} - {date_str}: "
                 available_chars = self.max_description_length - len(editorial_prefix)
-                
-                if available_chars <= 20:  # Need at least some space for AI content
-                    logging.warning("Editorial prefix too long, using fallback")
-                    return self._fallback_description(image_path, title, editorial_data)
 
-        # For now, use existing prompt format - editorial handling is done in prefix
-        prompt = self.prompt_manager.get_description_prompt(title, context)
-        
-        try:
-            response = self.ai_provider.analyze_image(image_path, prompt)
-            description = self._clean_description(response)
-            
-            # Ensure AI part fits in available space
-            if len(description) > available_chars:
-                description = description[:available_chars].rsplit(' ', 1)[0] + '...'
-            
-            # Combine editorial prefix with AI description
-            full_description = editorial_prefix + description
-            
-            return full_description
-            
-        except Exception as e:
-            logging.error(f"Failed to generate description for {image_path}: {e}")
-            return self._fallback_description(image_path, title, editorial_data)
+                if available_chars <= 20:  # Need at least some space for AI content
+                    error_msg = f"Editorial prefix too long ({len(editorial_prefix)} chars), leaving only {available_chars} chars for content"
+                    logging.error(error_msg)
+                    raise ValueError(error_msg)
+
+        # Extract title string if dict was passed
+        title_str = title
+        if isinstance(title, dict):
+            title_str = title.get('original', '')
+
+        prompt = self.prompt_manager.get_description_prompt(title_str, context)
+
+        import json
+        from shared.ai_module import Message
+
+        messages = [Message.user_image(image_path, prompt)]
+
+        # Determine if provider supports response_format
+        provider_name = self.ai_provider.__class__.__name__.lower()
+        kwargs = {}
+        if 'openai' in provider_name:
+            kwargs['response_format'] = {'type': 'json_object'}
+
+        # Retry loop
+        last_exception = None
+        for attempt in range(1, AI_MAX_RETRY_ATTEMPTS + 1):
+            try:
+                logging.debug(f"AI description generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS}")
+                response = self.ai_provider.generate_text(messages, **kwargs)
+                response_text = response.content
+
+                # Parse JSON
+                descriptions_dict = json.loads(response_text)
+
+                # Clean and validate each description
+                all_keys = ['original'] + list(ALTERNATIVE_EDIT_TAGS.keys())
+                for key in all_keys:
+                    if key in descriptions_dict:
+                        descriptions_dict[key] = self._clean_description(descriptions_dict[key])
+                        # Ensure AI part fits in available space
+                        if len(descriptions_dict[key]) > available_chars:
+                            descriptions_dict[key] = descriptions_dict[key][:available_chars].rsplit(' ', 1)[0] + '...'
+                        # Add editorial prefix if needed
+                        if editorial_prefix:
+                            descriptions_dict[key] = editorial_prefix + descriptions_dict[key]
+
+                logging.info(f"Successfully generated descriptions on attempt {attempt}")
+                return descriptions_dict
+
+            except Exception as e:
+                last_exception = e
+                logging.warning(f"Description generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS} failed: {e}")
+
+        # All attempts failed
+        error_msg = f"AI failed to generate descriptions after {AI_MAX_RETRY_ATTEMPTS} attempts. Last error: {last_exception}"
+        logging.error(error_msg)
+        raise RuntimeError(error_msg)
     
     def generate_keywords(self, image_path: str, title: Optional[str] = None,
-                         description: Optional[str] = None, count: int = 30, is_editorial: bool = False) -> List[str]:
+                         description: Optional[str] = None, count: int = 30, is_editorial: bool = False) -> Dict[str, List[str]]:
         """
-        Generate relevant keywords for image.
-        
+        Generate relevant keywords for image and all alternative versions.
+
         Args:
             image_path: Path to image file
-            title: Optional title to include keywords from
-            description: Optional description to include keywords from
+            title: Optional title to include keywords from (will use 'original' from title dict if dict provided)
+            description: Optional description (will use 'original' from description dict if dict provided)
             count: Target number of keywords (max 50)
             is_editorial: Whether this is editorial content (adds "Editorial" keyword)
-            
+
         Returns:
-            List of keywords
+            Dict with keys: 'original', '_bw', '_negative', '_sharpen', '_misty', '_blurred'
+            Each value is a list of keywords
+
+        Raises:
+            ValueError: If AI provider doesn't support images or all retry attempts fail
         """
         # Validate input type support
         if not self.ai_provider.supports_images():
-            logging.error(f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis")
-            return self._fallback_keywords(image_path, title, description, is_editorial)
-        
+            error_msg = f"AI provider {self.ai_provider.__class__.__name__} does not support image analysis"
+            logging.error(error_msg)
+            raise ValueError(error_msg)
+
         count = min(count, self.max_keywords)
-        prompt = self.prompt_manager.get_keywords_prompt(title, description, count)
-        
-        try:
-            response = self.ai_provider.analyze_image(image_path, prompt)
-            keywords = self._parse_keywords(response)
-            
-            # Add Editorial keyword if needed (at the beginning)
-            if is_editorial and "Editorial" not in keywords:
-                keywords.insert(0, "Editorial")
-            
-            # Limit to requested count
-            return keywords[:count]
-            
-        except Exception as e:
-            logging.error(f"Failed to generate keywords for {image_path}: {e}")
-            return self._fallback_keywords(image_path, title, description, is_editorial)
+
+        # Extract strings if dicts were passed
+        title_str = title
+        if isinstance(title, dict):
+            title_str = title.get('original', '')
+
+        description_str = description
+        if isinstance(description, dict):
+            description_str = description.get('original', '')
+
+        prompt = self.prompt_manager.get_keywords_prompt(title_str, description_str, count)
+
+        import json
+        from shared.ai_module import Message
+
+        messages = [Message.user_image(image_path, prompt)]
+
+        # Determine if provider supports response_format
+        provider_name = self.ai_provider.__class__.__name__.lower()
+        kwargs = {}
+        if 'openai' in provider_name:
+            kwargs['response_format'] = {'type': 'json_object'}
+
+        # Retry loop
+        last_exception = None
+        for attempt in range(1, AI_MAX_RETRY_ATTEMPTS + 1):
+            try:
+                logging.debug(f"AI keywords generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS}")
+                response = self.ai_provider.generate_text(messages, **kwargs)
+                response_text = response.content
+
+                # Parse JSON
+                keywords_dict = json.loads(response_text)
+
+                # Process each version's keywords
+                all_keys = ['original'] + list(ALTERNATIVE_EDIT_TAGS.keys())
+                for key in all_keys:
+                    if key in keywords_dict:
+                        # Keywords should already be a list in JSON
+                        if isinstance(keywords_dict[key], list):
+                            # Clean each keyword
+                            keywords_dict[key] = [kw.strip().strip('"').strip("'") for kw in keywords_dict[key] if kw.strip()]
+                        else:
+                            # Fallback: parse as comma-separated string
+                            keywords_dict[key] = self._parse_keywords(keywords_dict[key])
+
+                        # Add Editorial keyword if needed (at the beginning) - only for original
+                        if key == 'original' and is_editorial and "Editorial" not in keywords_dict[key]:
+                            keywords_dict[key].insert(0, "Editorial")
+
+                        # Limit to requested count
+                        keywords_dict[key] = keywords_dict[key][:count]
+
+                logging.info(f"Successfully generated keywords on attempt {attempt}")
+                return keywords_dict
+
+            except Exception as e:
+                last_exception = e
+                logging.warning(f"Keywords generation attempt {attempt}/{AI_MAX_RETRY_ATTEMPTS} failed: {e}")
+
+        # All attempts failed
+        error_msg = f"AI failed to generate keywords after {AI_MAX_RETRY_ATTEMPTS} attempts. Last error: {last_exception}"
+        logging.error(error_msg)
+        raise RuntimeError(error_msg)
     
     def generate_categories(self, image_path: str, title: Optional[str] = None,
                           description: Optional[str] = None) -> Dict[str, List[str]]:
@@ -412,213 +540,19 @@ class MetadataGenerator:
         """Parse editorial detection response."""
         response = response.strip().upper()
         return response.startswith('YES')
-    
-    # Fallback methods (when AI fails)
-    
-    def _fallback_title(self, image_path: str) -> str:
-        """Generate fallback title from filename."""
-        filename = Path(image_path).stem
-        # Convert filename to title case
-        title = filename.replace('_', ' ').replace('-', ' ').title()
-        return title[:self.max_title_length]
-    
-    def _fallback_description(self, image_path: str, title: Optional[str] = None, editorial_data: Optional[Dict[str, str]] = None) -> str:
-        """Generate fallback description."""
-        # Handle editorial format
-        if editorial_data:
-            city = editorial_data.get('city', '')
-            country = editorial_data.get('country', '')
-            date_str = editorial_data.get('date', '')
-            
-            if city and country and date_str:
-                editorial_prefix = f"{city.upper()}, {country.upper()} - {date_str}: "
-                if title:
-                    return editorial_prefix + f"High-quality editorial image featuring {title.lower()}"
-                else:
-                    filename = Path(image_path).stem
-                    return editorial_prefix + f"Editorial stock image - {filename.replace('_', ' ')}"
-        
-        # Standard fallback
-        if title:
-            return f"High-quality image featuring {title.lower()}"
-        else:
-            filename = Path(image_path).stem
-            return f"Professional stock image - {filename.replace('_', ' ')}"
-    
-    def _fallback_keywords(self, image_path: str, title: Optional[str] = None,
-                          description: Optional[str] = None, is_editorial: bool = False) -> List[str]:
-        """Generate fallback keywords."""
-        keywords = []
-        
-        # Add Editorial keyword if needed (at the beginning)
-        if is_editorial:
-            keywords.append("Editorial")
-        
-        # Add words from title and description
-        for text in [title, description]:
-            if text:
-                words = text.lower().replace(',', ' ').split()
-                keywords.extend([w for w in words if len(w) > 3])
-        
-        # Add generic keywords
-        if is_editorial:
-            keywords.extend(['news', 'event', 'reportage', 'journalism', 'documentary'])
-        else:
-            keywords.extend(['professional', 'high-quality', 'commercial', 'stock'])
-        
-        # Remove duplicates
-        return list(dict.fromkeys(keywords))[:20]
-    
+
     def _fallback_categories(self, photobank: str, available: List[str]) -> List[str]:
         """Select fallback categories."""
         # Return most general category
         general_terms = ['other', 'general', 'miscellaneous', 'abstract', 'business']
-        
+
         for term in general_terms:
             for cat in available:
                 if term in cat.lower():
                     return [cat]
-        
+
         # Return first category if nothing else matches
         return [available[0]] if available else []
-
-    def generate_metadata_for_alternative(self, image_path: str, original_title: str,
-                                         original_description: str, original_keywords: List[str],
-                                         effect_tag: str) -> Dict[str, Any]:
-        """
-        Generate modified metadata for alternative version with applied effect.
-
-        Args:
-            image_path: Path to alternative image file
-            original_title: Original image title
-            original_description: Original image description
-            original_keywords: Original image keywords
-            effect_tag: Effect tag (e.g., "_bw", "_negative", "_sharpen", "_misty", "_blurred")
-
-        Returns:
-            Dict with keys: title, description, keywords
-        """
-        logging.info(f"Generating metadata for alternative version with effect: {effect_tag}")
-
-        # Load effect modifiers from prompt manager
-        try:
-            config = self.prompt_manager.config
-            effect_config = config.get("alternative_effects", {}).get(effect_tag, {})
-
-            if not effect_config:
-                logging.warning(f"No configuration found for effect {effect_tag}, using originals")
-                return {
-                    "title": original_title,
-                    "description": original_description,
-                    "keywords": original_keywords
-                }
-
-            effect_name = effect_config.get("name", effect_tag)
-            title_modifier = effect_config.get("title_modifier", "")
-            description_modifier = effect_config.get("description_modifier", "")
-            keywords_modifier = effect_config.get("keywords_modifier", "")
-
-        except Exception as e:
-            logging.error(f"Failed to load effect configuration: {e}")
-            return {
-                "title": original_title,
-                "description": original_description,
-                "keywords": original_keywords
-            }
-
-        # Generate modified title
-        title_prompt = f"""Based on the original title, generate a modified title for a {effect_name} version.
-
-Original title: {original_title}
-
-Modification instructions: {title_modifier}
-
-Return ONLY the modified title, no other text."""
-
-        try:
-            if self.ai_provider.supports_images():
-                modified_title = self.ai_provider.analyze_image(image_path, title_prompt)
-            else:
-                modified_title = self.ai_provider.generate_text(title_prompt)
-
-            modified_title = self._clean_title(modified_title)
-
-            # Ensure length limit
-            if len(modified_title) > self.max_title_length:
-                modified_title = modified_title[:self.max_title_length].rsplit(' ', 1)[0] + '...'
-
-        except Exception as e:
-            logging.error(f"Failed to generate modified title: {e}")
-            modified_title = f"{original_title} - {effect_name}"
-
-        # Generate modified description
-        description_prompt = f"""Based on the original description, generate a modified description for a {effect_name} version.
-
-Original description: {original_description}
-Modified title: {modified_title}
-
-Modification instructions: {description_modifier}
-
-Return ONLY the modified description, no other text."""
-
-        try:
-            if self.ai_provider.supports_images():
-                modified_description = self.ai_provider.analyze_image(image_path, description_prompt)
-            else:
-                modified_description = self.ai_provider.generate_text(description_prompt)
-
-            modified_description = self._clean_description(modified_description)
-
-            # Ensure length limit
-            if len(modified_description) > self.max_description_length:
-                modified_description = modified_description[:self.max_description_length].rsplit(' ', 1)[0] + '...'
-
-        except Exception as e:
-            logging.error(f"Failed to generate modified description: {e}")
-            modified_description = f"{original_description} Modified with {effect_name} effect."
-
-        # Generate modified keywords
-        keywords_str = ", ".join(original_keywords)
-        keywords_prompt = f"""Based on the original keywords, generate modified keywords for a {effect_name} version.
-
-Original keywords: {keywords_str}
-Modified title: {modified_title}
-Modified description: {modified_description}
-
-Modification instructions: {keywords_modifier}
-
-Return ONLY the modified keywords separated by commas, no other text."""
-
-        try:
-            if self.ai_provider.supports_images():
-                modified_keywords_str = self.ai_provider.analyze_image(image_path, keywords_prompt)
-            else:
-                modified_keywords_str = self.ai_provider.generate_text(keywords_prompt)
-
-            modified_keywords = self._parse_keywords(modified_keywords_str)
-
-            # Limit to max keywords
-            modified_keywords = modified_keywords[:self.max_keywords]
-
-        except Exception as e:
-            logging.error(f"Failed to generate modified keywords: {e}")
-            # Fallback: add effect-specific keywords to originals
-            effect_keywords = {
-                "_bw": ["black-and-white", "monochrome", "grayscale"],
-                "_negative": ["negative", "inverted", "reversed-colors"],
-                "_sharpen": ["sharp", "sharpened", "detailed"],
-                "_misty": ["misty", "foggy", "hazy"],
-                "_blurred": ["blurred", "blur", "soft-focus"]
-            }
-            modified_keywords = effect_keywords.get(effect_tag, []) + original_keywords[:25]
-
-        logging.info(f"Generated modified metadata - Title: {modified_title[:50]}...")
-
-        return {
-            "title": modified_title,
-            "description": modified_description,
-            "keywords": modified_keywords
-        }
 
 
 def create_metadata_generator(model_key: str, **kwargs) -> MetadataGenerator:

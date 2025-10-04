@@ -46,28 +46,33 @@ class PromptManager:
     def get_title_prompt(self, context: Optional[str] = None) -> str:
         """
         Generate title prompt with variable substitution.
-        
+
         Args:
             context: Optional existing title to improve
-            
+
         Returns:
             Generated prompt string
         """
         try:
             prompt_config = self.config["metadata_generation"]["title"]
             variables = prompt_config["variables"].copy()
-            
+
             # Set context section
             context_section = ""
             if context:
                 context_template = prompt_config["context_template"]
                 context_section = context_template.format(context=context)
-            
+
             # Build final prompt
             variables["context_section"] = context_section
-            
-            return prompt_config["template"].format(**variables)
-            
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
         except Exception as e:
             logging.error(f"Failed to generate title prompt: {e}")
             return self._get_fallback_title_prompt(context)
@@ -103,9 +108,14 @@ class PromptManager:
             # Build final prompt
             variables["title_section"] = title_section
             variables["context_section"] = context_section
-            
-            return prompt_config["template"].format(**variables)
-            
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
         except Exception as e:
             logging.error(f"Failed to generate description prompt: {e}")
             return self._get_fallback_description_prompt(title, context)
@@ -143,9 +153,14 @@ class PromptManager:
             # Build final prompt
             variables["title_section"] = title_section
             variables["description_section"] = description_section
-            
-            return prompt_config["template"].format(**variables)
-            
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
         except Exception as e:
             logging.error(f"Failed to generate keywords prompt: {e}")
             return self._get_fallback_keywords_prompt(title, description, count)
