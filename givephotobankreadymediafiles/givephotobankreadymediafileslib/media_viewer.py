@@ -19,6 +19,10 @@ from givephotobankreadymediafileslib.tag_entry import TagEntry
 from givephotobankreadymediafileslib.editorial_dialog import (
     get_editorial_metadata, extract_editorial_metadata_from_exif
 )
+from givephotobankreadymediafileslib.constants import (
+    ALTERNATIVE_EDIT_TAGS, get_category_column,
+    MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH
+)
 
 
 class MediaViewer:
@@ -178,7 +182,7 @@ class MediaViewer:
         title_controls_frame = ttk.Frame(title_frame)
         title_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
         
-        self.title_char_label = ttk.Label(title_controls_frame, text="0/100")
+        self.title_char_label = ttk.Label(title_controls_frame, text=f"0/{MAX_TITLE_LENGTH}")
         self.title_char_label.pack(side=tk.LEFT)
         
         self.title_generate_button = ttk.Button(title_controls_frame, text="Generate", 
@@ -200,7 +204,7 @@ class MediaViewer:
         desc_controls_frame = ttk.Frame(desc_frame)
         desc_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
         
-        self.desc_char_label = ttk.Label(desc_controls_frame, text="0/200")
+        self.desc_char_label = ttk.Label(desc_controls_frame, text=f"0/{MAX_DESCRIPTION_LENGTH}")
         self.desc_char_label.pack(side=tk.LEFT)
         
         self.desc_generate_button = ttk.Button(desc_controls_frame, text="Generate", 
@@ -575,40 +579,33 @@ class MediaViewer:
         """Load existing categories from CSV record into UI dropdowns."""
         if not hasattr(self, 'category_combos') or not self.category_combos:
             return
-        
-        # Category field mappings for CSV columns
-        category_mappings = {
-            'shutterstock': ['Kategorie_ShutterStock', 'Kategorie_ShutterStock_2'],
-            'adobestock': ['Kategorie_AdobeStock'],
-            'dreamstime': ['Kategorie_Dreamstime_1', 'Kategorie_Dreamstime_2', 'Kategorie_Dreamstime_3'],
-            'alamy': ['Kategorie_Alamy_1', 'Kategorie_Alamy_2']
-        }
-        
+
         # Load categories for each photobank
         for photobank, combos in self.category_combos.items():
-            photobank_key = photobank.lower().replace(' ', '').replace('_', '')
-            
-            if photobank_key in category_mappings:
-                category_fields = category_mappings[photobank_key]
-                
+            # Get category column name using constants
+            category_column = get_category_column(photobank)
+            category_value = record.get(category_column, '').strip()
+
+            if category_value:
+                # Split by comma for multiple categories
+                categories_list = [cat.strip() for cat in category_value.split(',') if cat.strip()]
+
                 # Set values for each dropdown
                 for i, combo in enumerate(combos):
-                    if i < len(category_fields):
-                        field_name = category_fields[i]
-                        category_value = record.get(field_name, '').strip()
-                        
-                        if category_value:
-                            # Find the category in combo values and select it
-                            values = combo['values']
-                            if category_value in values:
-                                combo.set(category_value)
-                                logging.info(f"Loaded category for {photobank} [{i+1}]: {category_value}")
+                    if i < len(categories_list):
+                        category = categories_list[i]
+
+                        # Find the category in combo values and select it
+                        values = combo['values']
+                        if category in values:
+                            combo.set(category)
+                            logging.info(f"Loaded category for {photobank} [{i+1}]: {category}")
     
     def on_title_change(self, event=None):
         """Update title character counter."""
         current_length = len(self.title_entry.get())
-        self.title_char_label.configure(text=f"{current_length}/100")
-        if current_length > 100:
+        self.title_char_label.configure(text=f"{current_length}/{MAX_TITLE_LENGTH}")
+        if current_length > MAX_TITLE_LENGTH:
             self.title_char_label.configure(foreground='red')
         else:
             self.title_char_label.configure(foreground='black')
@@ -617,8 +614,8 @@ class MediaViewer:
         """Update description character counter."""
         current_text = self.desc_text.get('1.0', tk.END)
         current_length = len(current_text.strip())
-        self.desc_char_label.configure(text=f"{current_length}/200")
-        if current_length > 200:
+        self.desc_char_label.configure(text=f"{current_length}/{MAX_DESCRIPTION_LENGTH}")
+        if current_length > MAX_DESCRIPTION_LENGTH:
             self.desc_char_label.configure(foreground='red')
         else:
             self.desc_char_label.configure(foreground='black')
@@ -667,6 +664,7 @@ class MediaViewer:
             # Cancel current generation
             self.ai_cancelled['title'] = True
             self.title_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['title'] = None  # Clear thread reference to allow restart
             return
             
         # Start generation in background thread
@@ -704,6 +702,7 @@ class MediaViewer:
 
             # Check for cancellation
             if self.ai_cancelled['title']:
+                self.root.after(0, self._update_title_result, None, None)
                 return
 
             # Create generator and generate titles (returns dict with original + alternatives)
@@ -714,13 +713,13 @@ class MediaViewer:
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['title']:
+                self.root.after(0, self._update_title_result, None, None)
                 return
 
             # Extract original title for UI
             original_title = titles_dict.get('original', '')
 
             # Store alternative titles in metadata
-            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
             for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
                 if edit_tag in titles_dict:
                     if edit_tag not in self.alternative_metadata:
@@ -747,8 +746,9 @@ class MediaViewer:
                 self.title_entry.insert(0, title)
                 self.on_title_change()
         finally:
-            # Reset button
-            self.title_generate_button.configure(text="Generate", state="normal")
+            # Reset button only if no new thread is running
+            if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
+                self.title_generate_button.configure(text="Generate", state="normal")
     
     def generate_description(self):
         """Generate description using AI in background thread."""
@@ -766,6 +766,7 @@ class MediaViewer:
             # Cancel current generation
             self.ai_cancelled['description'] = True
             self.desc_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['description'] = None  # Clear thread reference to allow restart
             return
             
         # Start generation in background thread
@@ -803,8 +804,9 @@ class MediaViewer:
             
             # Check for cancellation
             if self.ai_cancelled['description']:
+                self.root.after(0, self._update_description_result, None, None)
                 return
-            
+
             # Handle editorial metadata if needed
             editorial_data = None
             if self.editorial_var.get():
@@ -837,6 +839,7 @@ class MediaViewer:
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['description']:
+                self.root.after(0, self._update_description_result, None, None)
                 return
 
             # Extract original description for UI
@@ -869,8 +872,9 @@ class MediaViewer:
                 self.desc_text.insert('1.0', description)
                 self.on_description_change()
         finally:
-            # Reset button
-            self.desc_generate_button.configure(text="Generate", state="normal")
+            # Reset button only if no new thread is running
+            if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
+                self.desc_generate_button.configure(text="Generate", state="normal")
     
     def generate_keywords(self):
         """Generate keywords using AI in background thread."""
@@ -888,6 +892,7 @@ class MediaViewer:
             # Cancel current generation
             self.ai_cancelled['keywords'] = True
             self.keywords_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['keywords'] = None  # Clear thread reference to allow restart
             return
             
         # Start generation in background thread
@@ -925,8 +930,9 @@ class MediaViewer:
             
             # Check for cancellation
             if self.ai_cancelled['keywords']:
+                self.root.after(0, self._update_keywords_result, None, None)
                 return
-            
+
             # Create generator and generate keywords (returns dict with original + alternatives)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
@@ -945,13 +951,13 @@ class MediaViewer:
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['keywords']:
+                self.root.after(0, self._update_keywords_result, None, None)
                 return
 
             # Extract original keywords for UI
             original_keywords = keywords_dict.get('original', [])
 
             # Store alternative keywords in metadata
-            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
             for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
                 if edit_tag in keywords_dict:
                     if edit_tag not in self.alternative_metadata:
@@ -977,12 +983,13 @@ class MediaViewer:
                 for keyword in keywords:
                     if keyword not in self.keywords_list and len(self.keywords_list) < 50:
                         self.keywords_list.append(keyword)
-                
+
                 # Update UI
                 self.refresh_keywords_display()
         finally:
-            # Reset button
-            self.keywords_generate_button.configure(text="Generate", state="normal")
+            # Reset button only if no new thread is running
+            if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
+                self.keywords_generate_button.configure(text="Generate", state="normal")
     
     def generate_categories(self):
         """Generate categories using AI in background thread."""
@@ -1004,6 +1011,7 @@ class MediaViewer:
             # Cancel current generation
             self.ai_cancelled['categories'] = True
             self.categories_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['categories'] = None  # Clear thread reference to allow restart
             return
             
         # Start generation in background thread
@@ -1041,8 +1049,9 @@ class MediaViewer:
             
             # Check for cancellation
             if self.ai_cancelled['categories']:
+                self.root.after(0, self._update_categories_result, None, None)
                 return
-            
+
             # Create generator and set categories
             generator = create_metadata_generator(model_key)
             generator.set_photobank_categories(self.categories)
@@ -1059,8 +1068,9 @@ class MediaViewer:
             
             # Check for cancellation before updating UI
             if self.ai_cancelled['categories']:
+                self.root.after(0, self._update_categories_result, None, None)
                 return
-            
+
             # Update UI in main thread
             self.root.after(0, self._update_categories_result, generated_categories, None)
             
@@ -1079,7 +1089,7 @@ class MediaViewer:
                 for photobank, categories in generated_categories.items():
                     if photobank in self.category_combos:
                         combos = self.category_combos[photobank]
-                        
+
                         # Set categories in dropdowns
                         for i, category in enumerate(categories):
                             if i < len(combos):
@@ -1087,8 +1097,9 @@ class MediaViewer:
                                     combos[i].set(category)
                                     logging.info(f"Set category for {photobank} [{i+1}]: {category}")
         finally:
-            # Reset button
-            self.categories_generate_button.configure(text="Generate", state="normal")
+            # Reset button only if no new thread is running
+            if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
+                self.categories_generate_button.configure(text="Generate", state="normal")
     
     def generate_all_metadata(self):
         """Generate all metadata serially with proper dependencies."""
@@ -1370,6 +1381,7 @@ class MediaViewer:
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['description']:
+                self.root.after(0, self._update_description_result, None, None)
                 return
 
             # Extract original description for UI
