@@ -221,13 +221,17 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
                     logging.warning(f"Transform failed for {col['target']}: {e}")
                     value = ""
 
-            # Uvozovky kolem hodnoty, pokud obsahuje oddělovač nebo uvozovky
-            if isinstance(value, str) and (delimiter in value or '"' in value):
+            # Uvozovky kolem VŠECH hodnot (QUOTE_ALL standard)
+            if isinstance(value, str):
                 # Escapuj uvozovky a obal hodnotu uvozovkami
                 value = f'"{value.replace("\"", "\"\"")}"'
-                logging.debug(f"Escaped value for {col['target']}: {value}")
+                logging.debug(f"Quoted value for {col['target']}: {value}")
+            else:
+                # Pro non-string hodnoty přidej uvozovky kolem string reprezentace
+                value = f'"{str(value)}"'
+                logging.debug(f"Quoted non-string value for {col['target']}: {value}")
 
-            row.append(str(value))
+            row.append(value)
 
         # Spojení řádku pomocí oddělovače
         line = delimiter.join(row)

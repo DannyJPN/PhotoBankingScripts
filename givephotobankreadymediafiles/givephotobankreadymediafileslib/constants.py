@@ -6,6 +6,7 @@ import os
 # Status constants
 STATUS_UNPROCESSED = "nezpracováno"
 STATUS_PREPARED = "připraveno"
+STATUS_BACKUP = "záložní"  # For _sharpen alternatives - ready but not for immediate upload
 STATUS_REJECTED = "zamítnuto"
 STATUS_ERROR = "chyba"
 
