@@ -2,17 +2,25 @@
 Status handler for the markphotomediaapprovalstatus script.
 """
 
+import os
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from markphotomediaapprovalstatuslib.constants import (
     STATUS_CHECKED,
     STATUS_APPROVED,
     STATUS_REJECTED,
     STATUS_MAYBE,
+    STATUS_BACKUP,
+    STATUS_PREPARED,
+    STATUS_UNUSED,
     INPUT_APPROVE,
     INPUT_REJECT,
     INPUT_MAYBE,
-    STATUS_COLUMN_KEYWORD
+    STATUS_COLUMN_KEYWORD,
+    COL_FILE,
+    COL_ORIGINAL,
+    ORIGINAL_YES,
+    EDIT_SHARPEN
 )
 
 
@@ -166,6 +174,105 @@ def filter_checked_entries(data: List[Dict[str, str]]) -> List[Dict[str, str]]:
         List of dictionaries containing only entries with at least one status column set to STATUS_CHECKED
     """
     return filter_records_by_status(data, STATUS_CHECKED)
+
+
+def find_sharpen_for_original(original_filename: str, all_records: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    """
+    Najde _sharpen verzi originálu v seznamu záznamů.
+
+    Args:
+        original_filename: Název originálního souboru (např. "photo.jpg")
+        all_records: Všechny záznamy v CSV
+
+    Returns:
+        Záznam _sharpen verze nebo None pokud neexistuje
+    """
+    # Sestavit očekávaný název _sharpen souboru
+    base_name, ext = os.path.splitext(original_filename)
+    expected_sharpen_name = f"{base_name}{EDIT_SHARPEN}{ext}"
+
+    # Hledat záznam s tímto názvem
+    for record in all_records:
+        if record.get(COL_FILE, '') == expected_sharpen_name:
+            logging.debug(f"Found _sharpen version for {original_filename}: {expected_sharpen_name}")
+            return record
+
+    logging.debug(f"No _sharpen version found for {original_filename}")
+    return None
+
+
+def update_sharpen_status(original_record: Dict[str, str], all_records: List[Dict[str, str]],
+                         bank: str, new_original_status: str) -> bool:
+    """
+    Aktualizuje status _sharpen souboru na základě statusu originálu.
+
+    Logika:
+    - Originál schválen (STATUS_APPROVED) → _sharpen: "záložní" → "nepoužito"
+    - Originál zamítnut (STATUS_REJECTED) → _sharpen: "záložní" → "připraveno"
+    - Originál "možná" (STATUS_MAYBE) → _sharpen: beze změny
+
+    Args:
+        original_record: Záznam originálního souboru
+        all_records: Všechny záznamy v CSV (pro hledání _sharpen)
+        bank: Název banky (pro správný status sloupec)
+        new_original_status: Nový status originálu (schváleno/zamítnuto/možná)
+
+    Returns:
+        True pokud byl _sharpen status změněn, jinak False
+    """
+    # Zkontroluj, jestli je to skutečně originál
+    if original_record.get(COL_ORIGINAL, '').strip().lower() != ORIGINAL_YES.lower():
+        logging.debug(f"Record {original_record.get(COL_FILE)} is not an original, skipping _sharpen check")
+        return False
+
+    # Najdi _sharpen verzi
+    original_filename = original_record.get(COL_FILE, '')
+    if not original_filename:
+        logging.warning("Original record has no filename, cannot find _sharpen")
+        return False
+
+    sharpen_record = find_sharpen_for_original(original_filename, all_records)
+    if not sharpen_record:
+        # Není chyba, ne všechny fotky mají _sharpen verzi
+        logging.debug(f"No _sharpen version exists for {original_filename}, skipping")
+        return False
+
+    # Získej status column pro tuto banku
+    status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+    if status_column not in sharpen_record:
+        logging.warning(f"_sharpen record {sharpen_record.get(COL_FILE)} doesn't have {status_column} column")
+        return False
+
+    # Aktuální status _sharpen
+    current_sharpen_status = sharpen_record[status_column]
+
+    # Aktualizuj pouze pokud má status "záložní"
+    if current_sharpen_status != STATUS_BACKUP:
+        logging.debug(f"_sharpen {sharpen_record.get(COL_FILE)} has status '{current_sharpen_status}', not '{STATUS_BACKUP}', skipping")
+        return False
+
+    # Urči nový status _sharpen na základě originálu
+    new_sharpen_status = None
+    if new_original_status == STATUS_APPROVED:
+        # Originál schválen → _sharpen není potřeba
+        new_sharpen_status = STATUS_UNUSED
+        logging.info(f"Original {original_filename} approved → setting _sharpen to '{STATUS_UNUSED}' for {bank}")
+    elif new_original_status == STATUS_REJECTED:
+        # Originál zamítnut → použij _sharpen místo něj
+        new_sharpen_status = STATUS_PREPARED
+        logging.info(f"Original {original_filename} rejected → setting _sharpen to '{STATUS_PREPARED}' for {bank}")
+    elif new_original_status == STATUS_MAYBE:
+        # "Možná" - nedělej nic, ponech "záložní"
+        logging.debug(f"Original {original_filename} status is '{STATUS_MAYBE}', keeping _sharpen as '{STATUS_BACKUP}'")
+        return False
+
+    # Aplikuj změnu
+    if new_sharpen_status:
+        sharpen_record[status_column] = new_sharpen_status
+        logging.info(f"SHARPEN_STATUS_CHANGE: {sharpen_record.get(COL_FILE)} : {bank} : {current_sharpen_status} -> {new_sharpen_status}")
+        return True
+
+    return False
 
 
 
