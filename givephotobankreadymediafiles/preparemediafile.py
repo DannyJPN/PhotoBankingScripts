@@ -112,11 +112,12 @@ def main():
                     record_updated = False
                     
                     # Import constants for column names and status values
-                    from givephotobankreadymediafileslib.constants import (COL_FILE, COL_TITLE, COL_DESCRIPTION, 
-                                                                           COL_KEYWORDS, COL_PREP_DATE, 
+                    from givephotobankreadymediafileslib.constants import (COL_FILE, COL_TITLE, COL_DESCRIPTION,
+                                                                           COL_KEYWORDS, COL_PREP_DATE,
                                                                            get_status_column, get_category_column,
-                                                                           COL_STATUS_SUFFIX, STATUS_UNPROCESSED, 
-                                                                           STATUS_PREPARED, STATUS_REJECTED)
+                                                                           COL_STATUS_SUFFIX, STATUS_UNPROCESSED,
+                                                                           STATUS_PREPARED, STATUS_REJECTED,
+                                                                           MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH)
                     from datetime import datetime
                     
                     for record in records:
@@ -138,8 +139,8 @@ def main():
                                         logging.info(f"Rejected status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_REJECTED}")
                             else:
                                 # Handle normal save - update metadata and set status to prepared
-                                record[COL_TITLE] = metadata['title'][:100]  # Enforce 100 char limit
-                                record[COL_DESCRIPTION] = metadata['description'][:200]  # Enforce 200 char limit  
+                                record[COL_TITLE] = metadata['title'][:MAX_TITLE_LENGTH]
+                                record[COL_DESCRIPTION] = metadata['description'][:MAX_DESCRIPTION_LENGTH]
                                 record[COL_KEYWORDS] = metadata['keywords']
                                 
                                 # Set preparation date
@@ -172,7 +173,10 @@ def main():
                         if not metadata.get('rejected', False):
                             try:
                                 from givephotobankreadymediafileslib.alternative_generator import AlternativeGenerator, get_alternative_output_dirs
-                                from givephotobankreadymediafileslib.constants import ORIGINAL_NO, COL_PATH, COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS, COL_ORIGINAL, CSV_ALLOWED_EXTENSIONS
+                                from givephotobankreadymediafileslib.constants import (ORIGINAL_NO, COL_PATH, COL_FILE, COL_TITLE,
+                                                                                       COL_DESCRIPTION, COL_KEYWORDS, COL_ORIGINAL,
+                                                                                       CSV_ALLOWED_EXTENSIONS, COL_STATUS_SUFFIX,
+                                                                                       STATUS_BACKUP)
 
                                 # Parse keywords if string
                                 keywords = metadata.get('keywords', '')
@@ -212,7 +216,7 @@ def main():
                                         else:
                                             logging.warning(f"No AI-generated metadata found for {edit_tag} alternative")
 
-                                # Add alternative files to CSV records (only JPG, video, vector formats)
+                                # Add/update alternative files in CSV records (only JPG, video, vector formats)
                                 for alt_info in alternative_files:
                                     file_ext = os.path.splitext(alt_info['path'])[1].lower()
 
@@ -221,19 +225,44 @@ def main():
                                         logging.info(f"Skipping CSV entry for {file_ext} file: {os.path.basename(alt_info['path'])}")
                                         continue
 
-                                    alt_record = record.copy()  # Copy original metadata
+                                    alt_filename = os.path.basename(alt_info['path'])
+
+                                    # Check if record already exists
+                                    existing_index = None
+                                    for idx, existing_record in enumerate(records):
+                                        if existing_record.get(COL_FILE) == alt_filename:
+                                            existing_index = idx
+                                            break
+
+                                    # Create or update record
+                                    if existing_index is not None:
+                                        # Update existing record
+                                        alt_record = records[existing_index]
+                                        logging.info(f"Updating existing alternative record: {alt_filename}")
+                                    else:
+                                        # Create new record from original
+                                        alt_record = record.copy()
+                                        logging.info(f"Creating new alternative record: {alt_filename}")
 
                                     # Update file-specific fields
-                                    alt_record[COL_FILE] = os.path.basename(alt_info['path'])
+                                    alt_record[COL_FILE] = alt_filename
                                     alt_record[COL_PATH] = alt_info['path']
                                     alt_record[COL_ORIGINAL] = ORIGINAL_NO  # Alternatives are not originals
+
+                                    # Set status to "záložní" for _sharpen files (backup alternative)
+                                    # Other alternatives keep "připraveno" status from original
+                                    if alt_info.get('edit') == '_sharpen':
+                                        for field_name in alt_record.keys():
+                                            if field_name.endswith(COL_STATUS_SUFFIX):
+                                                alt_record[field_name] = STATUS_BACKUP
+                                        logging.info(f"Set _sharpen status to 'záložní': {alt_filename}")
 
                                     # Use AI-generated metadata if available, otherwise add edit tag to title
                                     if alt_info['type'] == 'edit' and 'title' in alt_info:
                                         # Use AI-adjusted metadata
-                                        alt_record[COL_TITLE] = alt_info['title'][:100]
+                                        alt_record[COL_TITLE] = alt_info['title'][:MAX_TITLE_LENGTH]
                                         if 'alt_description' in alt_info:
-                                            alt_record[COL_DESCRIPTION] = alt_info['alt_description'][:200]
+                                            alt_record[COL_DESCRIPTION] = alt_info['alt_description'][:MAX_DESCRIPTION_LENGTH]
                                         if 'keywords' in alt_info:
                                             alt_record[COL_KEYWORDS] = ', '.join(alt_info['keywords'][:50])
                                         logging.info(f"Using AI-adjusted metadata for {alt_record[COL_FILE]}")
@@ -241,10 +270,11 @@ def main():
                                         # Fallback: add edit tag to title
                                         edit_suffix = f" ({alt_info['description']})"
                                         if not alt_record[COL_TITLE].endswith(edit_suffix):
-                                            alt_record[COL_TITLE] = (alt_record[COL_TITLE] + edit_suffix)[:100]
+                                            alt_record[COL_TITLE] = (alt_record[COL_TITLE] + edit_suffix)[:MAX_TITLE_LENGTH]
 
-                                    records.append(alt_record)
-                                    logging.info(f"Added alternative to CSV: {alt_record[COL_FILE]}")
+                                    # Add only if new (existing ones are already updated in-place)
+                                    if existing_index is None:
+                                        records.append(alt_record)
 
                                 logging.info(f"Generated {len(alternative_files)} alternative versions")
                                 print(f"Generated {len(alternative_files)} alternative versions")

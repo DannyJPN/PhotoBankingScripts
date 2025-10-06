@@ -426,7 +426,7 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
         'username': DEFAULT_USERNAME,
         'copyright': f"{DEFAULT_COPYRIGHT_AUTHOR} {year}" if year else DEFAULT_COPYRIGHT_AUTHOR,
         'mature': 'no',
-        'nudity': 'no',
+        'nudity': '0',  # DepositPhotos expects "0" for no nudity, not "no"
         'country': 'CZ',
 
         # Alamy specifické pole

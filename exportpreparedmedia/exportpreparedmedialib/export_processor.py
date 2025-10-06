@@ -70,9 +70,7 @@ def process_exports(prepared_items, photobanks, all_categories, csv_location):
                         export_objects.append(export_object)
                         logging.debug(f"Created export object for {item['Soubor']}: {export_object.__dict__}")
 
-                    # Handle special cases for Dreamstime and Pond5
-                    if photobank == "Dreamstime" and item['Soubor'].lower().endswith('.jpg'):
-                        export_objects.extend(create_additional_dreamstime_objects(item, all_categories))
+                    # Handle special cases for Pond5 (Dreamstime only needs JPG, links other formats itself)
                     if photobank == "Pond5" and item['Soubor'].lower().endswith('.jpg'):
                         export_objects.extend(create_additional_pond5_objects(item, all_categories))
 

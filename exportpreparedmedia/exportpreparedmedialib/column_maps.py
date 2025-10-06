@@ -74,7 +74,6 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Keywords", "source": "keywords"},
         {"target": "Nudity", "source": "nudity"},
         {"target": "Editorial", "source": "editorial"},
-        {"target": "Categories", "source": "deposit_cat"},
     ],
 
     "BigStockPhoto": [
