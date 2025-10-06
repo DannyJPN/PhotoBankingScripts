@@ -103,9 +103,15 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
                         record[status_column] = decision
                         changes_made = True
                         file_changed = True
-                        
+
                         # Log the change using centralized logging only
                         logging.info(f"APPROVAL_CHANGE: {file_name} : {bank} : {old_value} -> {decision}")
+
+                        # Update _sharpen status if this is an original file
+                        from markphotomediaapprovalstatuslib.status_handler import update_sharpen_status
+                        sharpen_changed = update_sharpen_status(record, data, bank, decision)
+                        if sharpen_changed:
+                            file_changed = True  # Ensure save happens if _sharpen was changed
                 
                 # Save immediately after processing each file with changes
 
