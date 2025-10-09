@@ -6,6 +6,7 @@ CURRENT_DATE  = datetime.now().strftime("%d.%m.%Y")
 import os
 import sys  # Import sys to access sys.argv
 import logging
+import chardet
 
 
 def get_script_name():
@@ -21,6 +22,10 @@ def get_log_filename(log_dir):
     logging.debug(f"Log filename generated as: {log_full_path}")
     return log_full_path
 
+def detect_encoding(filepath):
+    with open(filepath, 'rb') as f:
+        result = chardet.detect(f.read())
+    return result['encoding']
 
 
 
