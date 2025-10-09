@@ -110,7 +110,7 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "location", "source": "location"},
         {"target": "specifysource", "value": ""},
         {"target": "copyright", "source": "copyright"},
-        {"target": "price", "value": "5"},
+        {"target": "price", "source": "pond5_price"},
         {"target": "imagetype", "value": "photo"},
         {"target": "categories", "source": "pond5_cat"},
     ],
