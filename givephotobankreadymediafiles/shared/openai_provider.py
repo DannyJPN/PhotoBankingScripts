@@ -142,13 +142,13 @@ class OpenAIProvider(CloudAIProvider):
         """Make OpenAI API request."""
         client = self._get_client()
         openai_messages = self._convert_messages(messages)
-        
+
         # Prepare request parameters
         request_params = {
             "model": self.model_name,
             "messages": openai_messages,
         }
-        
+
         # Add optional parameters
         if 'temperature' in kwargs:
             request_params['temperature'] = kwargs['temperature']
@@ -162,10 +162,30 @@ class OpenAIProvider(CloudAIProvider):
             request_params['presence_penalty'] = kwargs['presence_penalty']
         if 'response_format' in kwargs:
             request_params['response_format'] = kwargs['response_format']
-        
+
+        # Debug logging: Log OpenAI-specific request details
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            import json
+            logging.debug(f"OpenAI API Request:")
+            logging.debug(f"  - Model: {request_params['model']}")
+            logging.debug(f"  - Message count: {len(openai_messages)}")
+            # Log first 500 chars of messages for debugging
+            messages_str = json.dumps(openai_messages, ensure_ascii=False, indent=2)[:500]
+            logging.debug(f"  - Messages preview: {messages_str}...")
+            logging.debug(f"  - Request params: {', '.join([f'{k}={v}' for k, v in request_params.items() if k != 'messages'])}")
+
         try:
             response = client.chat.completions.create(**request_params)
-            
+
+            # Debug logging: Log OpenAI response details
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"OpenAI API Response:")
+                logging.debug(f"  - Response ID: {response.id}")
+                logging.debug(f"  - Model: {response.model}")
+                logging.debug(f"  - Created: {response.created}")
+                logging.debug(f"  - Tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
+                logging.debug(f"  - Finish reason: {response.choices[0].finish_reason}")
+
             return AIResponse(
                 content=response.choices[0].message.content,
                 model=response.model,
@@ -181,9 +201,16 @@ class OpenAIProvider(CloudAIProvider):
                     'system_fingerprint': getattr(response, 'system_fingerprint', None)
                 }
             )
-            
+
         except Exception as e:
             logging.error(f"OpenAI API request failed: {e}")
+            # Debug logging: Log detailed error information
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                import traceback
+                logging.debug(f"OpenAI Error Details:")
+                logging.debug(f"  - Error type: {type(e).__name__}")
+                logging.debug(f"  - Error message: {str(e)}")
+                logging.debug(f"  - Traceback: {traceback.format_exc()}")
             raise
     
     def _make_stream_request(self, messages: List[Message], **kwargs) -> Iterator[str]:

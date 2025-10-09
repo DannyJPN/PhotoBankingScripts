@@ -137,17 +137,17 @@ class AnthropicProvider(CloudAIProvider):
         """Make Anthropic API request."""
         client = self._get_client()
         converted = self._convert_messages(messages)
-        
+
         # Prepare request parameters
         request_params = {
             "model": self.model_name,
             "messages": converted["messages"],
             "max_tokens": kwargs.get("max_tokens", 4096)
         }
-        
+
         if converted["system"]:
             request_params["system"] = converted["system"]
-        
+
         # Add optional parameters
         if 'temperature' in kwargs:
             request_params['temperature'] = kwargs['temperature']
@@ -157,17 +157,42 @@ class AnthropicProvider(CloudAIProvider):
             request_params['top_k'] = kwargs['top_k']
         if 'stop_sequences' in kwargs:
             request_params['stop_sequences'] = kwargs['stop_sequences']
-        
+
+        # Debug logging: Log Anthropic-specific request details
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            import json
+            logging.debug(f"Anthropic API Request:")
+            logging.debug(f"  - Model: {request_params['model']}")
+            logging.debug(f"  - Max tokens: {request_params['max_tokens']}")
+            logging.debug(f"  - Message count: {len(converted['messages'])}")
+            if converted["system"]:
+                system_preview = str(converted["system"])[:200]
+                logging.debug(f"  - System message: {system_preview}...")
+            # Log first 500 chars of messages for debugging
+            messages_str = json.dumps(converted["messages"], ensure_ascii=False, indent=2)[:500]
+            logging.debug(f"  - Messages preview: {messages_str}...")
+            logging.debug(f"  - Request params: {', '.join([f'{k}={v}' for k, v in request_params.items() if k not in ['messages', 'system']])}")
+
         try:
             response = client.messages.create(**request_params)
-            
+
             # Extract text content
             content = ""
             if response.content:
                 for block in response.content:
                     if hasattr(block, 'text'):
                         content += block.text
-            
+
+            # Debug logging: Log Anthropic response details
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                logging.debug(f"Anthropic API Response:")
+                logging.debug(f"  - Response ID: {response.id}")
+                logging.debug(f"  - Model: {response.model}")
+                logging.debug(f"  - Type: {response.type}")
+                logging.debug(f"  - Role: {response.role}")
+                logging.debug(f"  - Tokens: input={response.usage.input_tokens}, output={response.usage.output_tokens}, total={response.usage.input_tokens + response.usage.output_tokens}")
+                logging.debug(f"  - Stop reason: {response.stop_reason}")
+
             return AIResponse(
                 content=content,
                 model=response.model,
@@ -183,9 +208,16 @@ class AnthropicProvider(CloudAIProvider):
                     'role': response.role
                 }
             )
-            
+
         except Exception as e:
             logging.error(f"Anthropic API request failed: {e}")
+            # Debug logging: Log detailed error information
+            if logging.getLogger().isEnabledFor(logging.DEBUG):
+                import traceback
+                logging.debug(f"Anthropic Error Details:")
+                logging.debug(f"  - Error type: {type(e).__name__}")
+                logging.debug(f"  - Error message: {str(e)}")
+                logging.debug(f"  - Traceback: {traceback.format_exc()}")
             raise
     
     def _make_stream_request(self, messages: List[Message], **kwargs) -> Iterator[str]:
