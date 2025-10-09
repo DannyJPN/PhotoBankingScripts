@@ -138,19 +138,39 @@ class CloudAIProvider(AIProvider):
     def generate_text(self, messages: List[Message], **kwargs) -> AIResponse:
         """
         Generate text using cloud API with rate limiting and retries.
-        
+
         Args:
             messages: List of conversation messages
             **kwargs: Provider-specific parameters
-            
+
         Returns:
             AIResponse with generated text
         """
+        # Debug logging: Log request details
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"AI Request to {self.model_name}:")
+            logging.debug(f"  - Messages count: {len(messages)}")
+            for i, msg in enumerate(messages):
+                content_preview = str(msg.content)[:100] if isinstance(msg.content, str) else f"<multimodal {len(msg.content)} blocks>"
+                logging.debug(f"  - Message {i+1} ({msg.role.value}): {content_preview}...")
+            logging.debug(f"  - Parameters: {kwargs}")
+
         self._wait_for_rate_limit()
-        
+
         response = self._retry_on_failure(self._make_request, messages, **kwargs)
         self._update_usage_stats(response)
-        
+
+        # Debug logging: Log response details
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"AI Response from {self.model_name}:")
+            logging.debug(f"  - Content length: {len(response.content)} chars")
+            logging.debug(f"  - Content preview: {response.content[:200]}...")
+            logging.debug(f"  - Usage: {response.usage}")
+            logging.debug(f"  - Finish reason: {response.finish_reason}")
+            if hasattr(self, '_calculate_cost'):
+                cost = self._calculate_cost(response.usage)
+                logging.debug(f"  - Estimated cost: ${cost:.6f}")
+
         return response
     
     def generate_text_stream(self, messages: List[Message], **kwargs) -> Iterator[str]:
