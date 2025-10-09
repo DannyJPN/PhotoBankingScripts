@@ -295,8 +295,13 @@ class MetadataGenerator:
                     if key in keywords_dict:
                         # Keywords should already be a list in JSON
                         if isinstance(keywords_dict[key], list):
-                            # Clean each keyword
-                            keywords_dict[key] = [kw.strip().strip('"').strip("'") for kw in keywords_dict[key] if kw.strip()]
+                            # Validate and clean each keyword
+                            validated_keywords = []
+                            for kw in keywords_dict[key]:
+                                cleaned = self._validate_keyword(kw.strip().strip('"').strip("'"))
+                                if cleaned and len(cleaned) > 2:
+                                    validated_keywords.append(cleaned)
+                            keywords_dict[key] = validated_keywords
                         else:
                             # Fallback: parse as comma-separated string
                             keywords_dict[key] = self._parse_keywords(keywords_dict[key])
@@ -481,16 +486,49 @@ class MetadataGenerator:
         
         return desc
     
+    def _validate_keyword(self, keyword: str) -> str:
+        """
+        Validate and clean keyword according to photobank requirements.
+
+        Keywords must contain only letters, spaces, and numbers.
+        No hyphens, special characters, or diacritics allowed.
+
+        Args:
+            keyword: Raw keyword string
+
+        Returns:
+            Cleaned keyword or empty string if invalid
+        """
+        import re
+        import unicodedata
+
+        # Remove diacritics (accents) by normalizing to NFD and removing combining characters
+        keyword = ''.join(c for c in unicodedata.normalize('NFD', keyword) if unicodedata.category(c) != 'Mn')
+
+        # Remove hyphens by replacing with spaces
+        keyword = keyword.replace('-', ' ')
+
+        # Remove all characters except letters, spaces, and numbers
+        keyword = re.sub(r'[^a-zA-Z0-9\s]', '', keyword)
+
+        # Normalize whitespace (collapse multiple spaces to single space)
+        keyword = ' '.join(keyword.split())
+
+        # Trim and return
+        return keyword.strip()
+
     def _parse_keywords(self, raw_keywords: str) -> List[str]:
         """Parse keywords from AI response."""
         # Split by commas and clean
         keywords = []
-        
+
         for keyword in raw_keywords.split(','):
             keyword = keyword.strip().strip('"').strip("'")
+            # Validate and clean keyword
+            keyword = self._validate_keyword(keyword)
             if keyword and len(keyword) > 2:
                 keywords.append(keyword)
-        
+
         # Remove duplicates while preserving order
         seen = set()
         unique_keywords = []
@@ -498,7 +536,7 @@ class MetadataGenerator:
             if kw.lower() not in seen:
                 seen.add(kw.lower())
                 unique_keywords.append(kw)
-        
+
         return unique_keywords
     
     def _parse_categories(self, response: str, available: List[str], 
