@@ -129,7 +129,7 @@ def main():
                             if is_rejected:
                                 # Handle rejection - set all statuses to rejected
                                 logging.info(f"Rejecting file: {file_basename}")
-                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
                                 
                                 # Set status to rejected for all photobanks
                                 for field_name, field_value in record.items():
@@ -144,7 +144,7 @@ def main():
                                 record[COL_KEYWORDS] = metadata['keywords']
                                 
                                 # Set preparation date
-                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+                                record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
                                 
                                 # Update categories for each photobank using dynamic column names
                                 categories_data = metadata.get('categories', {})
