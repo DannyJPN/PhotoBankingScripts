@@ -69,8 +69,8 @@ def parse_arguments():
                         help="Export to GettyImages")
     parser.add_argument("--alamy", action="store_true",
                         help="Export to Alamy")
-    parser.add_argument("--all", action="store_true", default=True,
-                        help="Export to all supported banks (default: True)")
+    parser.add_argument("--all", action="store_true",
+                        help="Export to all supported banks")
 
     # Filtering options
     parser.add_argument("--include-edited", action="store_true",
