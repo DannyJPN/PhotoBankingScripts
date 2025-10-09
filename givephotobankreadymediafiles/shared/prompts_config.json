@@ -43,7 +43,7 @@
       ],
       "context_template": "Context/existing title to improve: {context}\n\n",
       "variables": {
-        "max_length": 100,
+        "max_length": 80,
         "context": null
       }
     },
@@ -152,8 +152,8 @@
         "  \"_blurred\": [\"keyword1\", \"keyword2\", ...]",
         "}}",
         "",
-        "Each array must contain exactly {count} keywords.",
-        "Return ONLY the JSON object, no other text or explanation."
+        "Each array must contain at least {count} keywords.",
+        "Return ONLY the JSON object, no other text or explanation. Keywords must not contain any other characters than letters unless english grammar says otherwise. Avoid the - character where possible. Keywords consisting of mroe words must always be separated by space"
       ],
       "title_template": "Title: {title}\n",
       "description_template": "Description: {description}\n",
