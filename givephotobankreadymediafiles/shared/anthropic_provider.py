@@ -35,10 +35,7 @@ class AnthropicProvider(CloudAIProvider):
             **kwargs: Additional configuration
         """
         super().__init__(model_name, **kwargs)
-        
-        # Anthropic specific configuration
-        self.anthropic_version = kwargs.get('anthropic_version', '2023-06-01')
-        
+
         # Model capabilities
         self._vision_models = {
             'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
