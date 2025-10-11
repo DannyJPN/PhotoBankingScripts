@@ -49,13 +49,7 @@ def setup_logging(debug=False, log_file="logs/logfile.log"):
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # Set HTTP libraries to DEBUG level (not WARNING) - HTTP requests are not warnings
-    # These libraries (used by OpenAI, Anthropic) log all HTTP requests at INFO level
-    # We want them at DEBUG level so they only show when --debug is enabled
-    logging.getLogger("httpx").setLevel(logging.DEBUG)
-    logging.getLogger("httpcore").setLevel(logging.DEBUG)
-    logging.getLogger("openai").setLevel(logging.DEBUG)
-    logging.getLogger("anthropic").setLevel(logging.DEBUG)
+
 
     logging.debug(f"Logging setup complete. Log file: {log_file}")
 
