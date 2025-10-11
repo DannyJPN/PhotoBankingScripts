@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter
 import logging
 from pathlib import Path
+from tqdm import tqdm
 
 from .constants import (
     IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
@@ -39,7 +40,7 @@ class AlternativeGenerator:
         """
         self.enabled_alternatives = enabled_alternatives if enabled_alternatives is not None else list(ALTERNATIVE_EDIT_TAGS.keys())
         self.enabled_formats = enabled_formats if enabled_formats is not None else ALTERNATIVE_FORMATS
-        logger.info(f"Alternative generator initialized - Effects: {self.enabled_alternatives}, Formats: {self.enabled_formats}")
+        logger.debug(f"Alternative generator initialized - Effects: {self.enabled_alternatives}, Formats: {self.enabled_formats}")
 
     def generate_all_versions(self, source_file: str, target_dir: str, edited_dir: str) -> List[Dict[str, str]]:
         """
@@ -72,24 +73,35 @@ class AlternativeGenerator:
             format_files = self._generate_format_conversions(source_file, target_dir)
             generated_files.extend(format_files)
 
-        # 2. Generate edit alternatives for original format - go to edited_dir (only if effects enabled)
+        # 2. Generate edit alternatives for ALL formats with single progress bar
         if self.enabled_alternatives:
-            original_alternatives = self._generate_edit_alternatives(source_file, edited_dir)
-            generated_files.extend(original_alternatives)
+            # Collect all source files (original + all format conversions)
+            all_source_files = [source_file] + [f['path'] for f in format_files]
 
-            # 3. Generate edit alternatives for each converted format - go to edited_dir
-            for format_file in format_files:
-                format_alternatives = self._generate_edit_alternatives(format_file['path'], edited_dir)
-                generated_files.extend(format_alternatives)
+            # Calculate total number of edit operations
+            total_edits = len(self.enabled_alternatives) * len(all_source_files)
 
-        logger.info(f"Generated {len(generated_files)} total alternative versions for {source_file}")
+            # Log before progress bar to separate it
+            source_name = os.path.basename(source_file)
+            logger.info(f"Creating {total_edits} edited versions for {source_name} and its format conversions")
+
+            # Single progress bar for all edit alternatives
+            with tqdm(total=total_edits, desc="Creating edited versions", unit="effect", leave=True, position=0) as pbar:
+                for source in all_source_files:
+                    alternatives = self._generate_edit_alternatives(source, edited_dir, progress_bar=pbar)
+                    generated_files.extend(alternatives)
+
+            # Log after progress bar to separate it
+            logger.info(f"Finished creating edited versions")
+
+        logger.debug(f"Generated {len(generated_files)} total alternative versions for {source_file}")
         return generated_files
 
     def _generate_format_conversions(self, source_file: str, target_dir: str) -> List[Dict[str, str]]:
         """Generate format conversions (PNG, TIF) of the original file."""
         generated_files = []
 
-        for new_format in self.enabled_formats:
+        for new_format in tqdm(self.enabled_formats, desc="Creating format conversions", unit="format", leave=False):
             try:
                 # Get proper output path with correct directory structure
                 output_path = get_format_conversion_path(source_file, new_format)
@@ -108,20 +120,22 @@ class AlternativeGenerator:
                         'original': source_file,
                         'description': f'Format conversion to {new_format.upper()}'
                     })
-                    logger.info(f"Generated format conversion: {output_path}")
+                    logger.debug(f"Generated format conversion: {output_path}")
 
             except Exception as e:
                 logger.error(f"Failed to generate {new_format} conversion for {source_file}: {e}")
 
         return generated_files
 
-    def _generate_edit_alternatives(self, source_file: str, edited_dir: str) -> List[Dict[str, str]]:
+    def _generate_edit_alternatives(self, source_file: str, edited_dir: str, progress_bar=None) -> List[Dict[str, str]]:
         """Generate edit alternatives (bw, negative, sharpen, misty, blurred) for a file."""
         generated_files = []
 
         for edit_tag in self.enabled_alternatives:
             if edit_tag not in ALTERNATIVE_EDIT_TAGS:
                 logger.warning(f"Unknown edit tag: {edit_tag}")
+                if progress_bar:
+                    progress_bar.update(1)
                 continue
 
             try:
@@ -137,10 +151,14 @@ class AlternativeGenerator:
                     }
 
                     generated_files.append(alt_info)
-                    logger.info(f"Generated {edit_tag} alternative: {alt_file}")
+                    logger.debug(f"Generated {edit_tag} alternative: {alt_file}")
 
             except Exception as e:
                 logger.error(f"Failed to generate {edit_tag} alternative for {source_file}: {e}")
+
+            # Update progress bar if provided
+            if progress_bar:
+                progress_bar.update(1)
 
         return generated_files
 
