@@ -18,6 +18,7 @@ from markmediaascheckedlib.constants import DEFAULT_PHOTO_CSV_FILE, STATUS_READY
 from markmediaascheckedlib.mark_handler import (
     extract_status_columns,
     filter_ready_records,
+    filter_records_by_edit_type,
     update_statuses
 )
 
@@ -49,6 +50,11 @@ def parse_arguments():
         default="./logs",
         help="Directory for log files"
     )
+    parser.add_argument(
+        "--include-edited",
+        action="store_true",
+        help="Include edited photos from 'upravené' folders (default: only original photos)"
+    )
     return parser.parse_args()
 
 
@@ -64,36 +70,43 @@ def main():
 
     # 1. Load CSV file
     logging.info(f"Loading CSV file from {args.photo_csv_file}")
-    records = load_csv(args.photo_csv_file)
-    if not records:
+    all_records = load_csv(args.photo_csv_file)
+    if not all_records:
         logging.error(f"No records found in {args.photo_csv_file}")
         return
 
-    # 2. Find status columns
-    status_columns = extract_status_columns(records)
+    # 2. Filter by edit type for processing (exclude alternative edits, optionally exclude edited photos)
+    # Note: This creates a filtered VIEW for processing, but we keep all_records for saving
+    records_to_process = filter_records_by_edit_type(all_records, include_edited=args.include_edited)
+    if not records_to_process:
+        logging.info("No records to process after filtering")
+        return
+
+    # 3. Find status columns
+    status_columns = extract_status_columns(all_records)
     if not status_columns:
         logging.error("No status columns found in the CSV file")
         return
 
-    # 3. Filter records with STATUS_READY status
-    ready_records = filter_ready_records(records, status_columns)
+    # 4. Filter records with STATUS_READY status (from processable records only)
+    ready_records = filter_ready_records(records_to_process, status_columns)
     if not ready_records:
-        logging.info(f"No records with '{STATUS_READY}' status found")
+        logging.info(f"No records with '{STATUS_READY}' status found in processable records")
         return
 
-    # 4. Update statuses from STATUS_READY to STATUS_CHECKED
-    changes_count = update_statuses(records, status_columns)
+    # 5. Update statuses from STATUS_READY to STATUS_CHECKED (only in ready_records, which are references to all_records)
+    changes_count = update_statuses(ready_records, status_columns)
     logging.info(f"Updated {changes_count} status values in {len(ready_records)} records")
 
-    # 5. Backup original file
+    # 6. Backup original file
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     backup_path = f"{args.photo_csv_file}.{timestamp}.old"
     logging.info(f"Backing up original file to {backup_path}")
     move_file(args.photo_csv_file, backup_path, overwrite=args.overwrite)
 
-    # 6. Save updated CSV
+    # 7. Save updated CSV (save ALL records, including filtered ones)
     logging.info(f"Saving updated CSV to {args.photo_csv_file}")
-    save_csv(records, args.photo_csv_file)
+    save_csv(all_records, args.photo_csv_file)
 
     logging.info("MarkMediaAsChecked process completed successfully")
 

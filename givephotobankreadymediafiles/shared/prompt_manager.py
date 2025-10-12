@@ -350,6 +350,165 @@ class PromptManager:
         base += "\nReturn ONLY 'YES' or 'NO'."
         return base
 
+    # Alternative version generation methods
+
+    def _get_edit_metadata(self, edit_tag: str) -> Dict[str, str]:
+        """Get metadata for specific edit tag."""
+        edit_info = {
+            "_bw": {
+                "description": "black and white",
+                "hint": "black and white, monochrome, or B&W",
+                "title_instructions": "Add 'black and white', 'monochrome', or 'B&W' naturally at the end of the title",
+                "description_instructions": "Remove all color descriptions, add phrases about monochrome aesthetic, contrast, and tonal range",
+                "keywords_instructions": "Remove color keywords, add: black and white, monochrome, grayscale, bw, contrast, tones"
+            },
+            "_negative": {
+                "description": "color negative",
+                "hint": "negative, inverted colors, or color inversion",
+                "title_instructions": "Add 'negative', 'inverted colors', or 'color inversion' naturally at the end",
+                "description_instructions": "Adjust color descriptions for inversion, add phrases about surreal color palette and inverted tones",
+                "keywords_instructions": "Adjust color keywords for inversion, add: negative, inverted, reversed colors, surreal, artistic effect"
+            },
+            "_sharpen": {
+                "description": "sharpened",
+                "hint": "sharp, detailed, crisp, or high-detail",
+                "title_instructions": "Add 'sharp', 'detailed', 'crisp', or 'high-detail' naturally at the end",
+                "description_instructions": "Keep all details, add phrases about enhanced sharpness, crisp details, and clarity",
+                "keywords_instructions": "Keep all keywords, add: sharp, sharpened, detailed, crisp, clarity, high definition"
+            },
+            "_misty": {
+                "description": "misty/foggy",
+                "hint": "misty, foggy, hazy, or ethereal",
+                "title_instructions": "Add 'misty', 'foggy', 'hazy', or 'ethereal' naturally at the end",
+                "description_instructions": "Adjust visibility descriptions, add phrases about ethereal atmosphere, fog effect, and dreamy quality",
+                "keywords_instructions": "Adjust clarity keywords, add: misty, foggy, hazy, fog, mist, ethereal, dreamy, atmospheric"
+            },
+            "_blurred": {
+                "description": "blurred",
+                "hint": "blurred, soft focus, or abstract",
+                "title_instructions": "Add 'blurred', 'soft focus', or 'abstract' naturally at the end",
+                "description_instructions": "Adjust sharpness descriptions, add phrases about soft blur effect, abstract quality, and dreamy aesthetic",
+                "keywords_instructions": "Adjust or remove sharp keywords, add: blurred, blur, soft focus, gaussian blur, abstract, dreamy"
+            }
+        }
+        return edit_info.get(edit_tag, {})
+
+    def get_title_alternative_prompt(self, edit_tag: str, original_title: str) -> str:
+        """
+        Generate title prompt for single alternative version.
+
+        Args:
+            edit_tag: Edit tag (_bw, _negative, _sharpen, _misty, _blurred)
+            original_title: Original image title
+
+        Returns:
+            Generated prompt string
+        """
+        try:
+            prompt_config = self.config["metadata_generation"]["title_alternative"]
+            variables = prompt_config["variables"].copy()
+            edit_meta = self._get_edit_metadata(edit_tag)
+
+            # Set variables
+            variables["original_title"] = original_title
+            variables["edit_tag"] = edit_tag
+            variables["edit_description"] = edit_meta.get("description", edit_tag)
+            variables["edit_hint"] = edit_meta.get("hint", "")
+            variables["edit_instructions"] = edit_meta.get("title_instructions", "")
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
+        except Exception as e:
+            logging.error(f"Failed to generate title alternative prompt: {e}")
+            return f"Create a title for the {edit_tag} version of this image.\nOriginal title: {original_title}\nReturn ONLY the new title."
+
+    def get_description_alternative_prompt(self, edit_tag: str, original_title: str,
+                                          original_description: str) -> str:
+        """
+        Generate description prompt for single alternative version.
+
+        Args:
+            edit_tag: Edit tag (_bw, _negative, _sharpen, _misty, _blurred)
+            original_title: Original image title
+            original_description: Original image description
+
+        Returns:
+            Generated prompt string
+        """
+        try:
+            prompt_config = self.config["metadata_generation"]["description_alternative"]
+            variables = prompt_config["variables"].copy()
+            edit_meta = self._get_edit_metadata(edit_tag)
+
+            # Set variables
+            variables["original_title"] = original_title
+            variables["original_description"] = original_description
+            variables["edit_tag"] = edit_tag
+            variables["edit_description"] = edit_meta.get("description", edit_tag)
+            variables["edit_instructions"] = edit_meta.get("description_instructions", "")
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
+        except Exception as e:
+            logging.error(f"Failed to generate description alternative prompt: {e}")
+            return f"Create a description for the {edit_tag} version of this image.\nOriginal title: {original_title}\nOriginal description: {original_description}\nReturn ONLY the new description."
+
+    def get_keywords_alternative_prompt(self, edit_tag: str, original_title: str,
+                                       original_description: str, original_keywords: List[str],
+                                       count: int = 30) -> str:
+        """
+        Generate keywords prompt for single alternative version.
+
+        Args:
+            edit_tag: Edit tag (_bw, _negative, _sharpen, _misty, _blurred)
+            original_title: Original image title
+            original_description: Original image description
+            original_keywords: Original image keywords list
+            count: Number of keywords to generate
+
+        Returns:
+            Generated prompt string
+        """
+        try:
+            prompt_config = self.config["metadata_generation"]["keywords_alternative"]
+            variables = prompt_config["variables"].copy()
+            edit_meta = self._get_edit_metadata(edit_tag)
+
+            # Format original keywords as comma-separated string
+            keywords_str = ", ".join(original_keywords[:10])  # Show first 10 for context
+            if len(original_keywords) > 10:
+                keywords_str += f", ... ({len(original_keywords)} total)"
+
+            # Set variables
+            variables["original_title"] = original_title
+            variables["original_description"] = original_description
+            variables["original_keywords"] = keywords_str
+            variables["edit_tag"] = edit_tag
+            variables["edit_description"] = edit_meta.get("description", edit_tag)
+            variables["edit_instructions"] = edit_meta.get("keywords_instructions", "")
+            variables["count"] = count
+
+            # Support both string and array templates
+            template = prompt_config["template"]
+            if isinstance(template, list):
+                template = "\n".join(template)
+
+            return template.format(**variables)
+
+        except Exception as e:
+            logging.error(f"Failed to generate keywords alternative prompt: {e}")
+            return f"Generate {count} keywords for the {edit_tag} version of this image.\nOriginal title: {original_title}\nOriginal keywords: {', '.join(original_keywords[:5])}\nReturn ONLY comma-separated keywords."
+
 
 # Global prompt manager instance
 _prompt_manager = None

@@ -91,7 +91,7 @@ FORMAT_NAME_MAPPING = {
 }
 
 # Default alternatives configuration (user-friendly names)
-DEFAULT_ALTERNATIVE_EFFECTS = "blackwhite,negative,sharpen,misty,blur"
+DEFAULT_ALTERNATIVE_EFFECTS = "blackwhite,negative,sharpen"
 DEFAULT_ALTERNATIVE_FORMATS = "png,tif"
 
 # File extensions allowed in CSV database (JPG, video, vector formats - no PNG/TIF)
