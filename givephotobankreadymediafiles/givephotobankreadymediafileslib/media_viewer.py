@@ -65,10 +65,6 @@ class MediaViewer:
         }
         self.generation_lock = threading.Lock()
 
-        # Storage for alternative metadata (for edited versions)
-        # Structure: {'_bw': {'title': '...', 'description': '...', 'keywords': [...]}, '_negative': {...}, ...}
-        self.alternative_metadata = {}
-        
         # Configure styles for tags
         self.setup_styles()
         
@@ -466,7 +462,7 @@ class MediaViewer:
     def seek_video(self, value):
         """Seek to position in video."""
         if self.current_file_path and is_video_file(self.current_file_path):
-            logging.info(f"Seeking to {float(value):.1f}%")
+            logging.debug(f"Seeking to {float(value):.1f}%")
         
     def load_ai_models(self):
         """Load available AI models from configuration - lazy loading."""
@@ -514,7 +510,7 @@ class MediaViewer:
     def on_model_selected(self, event=None):
         """Handle model selection change."""
         selection = self.model_combo.get()
-        logging.info(f"AI model selected: {selection}")
+        logging.debug(f"AI model selected: {selection}")
         # Model details can be displayed here if needed
     
     def populate_categories_ui(self):
@@ -599,7 +595,7 @@ class MediaViewer:
                         values = combo['values']
                         if category in values:
                             combo.set(category)
-                            logging.info(f"Loaded category for {photobank} [{i+1}]: {category}")
+                            logging.debug(f"Loaded category for {photobank} [{i+1}]: {category}")
     
     def on_title_change(self, event=None):
         """Update title character counter."""
@@ -705,30 +701,19 @@ class MediaViewer:
                 self.root.after(0, self._update_title_result, None, None)
                 return
 
-            # Create generator and generate titles (returns dict with original + alternatives)
+            # Create generator and generate title (returns str for original only)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
-            titles_dict = generator.generate_title(self.current_file_path,
-                                                   existing_title if existing_title else None)
+            title = generator.generate_title(self.current_file_path,
+                                            existing_title if existing_title else None)
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['title']:
                 self.root.after(0, self._update_title_result, None, None)
                 return
 
-            # Extract original title for UI
-            original_title = titles_dict.get('original', '')
-
-            # Store alternative titles in metadata
-            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
-                if edit_tag in titles_dict:
-                    if edit_tag not in self.alternative_metadata:
-                        self.alternative_metadata[edit_tag] = {}
-                    self.alternative_metadata[edit_tag]['title'] = titles_dict[edit_tag]
-                    logging.debug(f"Alternative title for {edit_tag}: {titles_dict[edit_tag][:50]}...")
-
-            # Update UI in main thread with original title
-            self.root.after(0, self._update_title_result, original_title, None)
+            # Update UI in main thread with generated title
+            self.root.after(0, self._update_title_result, title, None)
 
         except Exception as e:
             logging.error(f"Title generation failed: {e}")
@@ -825,12 +810,12 @@ class MediaViewer:
                 else:
                     editorial_data = extracted_data
             
-            # Create generator and generate descriptions (returns dict with original + alternatives)
+            # Create generator and generate description (returns str for original only)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
 
-            descriptions_dict = generator.generate_description(
+            description = generator.generate_description(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
@@ -842,20 +827,8 @@ class MediaViewer:
                 self.root.after(0, self._update_description_result, None, None)
                 return
 
-            # Extract original description for UI
-            original_description = descriptions_dict.get('original', '')
-
-            # Store alternative descriptions in metadata
-            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
-            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
-                if edit_tag in descriptions_dict:
-                    if edit_tag not in self.alternative_metadata:
-                        self.alternative_metadata[edit_tag] = {}
-                    self.alternative_metadata[edit_tag]['description'] = descriptions_dict[edit_tag]
-                    logging.debug(f"Alternative description for {edit_tag}: {descriptions_dict[edit_tag][:50]}...")
-
-            # Update UI in main thread with original description
-            self.root.after(0, self._update_description_result, original_description, None)
+            # Update UI in main thread with generated description
+            self.root.after(0, self._update_description_result, description, None)
             
         except Exception as e:
             logging.error(f"Description generation failed: {e}")
@@ -933,7 +906,7 @@ class MediaViewer:
                 self.root.after(0, self._update_keywords_result, None, None)
                 return
 
-            # Create generator and generate keywords (returns dict with original + alternatives)
+            # Create generator and generate keywords (returns List[str] for original only)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
@@ -941,7 +914,7 @@ class MediaViewer:
             # Ask for keyword count
             keyword_count = min(50, 50 - len(self.keywords_list))  # Don't exceed 50 total
 
-            keywords_dict = generator.generate_keywords(
+            keywords = generator.generate_keywords(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
@@ -954,19 +927,8 @@ class MediaViewer:
                 self.root.after(0, self._update_keywords_result, None, None)
                 return
 
-            # Extract original keywords for UI
-            original_keywords = keywords_dict.get('original', [])
-
-            # Store alternative keywords in metadata
-            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
-                if edit_tag in keywords_dict:
-                    if edit_tag not in self.alternative_metadata:
-                        self.alternative_metadata[edit_tag] = {}
-                    self.alternative_metadata[edit_tag]['keywords'] = keywords_dict[edit_tag]
-                    logging.debug(f"Alternative keywords for {edit_tag}: {len(keywords_dict[edit_tag])} keywords")
-
-            # Update UI in main thread with original keywords
-            self.root.after(0, self._update_keywords_result, original_keywords, None)
+            # Update UI in main thread with generated keywords
+            self.root.after(0, self._update_keywords_result, keywords, None)
             
         except Exception as e:
             logging.error(f"Keywords generation failed: {e}")
@@ -1095,7 +1057,7 @@ class MediaViewer:
                             if i < len(combos):
                                 if category in combos[i]['values']:
                                     combos[i].set(category)
-                                    logging.info(f"Set category for {photobank} [{i+1}]: {category}")
+                                    logging.debug(f"Set category for {photobank} [{i+1}]: {category}")
         finally:
             # Reset button only if no new thread is running
             if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
@@ -1232,13 +1194,13 @@ class MediaViewer:
         self._generate_all_active = False
         self.generate_all_button.configure(text="Generate All", state="normal")
         
-        logging.info("All generations cancelled")
+        logging.debug("All generations cancelled")
     
     def _complete_all_generation(self):
         """Complete the generate all process."""
         self._generate_all_active = False
         self.generate_all_button.configure(text="Generate All", state="normal")
-        logging.info("All metadata generation completed")
+        logging.debug("All metadata generation completed")
 
 
 
@@ -1269,14 +1231,17 @@ class MediaViewer:
                     if value:  # Only add non-empty selections
                         selected_categories[photobank].append(value)
         
-        # Update record with metadata including alternative metadata
+        # Get selected AI model
+        selected_model = self.model_combo.get()
+
+        # Update record with metadata (alternatives will be generated after Save in preparemediafile.py)
         metadata = {
             'title': title,
             'description': description,
             'keywords': keywords,
             'editorial': self.editorial_var.get(),
             'categories': selected_categories,
-            'alternative_metadata': self.alternative_metadata  # Pass generated alternative metadata
+            'ai_model': selected_model  # Pass selected model for alternative generation
         }
 
         # Call completion callback with metadata
@@ -1367,12 +1332,12 @@ class MediaViewer:
             if self.ai_cancelled['description']:
                 return
             
-            # Create generator and generate descriptions with editorial data (returns dict)
+            # Create generator and generate description with editorial data (returns str for original only)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
 
-            descriptions_dict = generator.generate_description(
+            description = generator.generate_description(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
@@ -1384,20 +1349,8 @@ class MediaViewer:
                 self.root.after(0, self._update_description_result, None, None)
                 return
 
-            # Extract original description for UI
-            original_description = descriptions_dict.get('original', '')
-
-            # Store alternative descriptions in metadata
-            from givephotobankreadymediafileslib.constants import ALTERNATIVE_EDIT_TAGS
-            for edit_tag in ALTERNATIVE_EDIT_TAGS.keys():
-                if edit_tag in descriptions_dict:
-                    if edit_tag not in self.alternative_metadata:
-                        self.alternative_metadata[edit_tag] = {}
-                    self.alternative_metadata[edit_tag]['description'] = descriptions_dict[edit_tag]
-                    logging.debug(f"Alternative description for {edit_tag}: {descriptions_dict[edit_tag][:50]}...")
-
-            # Update UI in main thread with original description
-            self.root.after(0, self._update_description_result, original_description, None)
+            # Update UI in main thread with generated description
+            self.root.after(0, self._update_description_result, description, None)
             
         except Exception as e:
             logging.error(f"Description generation with editorial failed: {e}")
@@ -1442,7 +1395,7 @@ class MediaViewer:
                 # Use Windows Explorer to show file and select it
                 # Don't use check=True as Explorer sometimes returns non-zero exit codes even on success
                 result = subprocess.run(['explorer', '/select,', self.current_file_path])
-                logging.info(f"Opened file location in Explorer: {self.current_file_path} (exit code: {result.returncode})")
+                logging.debug(f"Opened file location in Explorer: {self.current_file_path} (exit code: {result.returncode})")
             else:
                 # For other systems, just open the directory
                 directory = os.path.dirname(self.current_file_path)
@@ -1450,7 +1403,7 @@ class MediaViewer:
                     subprocess.run(['open', directory])
                 else:  # Linux and others
                     subprocess.run(['xdg-open', directory])
-                logging.info(f"Opened directory: {directory}")
+                logging.debug(f"Opened directory: {directory}")
 
         except Exception as e:
             logging.error(f"Failed to open file location: {e}")
@@ -1458,7 +1411,7 @@ class MediaViewer:
 
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
-        logging.info("Window closed by user - terminating script")
+        logging.debug("Window closed by user - terminating script")
         self.root.destroy()
 
         # Exit the entire script (equivalent to Ctrl+C)

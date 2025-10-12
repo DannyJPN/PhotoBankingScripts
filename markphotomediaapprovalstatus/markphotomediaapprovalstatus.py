@@ -25,7 +25,8 @@ from markphotomediaapprovalstatuslib.constants import (
     STATUS_MAYBE
 )
 from markphotomediaapprovalstatuslib.status_handler import (
-    filter_checked_entries
+    filter_checked_entries,
+    filter_records_by_edit_type
 )
 from markphotomediaapprovalstatuslib.media_helper import process_approval_records
 
@@ -46,6 +47,8 @@ def parse_arguments():
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--include-edited", action="store_true",
+                        help="Include edited photos from 'upravené' folders (default: only original photos)")
     return parser.parse_args()
 
 
@@ -64,20 +67,28 @@ def main():
 
     # Load CSV data
     try:
-        data = load_csv(args.csv_path)
-        logging.info(f"Loaded {len(data)} records from {args.csv_path}")
+        all_data = load_csv(args.csv_path)
+        logging.info(f"Loaded {len(all_data)} records from {args.csv_path}")
     except Exception as e:
         logging.error(f"Failed to load CSV file: {e}")
         return
 
-    # Filter entries with STATUS_CHECKED status
-    filtered_data = filter_checked_entries(data)
+    # Filter by edit type for processing (exclude alternative edits, optionally exclude edited photos)
+    # Note: This creates a filtered VIEW for processing, but we keep all_data for saving
+    data_to_process = filter_records_by_edit_type(all_data, include_edited=args.include_edited)
+    if not data_to_process:
+        logging.info("No records to process after filtering")
+        return
+
+    # Filter entries with STATUS_CHECKED status (from processable records only)
+    filtered_data = filter_checked_entries(data_to_process)
     if not filtered_data:
-        logging.info(f"No entries with '{STATUS_CHECKED}' status found. Nothing to process.")
+        logging.info(f"No entries with '{STATUS_CHECKED}' status found in processable records. Nothing to process.")
         return
 
     # Process approval records using GUI (saves after each file)
-    changes_made = process_approval_records(data, filtered_data, args.csv_path)
+    # Pass all_data so changes are made to the complete dataset
+    changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
 
     # Final summary (individual saves are done during processing)
     if changes_made:

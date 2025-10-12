@@ -18,9 +18,11 @@ from markphotomediaapprovalstatuslib.constants import (
     INPUT_MAYBE,
     STATUS_COLUMN_KEYWORD,
     COL_FILE,
+    COL_PATH,
     COL_ORIGINAL,
     ORIGINAL_YES,
-    EDIT_SHARPEN
+    EDIT_SHARPEN,
+    ALTERNATIVE_EDIT_TAGS
 )
 
 
@@ -273,6 +275,70 @@ def update_sharpen_status(original_record: Dict[str, str], all_records: List[Dic
         return True
 
     return False
+
+
+def is_edited_photo(record: Dict[str, str]) -> bool:
+    """
+    Check if record is an edited photo based on filename edit tags.
+
+    Args:
+        record: CSV record dictionary
+
+    Returns:
+        True if filename contains any edit tag (_bw, _negative, _sharpen, _misty, _blurred), False otherwise
+    """
+    filename = record.get(COL_FILE, '')
+    if not filename:
+        return False
+
+    # Check if filename contains any edit tag
+    filename_lower = filename.lower()
+    name_without_ext = os.path.splitext(filename_lower)[0]
+
+    for tag in ALTERNATIVE_EDIT_TAGS.keys():
+        if name_without_ext.endswith(tag):
+            return True
+
+    return False
+
+
+def filter_records_by_edit_type(records: List[Dict[str, str]], include_edited: bool = False) -> List[Dict[str, str]]:
+    """
+    Filter records based on whether they are edited photos.
+
+    Logic:
+    - Edited photos (with edit tags like _bw, _negative): included only if include_edited=True
+    - Original photos (without edit tags): always included
+
+    Note: Alternative FORMATS (PNG, TIF) are not in MediaCSV at all, so no filtering needed.
+
+    Args:
+        records: List of CSV records
+        include_edited: If True, include edited photos with edit tags
+
+    Returns:
+        Filtered list of records
+    """
+    if not records:
+        return []
+
+    filtered = []
+    excluded_edited = 0
+
+    for record in records:
+        # Exclude edited photos if include_edited=False
+        if not include_edited and is_edited_photo(record):
+            excluded_edited += 1
+            filename = record.get(COL_FILE, 'unknown')
+            logging.debug(f"Excluding edited photo: {filename}")
+            continue
+
+        filtered.append(record)
+
+    logging.info(f"Filtered {len(filtered)} records from {len(records)} total "
+                f"(excluded {excluded_edited} edited photos)")
+
+    return filtered
 
 
 
