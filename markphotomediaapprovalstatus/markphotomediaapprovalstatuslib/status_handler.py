@@ -307,14 +307,15 @@ def filter_records_by_edit_type(records: List[Dict[str, str]], include_edited: b
     Filter records based on whether they are edited photos.
 
     Logic:
-    - Edited photos (with edit tags like _bw, _negative): included only if include_edited=True
+    - _sharpen files: ALWAYS excluded (managed automatically via update_sharpen_status)
+    - Other edited photos (with edit tags _bw, _negative, _misty, _blurred): included only if include_edited=True
     - Original photos (without edit tags): always included
 
     Note: Alternative FORMATS (PNG, TIF) are not in MediaCSV at all, so no filtering needed.
 
     Args:
         records: List of CSV records
-        include_edited: If True, include edited photos with edit tags
+        include_edited: If True, include edited photos with edit tags (except _sharpen)
 
     Returns:
         Filtered list of records
@@ -323,20 +324,34 @@ def filter_records_by_edit_type(records: List[Dict[str, str]], include_edited: b
         return []
 
     filtered = []
+    excluded_sharpen = 0
     excluded_edited = 0
 
     for record in records:
-        # Exclude edited photos if include_edited=False
+        filename = record.get(COL_FILE, '')
+        if not filename:
+            filtered.append(record)
+            continue
+
+        filename_lower = filename.lower()
+        name_without_ext = os.path.splitext(filename_lower)[0]
+
+        # ALWAYS exclude _sharpen files (they're managed automatically)
+        if name_without_ext.endswith('_sharpen'):
+            excluded_sharpen += 1
+            logging.debug(f"Excluding _sharpen file (always excluded): {filename}")
+            continue
+
+        # Exclude other edited photos if include_edited=False
         if not include_edited and is_edited_photo(record):
             excluded_edited += 1
-            filename = record.get(COL_FILE, 'unknown')
             logging.debug(f"Excluding edited photo: {filename}")
             continue
 
         filtered.append(record)
 
     logging.info(f"Filtered {len(filtered)} records from {len(records)} total "
-                f"(excluded {excluded_edited} edited photos)")
+                f"(excluded {excluded_sharpen} _sharpen files, {excluded_edited} edited photos)")
 
     return filtered
 
