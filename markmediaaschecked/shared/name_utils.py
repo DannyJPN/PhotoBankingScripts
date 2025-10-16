@@ -2,11 +2,22 @@ import re
 import logging
 from typing import Optional, Set
 
+# Import numbering constants from parent module
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from markmediaascheckedlib.constants import (
+    MIN_NUMBER_WIDTH,
+    MAX_NUMBER_WIDTH,
+    DEFAULT_NUMBER_WIDTH,
+    MAX_NUMBER
+)
 
 
-def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = 4) -> Optional[int]:
+
+def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = DEFAULT_NUMBER_WIDTH) -> Optional[int]:
     logging.debug("Extracting numeric suffix from filename: %s, prefix=%s, width=%d", filename, prefix, width)
-    pattern = rf"^{re.escape(prefix)}(\d{{{width}}})"
+    pattern = rf"^{re.escape(prefix)}(\d{{{MIN_NUMBER_WIDTH},{MAX_NUMBER_WIDTH}}})"
     m = re.match(pattern, filename)
     if m:
         num = int(m.group(1))
@@ -16,13 +27,13 @@ def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = 4) 
     return None
 
 
-def generate_indexed_filename(number: int, extension: str, prefix: str = "PICT", width: int = 4) -> str:
+def generate_indexed_filename(number: int, extension: str, prefix: str = "PICT", width: int = DEFAULT_NUMBER_WIDTH) -> str:
     name = f"{prefix}{number:0{width}d}{extension}"
     logging.debug("Generated indexed filename: %s", name)
     return name
 
 
-def find_next_available_number(used: Set[int], max_number: int = 9999) -> int:
+def find_next_available_number(used: Set[int], max_number: int = MAX_NUMBER) -> int:
     logging.debug("Finding next available number, used set size: %d", len(used))
     for num in range(1, max_number + 1):
         if num not in used:
