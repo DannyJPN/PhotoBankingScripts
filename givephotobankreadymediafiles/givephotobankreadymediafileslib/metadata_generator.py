@@ -204,9 +204,9 @@ class MetadataGenerator:
                 # Extract original description
                 if 'original' in descriptions_dict:
                     description = self._clean_description(descriptions_dict['original'])
-                    # Ensure AI part fits in available space
+                    # Ensure AI part fits in available space and ends with complete sentence
                     if len(description) > available_chars:
-                        description = description[:available_chars].rsplit(' ', 1)[0] + '...'
+                        description = self._truncate_to_sentence(description, available_chars)
                     # Add editorial prefix if needed
                     if editorial_prefix:
                         description = editorial_prefix + description
@@ -292,6 +292,9 @@ class MetadataGenerator:
                     else:
                         # Fallback: parse as comma-separated string
                         keywords = self._parse_keywords(keywords)
+
+                    # Remove redundant multi-word keywords
+                    keywords = self._remove_duplicate_keywords(keywords)
 
                     # Add Editorial keyword if needed (at the beginning)
                     if is_editorial and "Editorial" not in keywords:
@@ -443,8 +446,9 @@ class MetadataGenerator:
 
                 # Clean and validate
                 description = self._clean_description(description)
+                # Ensure description fits in available space and ends with complete sentence
                 if len(description) > available_chars:
-                    description = description[:available_chars].rsplit(' ', 1)[0] + '...'
+                    description = self._truncate_to_sentence(description, available_chars)
 
                 # Add editorial prefix if needed
                 if editorial_prefix:
@@ -520,6 +524,9 @@ class MetadataGenerator:
 
                 # Parse comma-separated keywords
                 keywords = self._parse_keywords(keywords_text)
+
+                # Remove redundant multi-word keywords
+                keywords = self._remove_duplicate_keywords(keywords)
 
                 # Add Editorial keyword if needed (at the beginning)
                 if is_editorial and "Editorial" not in keywords:
@@ -692,15 +699,51 @@ class MetadataGenerator:
     def _clean_description(self, raw_desc: str) -> str:
         """Clean and format generated description."""
         desc = raw_desc.strip().strip('"').strip("'")
-        
+
         # Remove common prefixes
         prefixes = ['Description:', 'Generated description:', 'Image description:']
         for prefix in prefixes:
             if desc.startswith(prefix):
                 desc = desc[len(prefix):].strip()
-        
+
         return desc
-    
+
+    def _truncate_to_sentence(self, text: str, max_length: int) -> str:
+        """
+        Truncate text to complete sentences within max_length.
+
+        Finds the last sentence-ending punctuation (. ! ?) before max_length
+        and truncates there. If no sentence ending found, falls back to last word.
+
+        Args:
+            text: Text to truncate
+            max_length: Maximum character length
+
+        Returns:
+            Truncated text ending with complete sentence
+        """
+        if len(text) <= max_length:
+            return text
+
+        # Find last sentence-ending punctuation before max_length
+        truncated = text[:max_length]
+
+        # Look for sentence endings (. ! ?)
+        last_period = truncated.rfind('.')
+        last_exclamation = truncated.rfind('!')
+        last_question = truncated.rfind('?')
+
+        # Find the latest sentence ending
+        last_sentence_end = max(last_period, last_exclamation, last_question)
+
+        if last_sentence_end > 0:
+            # Truncate at sentence ending (include the punctuation)
+            return text[:last_sentence_end + 1].strip()
+        else:
+            # Fallback: no sentence ending found, truncate at last complete word
+            logging.warning(f"No sentence ending found in description, truncating at word boundary")
+            return truncated.rsplit(' ', 1)[0].strip()
+
     def _validate_keyword(self, keyword: str) -> str:
         """
         Validate and clean keyword according to photobank requirements.
@@ -753,7 +796,60 @@ class MetadataGenerator:
                 unique_keywords.append(kw)
 
         return unique_keywords
-    
+
+    def _remove_duplicate_keywords(self, keywords: List[str]) -> List[str]:
+        """
+        Remove redundant multi-word keywords that contain words already present as single keywords.
+
+        Example: If ["blue", "pond", "blue pond"] is input, removes "blue pond"
+        because both "blue" and "pond" are already present.
+
+        This implements Shutterstock/Dreamstime anti-spam guidelines.
+
+        Args:
+            keywords: List of keywords
+
+        Returns:
+            Filtered list with redundant multi-word keywords removed
+        """
+        if not keywords:
+            return []
+
+        # Separate single-word and multi-word keywords
+        single_word = set()
+        multi_word = []
+
+        for kw in keywords:
+            kw_lower = kw.lower()
+            if ' ' in kw_lower:
+                multi_word.append((kw, kw_lower))
+            else:
+                single_word.add(kw_lower)
+
+        # Filter multi-word keywords
+        filtered_keywords = []
+
+        # Add all single-word keywords first
+        for kw in keywords:
+            if ' ' not in kw.lower():
+                filtered_keywords.append(kw)
+
+        # Check each multi-word keyword
+        for kw_original, kw_lower in multi_word:
+            # Split into words
+            words = kw_lower.split()
+
+            # Check if ALL words are already present as single keywords
+            all_words_exist = all(word in single_word for word in words)
+
+            if not all_words_exist:
+                # At least one word is NOT already present, keep this multi-word keyword
+                filtered_keywords.append(kw_original)
+            else:
+                logging.debug(f"Removing redundant multi-word keyword: '{kw_original}' (all words already present)")
+
+        return filtered_keywords
+
     def _parse_categories(self, response: str, available: List[str], 
                          photobank: str) -> List[str]:
         """Parse category selection from AI response."""
