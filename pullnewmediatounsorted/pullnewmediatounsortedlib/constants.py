@@ -11,7 +11,8 @@ DEFAULT_SCREEN_DROPBOX       = r"F:/Dropbox/Screenshots"
 DEFAULT_ACCOUNT_FOLDER       = os.path.expanduser(r"~/Pictures/Camera Roll")
 
 # cílové složky
-DEFAULT_TARGET_FOLDER        = r"I:/neroztříděnoTESTING"
+DEFAULT_TARGET_FOLDER        = (r"I:/neroztříděno"
+                                r"")
 DEFAULT_TARGET_SCREEN_FOLDER = r"J:/Snímky obrazovky"
 DEFAULT_FINAL_TARGET_FOLDER  = r"J:/"
 
@@ -23,3 +24,9 @@ SCREENSHOT_MARKERS = [
     'Sním',  # Česká část slova "Snímek obrazovky"
     'Screen'  # Anglické slovo pro screenshot
 ]
+
+# File numbering system constants
+MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
+MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
+DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
+MAX_NUMBER = 999999  # Maximum number with 6 digits

@@ -5,6 +5,7 @@ from shared.file_operations import get_hash_map_from_folder, compute_file_hash
 from shared.name_utils import extract_numeric_suffix, generate_indexed_filename, find_next_available_number
 from tqdm import tqdm
 from shared.file_operations import list_files
+from pullnewmediatounsortedlib.constants import DEFAULT_NUMBER_WIDTH, MAX_NUMBER
 
 
 def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool = True) -> None:
@@ -39,8 +40,8 @@ def normalize_indexed_filenames(
     source_folder: str,
     reference_folder: str,
     prefix: str = "PICT",
-    width: int = 4,
-    max_number: int = 9999
+    width: int = DEFAULT_NUMBER_WIDTH,
+    max_number: int = MAX_NUMBER
 ) -> None:
     """
     Upraví názvy souborů s daným `prefix` a číselným suffixem v `source_folder`:
