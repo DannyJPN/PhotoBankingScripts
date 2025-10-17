@@ -54,25 +54,25 @@ def normalize_indexed_filenames(
         source_folder, reference_folder, prefix, width
     )
 
-    # 1) Sestav reference mapu: path -> hash
+    # 1) Early check: skip if no files with prefix in source folder
+    paths = list_files(source_folder, pattern=prefix, recursive=True)
+    if not paths:
+        logging.info("No files matching '%s*' in %s, skipping.", prefix, source_folder)
+        return
+
+    # 2) Sestav reference mapu: path -> hash
     try:
         ref_hash_map = get_hash_map_from_folder(reference_folder, pattern=prefix)
     except Exception as e:
         logging.error("Failed to build reference hash map: %s", e)
         return
 
-    # 2) Otoč ji v hash->canonical_name (basenames)
+    # 3) Otoč ji v hash->canonical_name (basenames)
     hash_to_canon: dict[str, str] = {}
     for path, h in ref_hash_map.items():
         if h not in hash_to_canon:
             hash_to_canon[h] = os.path.basename(path)
     logging.debug("Reference provides %d canonical names", len(hash_to_canon))
-
-    # 3) Seznam všech souborů v source s daným prefixem
-    paths = list_files(source_folder, pattern=prefix, recursive=True)
-    if not paths:
-        logging.info("No files matching '%s*' in %s, skipping.", prefix, source_folder)
-        return
 
     # 4) Sestav množinu použitých čísel z referencí i aktuálních názvů
     used_nums = set(
