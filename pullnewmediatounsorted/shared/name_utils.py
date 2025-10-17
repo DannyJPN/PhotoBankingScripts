@@ -28,6 +28,14 @@ def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = DEF
 
 
 def generate_indexed_filename(number: int, extension: str, prefix: str = "PICT", width: int = DEFAULT_NUMBER_WIDTH) -> str:
+    if number > MAX_NUMBER:
+        error_msg = f"Number {number} exceeds maximum allowed value {MAX_NUMBER}"
+        logging.error(error_msg)
+        raise ValueError(error_msg)
+    if number < 1:
+        error_msg = f"Number {number} must be positive"
+        logging.error(error_msg)
+        raise ValueError(error_msg)
     name = f"{prefix}{number:0{width}d}{extension}"
     logging.debug("Generated indexed filename: %s", name)
     return name
