@@ -50,8 +50,8 @@ CAMERA_REGEXES = {
     r"^DJI_\d{4}$": "DJI Drone",
     
     # Other camera patterns (keeping existing for compatibility)
-    # Bunaty Micro 4K - PICT0195.JPG pattern
-    r"^PICT\d{4}$": "Bunaty Micro 4K",
+    # Bunaty Micro 4K - PICT0195.JPG pattern (supports 4-6 digit numbering)
+    r"^PICT\d{4,6}$": "Bunaty Micro 4K",
     
     # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG pattern
     r"^\d{14}_IM_\d{5}$": "Bunaty WiFi Solar",
