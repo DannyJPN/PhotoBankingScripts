@@ -5,7 +5,6 @@ Script for processing and sorting a single media file.
 
 import os
 import sys
-import time
 import argparse
 import logging
 from datetime import datetime
@@ -30,8 +29,6 @@ def parse_arguments():
                         help="Path to the media file to process")
     parser.add_argument("--target_folder", type=str, default=DEFAULT_TARGET_FOLDER,
                         help="Target folder for sorted media")
-    parser.add_argument("--interval", type=int, default=60,
-                        help="Interval in seconds to wait after processing")
     parser.add_argument("--log_file", type=str, default=None,
                         help="Path to log file (default: auto-generated)")
     parser.add_argument("--debug", action="store_true",
@@ -147,11 +144,6 @@ def main():
     else:
         logging.error(f"Failed to process media file: {args.media_file}")
         print("\nFailed to process media file.")
-
-    # Wait for the specified interval
-    if args.interval > 0:
-        logging.info(f"Waiting for {args.interval} seconds...")
-        time.sleep(args.interval)
 
     logging.info("Media file processing completed")
 
