@@ -92,8 +92,12 @@ class EXIFCameraDetector:
         except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, IndexError) as e:
             logging.debug(f"EXIF extraction failed for {file_path}: {e}")
             return None
+        except (OSError, PermissionError, FileNotFoundError) as e:
+            logging.error(f"File system error during EXIF extraction for {file_path}: {e}")
+            return None
         except Exception as e:
-            logging.error(f"Unexpected error in EXIF extraction for {file_path}: {e}")
+            # Log with exception type for better debugging
+            logging.error(f"Unexpected {type(e).__name__} in EXIF extraction for {file_path}: {e}", exc_info=True)
             return None
     
     def _construct_camera_name(self, make: str, model: str, software: str) -> Optional[str]:
@@ -145,6 +149,8 @@ class EXIFCameraDetector:
                 # Remove SM- prefix if present
                 normalized = model.replace("SM-", "").replace("sm-", "")
                 return f"Samsung {normalized}"
+            else:
+                return "Samsung"
 
         # === Sony - Keep DSC prefix for compatibility ===
         # EXIF: "DSC-W810" → Folder: "Sony CyberShot W810"
