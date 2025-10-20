@@ -40,12 +40,26 @@ class MediaViewer:
         self.video_playing = False
         self.video_paused = False
         self.completion_callback: Optional[Callable] = None
+
+        # Keyboard shortcut state for cycling through categories
+        self.categories_by_letter: dict[str, List[str]] = {}
+        self.last_pressed_letter: Optional[str] = None
+        self.current_cycle_index: int = 0
         
         self.setup_ui()
-        
+
         # Bind resize event for responsive image display
         self.root.bind('<Configure>', self.on_window_resize)
-        
+
+        # Bind keyboard shortcuts for category selection (A-Z)
+        self.root.bind('<Key>', self.handle_keyboard_shortcut)
+
+        # Bind Enter key globally for processing file
+        self.root.bind('<Return>', self.handle_enter_key)
+
+        # Bind mouse click globally to remove focus from entry widgets
+        self.root.bind_all('<Button-1>', self.on_global_click, '+')
+
         # Handle window close event (equivalent to Ctrl+C)
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
@@ -65,11 +79,15 @@ class MediaViewer:
         """Setup the left panel for media display."""
         media_frame = ttk.Frame(parent)
         parent.add(media_frame, weight=2)
-        
+
+        # Bind click to remove focus from entry widgets
+        media_frame.bind('<Button-1>', self.remove_entry_focus)
+
         # Media display area
-        self.media_label = ttk.Label(media_frame, text="No media loaded", 
+        self.media_label = ttk.Label(media_frame, text="No media loaded",
                                    anchor=tk.CENTER, background='black', foreground='white')
         self.media_label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.media_label.bind('<Button-1>', self.remove_entry_focus)
         
         # Video controls frame
         controls_frame = ttk.Frame(media_frame)
@@ -185,17 +203,29 @@ class MediaViewer:
         
         # Get categories from target folder
         categories = self.get_categories_from_target_folder()
-        
+
         if not categories:
             # Fallback to some categories if none found
             categories = ["Astro", "Flora", "Krajiny", "Ostatní", "Rostliny", "Zvěř"]
-        
+
+        # Store categories as class attribute for keyboard shortcuts
+        self.categories = categories
+
+        # Build index of categories by first letter for keyboard shortcuts
+        self.categories_by_letter = {}
+        for category in categories:
+            if category:  # Skip empty strings
+                first_letter = category[0].upper()
+                if first_letter not in self.categories_by_letter:
+                    self.categories_by_letter[first_letter] = []
+                self.categories_by_letter[first_letter].append(category)
+
         # Create buttons in grid
         cols = 2
         for i, category in enumerate(categories):
             row = i // cols
             col = i % cols
-            btn = ttk.Button(scrollable_frame, text=category, 
+            btn = ttk.Button(scrollable_frame, text=category,
                            command=lambda c=category: self.select_category(c))
             btn.grid(row=row, column=col, padx=2, pady=2, sticky='ew')
             
@@ -225,9 +255,9 @@ class MediaViewer:
             self.load_video(file_path)
         else:
             self.load_image(file_path)
-            
-        # Focus on input
-        self.input_entry.focus()
+
+        # Set focus to main window (not textbox) so keyboard shortcuts work immediately
+        self.root.focus_set()
         
     def load_image(self, file_path: str):
         """Load and display an image file with responsive sizing."""
@@ -385,11 +415,73 @@ class MediaViewer:
             
         self.root.destroy()
         
+    def remove_entry_focus(self, event):
+        """
+        Remove focus from entry widgets when clicking on other areas.
+
+        This allows keyboard shortcuts to work after clicking outside textboxes.
+        """
+        self.root.focus_set()
+
+    def on_global_click(self, event):
+        """
+        Handle global mouse clicks to remove focus from Entry widgets.
+
+        If user clicks anywhere except on an Entry widget, remove focus.
+        """
+        # Check if the clicked widget is an Entry
+        clicked_widget = event.widget
+        if not isinstance(clicked_widget, (ttk.Entry, tk.Entry)):
+            # Clicked outside Entry - remove focus
+            self.root.focus_set()
+
+    def handle_enter_key(self, event):
+        """
+        Handle Enter key press globally to process the file.
+
+        Only processes if a category is entered.
+        """
+        # Process the file (will check if category is filled)
+        self.process_current_file()
+
+    def handle_keyboard_shortcut(self, event):
+        """
+        Handle keyboard shortcuts for category selection by first letter.
+
+        Shortcuts only work when focus is NOT in an Entry widget.
+        Press a letter (A-Z) to select category starting with that letter.
+        Repeated presses cycle through categories with the same first letter.
+        """
+        # Ignore keyboard shortcuts if focus is in an Entry widget
+        if isinstance(event.widget, (ttk.Entry, tk.Entry)):
+            return
+
+        # Check if the pressed key is a letter A-Z
+        if event.char and event.char.upper() in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+            pressed_letter = event.char.upper()
+
+            # Check if we have categories starting with this letter
+            if pressed_letter in self.categories_by_letter:
+                categories_for_letter = self.categories_by_letter[pressed_letter]
+
+                # If same letter pressed again, cycle to next category
+                if pressed_letter == self.last_pressed_letter:
+                    self.current_cycle_index = (self.current_cycle_index + 1) % len(categories_for_letter)
+                else:
+                    # Different letter pressed, start from first category
+                    self.last_pressed_letter = pressed_letter
+                    self.current_cycle_index = 0
+
+                # Select the category
+                category = categories_for_letter[self.current_cycle_index]
+                self.select_category(category)
+                logging.debug(f"Keyboard shortcut: {pressed_letter} -> {category} (index {self.current_cycle_index + 1}/{len(categories_for_letter)})")
+
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
         logging.info("Window closed by user - terminating script")
         self.root.destroy()
-        
+
         # Exit the entire script (equivalent to Ctrl+C)
         import sys
         sys.exit(0)
