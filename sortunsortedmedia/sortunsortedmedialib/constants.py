@@ -7,6 +7,7 @@ Contains default values, regular expressions, and dictionaries for media classif
 DEFAULT_UNSORTED_FOLDER = "I:/Neroztříděno"
 DEFAULT_TARGET_FOLDER = "I:/Roztříděno"
 DEFAULT_INTERVAL = 60  # seconds
+DEFAULT_MAX_PARALLEL = 100  # Maximum number of parallel processes
 
 # ExifTool path
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
