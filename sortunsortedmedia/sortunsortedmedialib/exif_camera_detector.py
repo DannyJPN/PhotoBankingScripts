@@ -177,10 +177,16 @@ class EXIFCameraDetector:
         # EXIF: "realme 8" → Folder: "Realme 8"
         elif make.lower() == "realme":
             if model:
-                # Capitalize first letter of model if needed
+                # Check if model already contains "Realme"
+                if model.lower().startswith("realme"):
+                    # Model already contains "Realme", capitalize and return as-is
+                    return model[0].upper() + model[1:]
+                # Otherwise prepend "Realme"
                 if model[0].islower():
                     model = model[0].upper() + model[1:]
                 return f"Realme {model}"
+
+
 
 
         # === Canon ===
