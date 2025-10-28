@@ -258,11 +258,11 @@ def update_sharpen_status(original_record: Dict[str, str], all_records: List[Dic
     if new_original_status == STATUS_APPROVED:
         # Originál schválen → _sharpen není potřeba
         new_sharpen_status = STATUS_UNUSED
-        logging.info(f"Original {original_filename} approved → setting _sharpen to '{STATUS_UNUSED}' for {bank}")
+        logging.info(f"Original {original_filename} approved -> setting _sharpen to '{STATUS_UNUSED}' for {bank}")
     elif new_original_status == STATUS_REJECTED:
         # Originál zamítnut → použij _sharpen místo něj
         new_sharpen_status = STATUS_PREPARED
-        logging.info(f"Original {original_filename} rejected → setting _sharpen to '{STATUS_PREPARED}' for {bank}")
+        logging.info(f"Original {original_filename} rejected -> setting _sharpen to '{STATUS_PREPARED}' for {bank}")
     elif new_original_status == STATUS_MAYBE:
         # "Možná" - nedělej nic, ponech "záložní"
         logging.debug(f"Original {original_filename} status is '{STATUS_MAYBE}', keeping _sharpen as '{STATUS_BACKUP}'")
