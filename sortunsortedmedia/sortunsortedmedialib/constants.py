@@ -58,8 +58,8 @@ CAMERA_REGEXES = {
     # Bunaty Micro 4K - PICT0195.JPG pattern (supports 4-6 digit numbering)
     r"^PICT\d{4,6}$": "Bunaty Micro 4K",
     
-    # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG pattern
-    r"^\d{14}_IM_\d{5}$": "Bunaty WiFi Solar",
+    # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG (image) and 20241111043058_VD_00882.MP4 (video) patterns
+    r"^\d{14}_(IM|VD)_\d{5}$": "Bunaty WiFi Solar",
     
     # Acer 10 - WIN_20180226_07_01_04_Pro.jpg pattern
     r"^WIN_\d{8}_\d{2}_\d{2}_\d{2}_Pro$": "Acer 10",
