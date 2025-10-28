@@ -320,9 +320,15 @@ def process_unmatched_files(unmatched_files: List[str], target_folder: str, inte
             # Launch process in fire-and-forget mode with new console window
             if os.name == 'nt':  # Windows
                 # CREATE_NEW_CONSOLE opens new terminal window where Ctrl+C works
+                # Start minimized using STARTUPINFO
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 6  # SW_MINIMIZE (6) or SW_SHOWMINNOACTIVE (7)
+
                 process = subprocess.Popen(
                     cmd,
-                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    startupinfo=startupinfo
                 )
             else:  # Unix/Linux
                 # Start new session (detached from parent)
@@ -333,7 +339,8 @@ def process_unmatched_files(unmatched_files: List[str], target_folder: str, inte
 
             running_processes.append((process, file_path, i+1))
             launched_count += 1
-            print(f"  ✓ Launched (PID: {process.pid}) - {len(running_processes)}/{max_parallel} slots used")
+            active_count = len([p for p, _, _ in running_processes if p.poll() is None])
+            print(f"  ✓ Launched (PID: {process.pid}) - {active_count}/{max_parallel} slots used")
             logging.info(f"Launched independent process for {file_path} with PID {process.pid}")
 
         except Exception as e:

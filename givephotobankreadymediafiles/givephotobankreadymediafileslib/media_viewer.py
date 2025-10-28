@@ -1392,10 +1392,12 @@ class MediaViewer:
             import platform
 
             if platform.system() == "Windows":
+                # Normalize path to use backslashes for Windows Explorer
+                normalized_path = os.path.normpath(self.current_file_path)
                 # Use Windows Explorer to show file and select it
                 # Don't use check=True as Explorer sometimes returns non-zero exit codes even on success
-                result = subprocess.run(['explorer', '/select,', self.current_file_path])
-                logging.debug(f"Opened file location in Explorer: {self.current_file_path} (exit code: {result.returncode})")
+                result = subprocess.run(['explorer', '/select,', normalized_path])
+                logging.debug(f"Opened file location in Explorer: {normalized_path} (exit code: {result.returncode})")
             else:
                 # For other systems, just open the directory
                 directory = os.path.dirname(self.current_file_path)
