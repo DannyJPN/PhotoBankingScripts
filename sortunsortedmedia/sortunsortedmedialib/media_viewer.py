@@ -107,20 +107,30 @@ class MediaViewer:
         # Video controls frame
         controls_frame = ttk.Frame(media_frame)
         controls_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.play_button = ttk.Button(controls_frame, text="Play", command=self.toggle_video)
+
+        # Rewind button (-10s)
+        self.rewind_button = ttk.Button(controls_frame, text="⏪ -10s", command=self.rewind_video)
+        self.rewind_button.pack(side=tk.LEFT, padx=2)
+
+        # Play/Pause button (toggle)
+        self.play_button = ttk.Button(controls_frame, text="▶ Play", command=self.toggle_video)
         self.play_button.pack(side=tk.LEFT, padx=2)
-        
-        self.stop_button = ttk.Button(controls_frame, text="Stop", command=self.stop_video)
-        self.stop_button.pack(side=tk.LEFT, padx=2)
-        
+
+        # Forward button (+10s)
+        self.forward_button = ttk.Button(controls_frame, text="⏩ +10s", command=self.forward_video)
+        self.forward_button.pack(side=tk.LEFT, padx=2)
+
         # Video progress bar
         self.video_progress = ttk.Scale(controls_frame, orient=tk.HORIZONTAL,
                                       from_=0, to=100)
         self.video_progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
 
-        # Bind manual seeking to mouse button release (not command callback to avoid oscillation)
-        self.video_progress.bind('<ButtonRelease-1>', self.on_seek_manual)
+        # Bind manual seeking - use Button-1 to capture drag start
+        self.video_progress.bind('<Button-1>', self.on_seek_start)
+        self.video_progress.bind('<ButtonRelease-1>', self.on_seek_end)
+
+        # Track if user is manually seeking (to prevent programmatic updates from triggering seeks)
+        self.user_seeking = False
         
         # Time labels
         self.time_label = ttk.Label(controls_frame, text="00:00 / 00:00")
@@ -482,14 +492,55 @@ class MediaViewer:
         """Pause video playback."""
         self.video_playing = False
         self.video_paused = True
-        self.play_button.configure(text="Play")
+        self.play_button.configure(text="▶ Play")
+
+    def rewind_video(self):
+        """Rewind video by 10 seconds."""
+        if not self.current_file_path or not is_video_file(self.current_file_path):
+            return
+
+        if self.video_cap is None:
+            return
+
+        # Calculate new position (-10 seconds)
+        current_time = self.current_frame_number / self.video_fps if self.video_fps > 0 else 0
+        target_time = max(0, current_time - 10)
+        target_percent = (target_time / self.video_duration * 100) if self.video_duration > 0 else 0
+
+        self._seek_to_position(target_percent)
+
+    def forward_video(self):
+        """Forward video by 10 seconds."""
+        if not self.current_file_path or not is_video_file(self.current_file_path):
+            return
+
+        if self.video_cap is None:
+            return
+
+        # Calculate new position (+10 seconds)
+        current_time = self.current_frame_number / self.video_fps if self.video_fps > 0 else 0
+        target_time = min(self.video_duration, current_time + 10)
+        target_percent = (target_time / self.video_duration * 100) if self.video_duration > 0 else 0
+
+        self._seek_to_position(target_percent)
+
+    def on_seek_start(self, event):
+        """Handle seek start - user clicked on progress bar."""
+        self.user_seeking = True
+
+    def on_seek_end(self, event):
+        """Handle seek end - user released mouse button on progress bar."""
+        self.user_seeking = False
+        # Get current progress bar value and seek
+        value = self.video_progress.get()
+        self._seek_to_position(value)
 
     def stop_video(self):
         """Stop video playback and reset to first frame."""
         # Stop playback
         self.video_playing = False
         self.video_paused = False
-        self.play_button.configure(text="Play")
+        self.play_button.configure(text="▶ Play")
 
         # Wait for thread to finish
         if self.video_thread is not None and self.video_thread.is_alive():
@@ -851,9 +902,11 @@ class MediaViewer:
                 # Display frame in GUI thread (copy frame to prevent numpy array mutation)
                 self.root.after(0, lambda f=frame.copy(): self._display_frame(f))
 
-                # Update progress bar and time display in GUI thread
-                progress_percent = (self.current_frame_number / self.video_frame_count * 100) if self.video_frame_count > 0 else 0
-                self.root.after(0, lambda p=progress_percent: self.video_progress.set(p))
+                # Update progress bar and time display in GUI thread (only if not manually seeking)
+                if not self.user_seeking:
+                    progress_percent = (self.current_frame_number / self.video_frame_count * 100) if self.video_frame_count > 0 else 0
+                    self.root.after(0, lambda p=progress_percent: self.video_progress.set(p))
+
                 self.root.after(0, lambda t=current_time: self._update_time_display(t, self.video_duration))
 
                 # Synchronize with FPS (sleep for frame duration)
