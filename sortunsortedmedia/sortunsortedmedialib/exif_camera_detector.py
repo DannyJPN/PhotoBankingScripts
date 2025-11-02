@@ -209,13 +209,20 @@ class EXIFCameraDetector:
                 # _Z = Zoom camera (Matrice 300 + Zenmuse H20T)
                 # _S = Mavic 3 Thermal (but usually detected earlier by Encoder="DJI M3T")
                 # _D = Standard camera (Neo, etc.)
-                if filename[-6:-4].upper() == '_T':  # _T.MP4 or _T.MOV
+
+                # Safety check: ensure filename is long enough for indexing
+                # Minimum valid: "DJI_20250402141639_0004_T.MP4" = 31 chars
+                if len(filename) < 8:
+                    return "DJI Drone (Unknown Model)"
+
+                suffix = filename[-6:-4].upper()  # Extract suffix safely
+                if suffix == '_T':  # _T.MP4 or _T.MOV
                     return "DJI Matrice 300 + Zenmuse H20T"
-                elif filename[-6:-4].upper() == '_W':  # _W.MP4 or _W.MOV
+                elif suffix == '_W':  # _W.MP4 or _W.MOV
                     return "DJI Matrice 300 + Zenmuse H20T"
-                elif filename[-6:-4].upper() == '_Z':  # _Z.MP4 or _Z.MOV
+                elif suffix == '_Z':  # _Z.MP4 or _Z.MOV
                     return "DJI Matrice 300 + Zenmuse H20T"
-                elif filename[-6:-4].upper() == '_S':  # _S.MP4 or _S.MOV
+                elif suffix == '_S':  # _S.MP4 or _S.MOV
                     return "DJI Mavic 3 Thermal"
                 # _D or other suffix
                 return "DJI Drone (Unknown Model)"
