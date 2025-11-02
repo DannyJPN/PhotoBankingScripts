@@ -35,6 +35,9 @@ EDITED_TAGS = {
 
 # Regular expressions for camera detection based on actual file patterns found on J: drive
 CAMERA_REGEXES = {
+
+
+
     # Sony CyberShot W810 - DSC00151.JPG pattern (verified from J: analysis)
     r"^DSC\d{5}$": "Sony CyberShot W810",
     
