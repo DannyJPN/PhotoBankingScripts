@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+
 """
 Main script for processing and sorting unsorted media files.
 """
@@ -11,7 +13,7 @@ from shared.utils import get_log_filename
 from shared.file_operations import ensure_directory
 from shared.logging_config import setup_logging
 
-from sortunsortedmedialib.constants import DEFAULT_UNSORTED_FOLDER, DEFAULT_TARGET_FOLDER, DEFAULT_INTERVAL
+from sortunsortedmedialib.constants import DEFAULT_UNSORTED_FOLDER, DEFAULT_TARGET_FOLDER, DEFAULT_INTERVAL, DEFAULT_MAX_PARALLEL
 from sortunsortedmedialib.media_helper import find_unmatched_media, process_unmatched_files
 
 def parse_arguments():
@@ -25,6 +27,8 @@ def parse_arguments():
                         help="Target folder for sorted media")
     parser.add_argument("--interval", type=int, default=DEFAULT_INTERVAL,
                         help="Interval in seconds to wait between processing files")
+    parser.add_argument("--max_parallel", type=int, default=DEFAULT_MAX_PARALLEL,
+                        help=f"Maximum number of parallel processes (default: {DEFAULT_MAX_PARALLEL})")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
     return parser.parse_args()
@@ -68,7 +72,7 @@ def main():
         print(f"\n=== Processing {len(files)} {category_name} ===")
 
 
-        process_unmatched_files(files, args.target_folder, args.interval)
+        process_unmatched_files(files, args.target_folder, args.interval, args.max_parallel)
 
     logging.info("Unsorted media processing completed")
     print("\nAll media processing completed!")

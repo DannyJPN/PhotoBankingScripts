@@ -28,7 +28,7 @@ SINGLE_CAMERA_DRONES: Dict[str, str] = {
     "FC7203": "DJI Mavic Mini",
     "FC7303": "DJI Mini SE",
     "FC3582": "DJI Mini 3 Pro",
-    "FC3682": "DJI Mini 4 Pro",
+    "FC3682": "DJI Mini 3",
 
     # Air Series
     "FC3411": "DJI Air 2S",

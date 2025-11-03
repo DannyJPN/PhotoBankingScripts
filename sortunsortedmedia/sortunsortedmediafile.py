@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 Script for processing and sorting a single media file.
@@ -7,6 +8,7 @@ import os
 import sys
 import argparse
 import logging
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -15,10 +17,11 @@ from shared.file_operations import ensure_directory, move_file
 from shared.logging_config import setup_logging
 from shared.exif_handler import get_best_creation_date
 
-from sortunsortedmedialib.constants import DEFAULT_TARGET_FOLDER
+from sortunsortedmedialib.constants import DEFAULT_TARGET_FOLDER, TERMINAL_PAUSE_DURATION, RAW_EXTENSIONS
 from sortunsortedmedialib.media_classifier import classify_media_file
 from sortunsortedmedialib.interactive import ask_for_category
-from sortunsortedmedialib.path_builder import build_target_path, ensure_unique_path
+from sortunsortedmedialib.path_builder import build_target_path, build_edited_target_path, ensure_unique_path
+from sortunsortedmedialib.companion_file_finder import find_jpg_equivalent, find_original_file, extract_metadata_from_path
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -69,37 +72,121 @@ def process_media_file(media_path: str, target_folder: str) -> Optional[str]:
             logging.warning(f"Could not determine creation date for {media_path}, using current time")
             creation_date = datetime.now()
 
-        # Show GUI to get category and camera from user
-        from sortunsortedmedialib.media_viewer import show_media_viewer
-        
-        # Variables to store user selection
-        selected_category = None
-        selected_camera = None
-        
-        def completion_callback(category: str, camera: str):
-            nonlocal selected_category, selected_camera
-            selected_category = category
-            selected_camera = camera
-        
-        # Show GUI
-        show_media_viewer(media_path, target_folder, completion_callback)
-        
-        # Use the selected values or defaults
-        category = selected_category if selected_category else "Ostatní"
-        if selected_camera and selected_camera != "Unknown":
-            camera = selected_camera
+        # DECISION LOGIC: Determine if we need user categorization or can use existing metadata
+        needs_categorization = True
+        metadata_from_original = None
+
+        # Case A: JPG or Video → always categorize
+        if extension.lower() in ['jpg', 'jpeg'] or media_type == "Video":
+            logging.debug(f"File is JPG or Video - requiring categorization")
+            needs_categorization = True
+
+        # Case B: Alternative format (PNG, RAW, TIFF, etc.)
+        elif not is_edited and media_type == "Foto":
+            logging.debug(f"File is alternative image format ({extension}) - searching for JPG equivalent")
+            jpg_path = find_jpg_equivalent(filename, target_folder)
+
+            if jpg_path:
+                # Found JPG equivalent → skip GUI, use its metadata
+                logging.info(f"Found JPG equivalent: {jpg_path}")
+                metadata_from_original = extract_metadata_from_path(jpg_path)
+                needs_categorization = False
+            else:
+                # No JPG equivalent → process as JPG (with GUI)
+                logging.info(f"No JPG equivalent found - processing as new file")
+                needs_categorization = True
+
+        # Case C: Edited file
+        elif is_edited:
+            logging.debug(f"File is edited - searching for original")
+            is_video = (media_type == "Video")
+            original_path = find_original_file(filename, target_folder, is_video)
+
+            if original_path:
+                # Found original → skip GUI, use its metadata
+                logging.info(f"Found original file: {original_path}")
+                metadata_from_original = extract_metadata_from_path(original_path)
+                needs_categorization = False
+            else:
+                # No original → process as new edited file (with GUI)
+                logging.info(f"No original found - processing as new edited file")
+                needs_categorization = True
+
+        # Get category and camera
+        if needs_categorization:
+            # Preload RAW file if needed (BEFORE opening GUI)
+            preloaded_image = None
+            if os.path.splitext(media_path)[1].lower() in RAW_EXTENSIONS:
+                logging.info(f"Preloading RAW file before GUI: {media_path}")
+                print(f"Loading RAW file (this may take a few seconds)...")
+                try:
+                    import rawpy
+                    from PIL import Image
+                    with rawpy.imread(media_path) as raw:
+                        rgb = raw.postprocess(
+                            use_camera_wb=True,
+                            use_auto_wb=False,
+                            output_bps=8,
+                            no_auto_bright=True,
+                            output_color=rawpy.ColorSpace.sRGB
+                        )
+                        preloaded_image = Image.fromarray(rgb)
+                        logging.info(f"RAW file preloaded successfully: {preloaded_image.size}")
+                        print(f"RAW file loaded, opening GUI...")
+                except ImportError:
+                    logging.warning("rawpy not available - GUI will load thumbnail only")
+                except Exception as e:
+                    logging.warning(f"Failed to preload RAW: {e}, GUI will load thumbnail")
+
+            # Show GUI to get category and camera from user
+            from sortunsortedmedialib.media_viewer import show_media_viewer
+
+            # Variables to store user selection
+            selected_category = None
+            selected_camera = None
+
+            def completion_callback(cat: str, cam: str):
+                nonlocal selected_category, selected_camera
+                selected_category = cat
+                selected_camera = cam
+
+            # Show GUI with preloaded image (if available)
+            logging.info(f"Showing GUI for user categorization of {filename}")
+            show_media_viewer(media_path, target_folder, completion_callback, preloaded_image=preloaded_image)
+
+            # Use the selected values or defaults
+            category = selected_category if selected_category else "Ostatní"
+            if selected_camera and selected_camera != "Unknown":
+                camera = selected_camera
+        else:
+            # Use metadata from original/companion file
+            category = metadata_from_original.get('category', 'Ostatní')
+            camera = metadata_from_original.get('camera_name', camera)
+            logging.info(f"Using metadata from companion file: category={category}, camera={camera}")
 
         # Build target directory path
-        target_dir = build_target_path(
-            base_folder=target_folder,
-            media_type=media_type,
-            extension=extension,
-            category=category,
-            date=creation_date,
-            camera_name=camera,
-            is_edited=is_edited,
-            edit_type=edit_type
-        )
+        if is_edited:
+            # Edited files go to "Upravené Foto" or "Upravené Video"
+            target_dir = build_edited_target_path(
+                base_folder=target_folder,
+                media_type=media_type,
+                extension=extension,
+                category=category,
+                date=creation_date,
+                camera_name=camera
+            )
+        else:
+            # Regular files go to "Foto" or "Video"
+            target_dir = build_target_path(
+                base_folder=target_folder,
+                media_type=media_type,
+                extension=extension,
+                category=category,
+                date=creation_date,
+                camera_name=camera,
+                is_edited=False,
+                edit_type=""
+            )
         
         # Full target path with filename
         target_path = os.path.join(target_dir, filename)
@@ -140,12 +227,37 @@ def main():
 
     if result_path:
         logging.info(f"Successfully processed media file to: {result_path}")
-        print(f"\nFile moved to: {result_path}")
+        print(f"\n{'='*80}")
+        print(f"SUCCESS: File has been moved to:")
+        print(f"{result_path}")
+        print(f"{'='*80}")
     else:
         logging.error(f"Failed to process media file: {args.media_file}")
-        print("\nFailed to process media file.")
+        print(f"\n{'='*80}")
+        print(f"ERROR: Failed to process media file")
+        print(f"{'='*80}")
 
     logging.info("Media file processing completed")
+
+    # Keep terminal open for TERMINAL_PAUSE_DURATION seconds to allow user to see the result
+    pause_minutes = TERMINAL_PAUSE_DURATION // 60
+    pause_seconds = TERMINAL_PAUSE_DURATION % 60
+
+    if pause_minutes > 0:
+        if pause_seconds > 0:
+            print(f"\nThis window will close automatically in {pause_minutes} minute(s) and {pause_seconds} second(s).")
+        else:
+            print(f"\nThis window will close automatically in {pause_minutes} minute(s).")
+    else:
+        print(f"\nThis window will close automatically in {pause_seconds} second(s).")
+
+    print("You can close this window manually at any time by pressing Ctrl+C or clicking the X button.")
+
+    try:
+        time.sleep(TERMINAL_PAUSE_DURATION)
+    except KeyboardInterrupt:
+        print("\n\nWindow closed by user.")
+        logging.info("Terminal pause interrupted by user")
 
 if __name__ == "__main__":
     main()

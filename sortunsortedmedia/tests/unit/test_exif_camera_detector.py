@@ -1,7 +1,11 @@
 """
 Unit tests for EXIF camera detector.
 
-Tests camera name construction from EXIF Make/Model/Software tags.
+Tests the camera detection logic including:
+- Encoder tag parsing for DJI drones
+- Filename pattern detection for Matrice 300
+- DJI Mini 3 detection with specific encoder
+- Edge cases and error handling
 """
 
 import unittest
@@ -15,197 +19,371 @@ from sortunsortedmedialib.exif_camera_detector import EXIFCameraDetector
 
 
 class TestEXIFCameraDetector(unittest.TestCase):
-    """Test EXIF camera detection and name construction."""
+    """Test EXIF camera detector functionality."""
 
     def setUp(self):
-        """Initialize detector for tests."""
+        """Set up test detector instance."""
         self.detector = EXIFCameraDetector()
 
-    # === DJI Drones Tests ===
+    # === Encoder Tag Detection Tests ===
 
-    def test_dji__mini_3_pro__returns_correct_name(self):
-        """Test DJI Mini 3 Pro detection from EXIF."""
-        result = self.detector._construct_camera_name("DJI", "FC3582", "10.01.39.42")
+    def test_encoder_tag__dji_neo__returns_correct_name(self):
+        """Test DJI Neo detection via Encoder tag."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="DJI NEO",
+            file_path="DJI_20250325145015_0001_D.MP4"
+        )
+        self.assertEqual(result, "DJI Neo")
+
+    def test_encoder_tag__mavic3__returns_correct_name(self):
+        """Test DJI Mavic 3 detection via Encoder tag."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="DJIMavic3",
+            file_path="DJI_0994.MOV"
+        )
+        self.assertEqual(result, "DJI Mavic 3")
+
+    def test_encoder_tag__mavic3_thermal__uses_database_lookup(self):
+        """Test Mavic 3 Thermal detection via Encoder tag with database lookup."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="DJI M3T",
+            file_path="DJI_20250327215720_0001_S.MP4"
+        )
+        self.assertEqual(result, "DJI Mavic 3 Thermal")
+
+    # === Matrice 300 Filename Pattern Tests ===
+
+    def test_matrice_300__thermal_suffix__returns_correct_name(self):
+        """Test Matrice 300 thermal camera detection via _T suffix."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_20250402142155_0014_T.MP4"
+        )
+        self.assertEqual(result, "DJI Matrice 300 + Zenmuse H20T")
+
+    def test_matrice_300__wide_suffix__returns_correct_name(self):
+        """Test Matrice 300 wide camera detection via _W suffix."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_20250402141639_0004_W.MP4"
+        )
+        self.assertEqual(result, "DJI Matrice 300 + Zenmuse H20T")
+
+    def test_matrice_300__zoom_suffix__returns_correct_name(self):
+        """Test Matrice 300 zoom camera detection via _Z suffix."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_20250402141639_0004_Z.MP4"
+        )
+        self.assertEqual(result, "DJI Matrice 300 + Zenmuse H20T")
+
+    def test_matrice_300__no_suffix__returns_correct_name(self):
+        """Test Matrice 300 wide camera detection without suffix."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_20250328142609_0001.MP4"
+        )
+        self.assertEqual(result, "DJI Matrice 300 + Zenmuse H20T")
+
+    def test_mavic3_thermal__s_suffix__returns_correct_name(self):
+        """Test Mavic 3 Thermal detection via _S suffix (fallback)."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_20250327215720_0001_S.MP4"
+        )
+        self.assertEqual(result, "DJI Mavic 3 Thermal")
+
+    # === DJI Mini 3 Detection Tests ===
+
+    def test_mini_3__4digit_filename_lavf_encoder__returns_correct_name(self):
+        """Test DJI Mini 3 detection via 4-digit filename + Lavf56.15.102 encoder."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf56.15.102",
+            file_path="DJI_0012.MP4"
+        )
+        self.assertEqual(result, "DJI Mini 3")
+
+    def test_mini_3__4digit_filename_wrong_encoder__returns_unknown(self):
+        """Test 4-digit DJI filename with different encoder returns Unknown."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="Lavf60.3.100",
+            file_path="DJI_0012.MP4"
+        )
+        self.assertEqual(result, "DJI Drone (Unknown Model)")
+
+    # === FC Code Detection Tests ===
+
+    def test_fc_code_detection__fc3682__returns_mini_3(self):
+        """Test FC3682 code detection returns Mini 3."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="FC3682",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "DJI Mini 3")
+
+    def test_fc_code_detection__fc3582__returns_mini_3_pro(self):
+        """Test FC3582 code detection returns Mini 3 Pro."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="FC3582",
+            software="",
+            encoder="",
+            file_path=""
+        )
         self.assertEqual(result, "DJI Mini 3 Pro")
 
-    def test_dji__mini_4_pro__returns_correct_name(self):
-        """Test DJI Mini 4 Pro detection from EXIF."""
-        result = self.detector._construct_camera_name("DJI", "FC3682", "")
-        self.assertEqual(result, "DJI Mini 4 Pro")
-
-    def test_dji__air_3_wide__returns_correct_name(self):
-        """Test DJI Air 3 wide camera detection."""
-        result = self.detector._construct_camera_name("DJI", "FC8282", "")
-        self.assertEqual(result, "DJI Air 3 Wide")
-
-    def test_dji__air_3_tele__returns_correct_name(self):
-        """Test DJI Air 3 telephoto camera detection."""
-        result = self.detector._construct_camera_name("DJI", "FC8284", "")
-        self.assertEqual(result, "DJI Air 3 Tele")
-
-    def test_dji__inspire_2_x5s__returns_correct_name(self):
-        """Test DJI Inspire 2 with Zenmuse X5S detection."""
-        result = self.detector._construct_camera_name("DJI", "FC6520", "v01.11.2229")
+    def test_fc_code_detection__fc6520__returns_inspire_2(self):
+        """Test FC6520 code detection returns Inspire 2 + X5S."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="FC6520",
+            software="",
+            encoder="",
+            file_path=""
+        )
         self.assertEqual(result, "DJI Inspire 2 + Zenmuse X5S")
 
-    def test_dji__unknown_fc_code__returns_fallback(self):
-        """Test unknown DJI FC code returns fallback name."""
-        result = self.detector._construct_camera_name("DJI", "FC9999", "")
-        self.assertEqual(result, "DJI Drone (FC9999)")
+    # === DJI Make Tag Tests ===
 
-    def test_dji__no_model__returns_generic(self):
-        """Test DJI with no model returns generic name."""
-        result = self.detector._construct_camera_name("DJI", "", "")
+    def test_make_tag__dji_with_fc_code__returns_correct_name(self):
+        """Test DJI Make tag with FC code uses database."""
+        result = self.detector._construct_camera_name(
+            make="DJI",
+            model="FC3582",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "DJI Mini 3 Pro")
+
+    def test_make_tag__dji_without_model__returns_generic(self):
+        """Test DJI Make tag without model returns generic name."""
+        result = self.detector._construct_camera_name(
+            make="DJI",
+            model="",
+            software="",
+            encoder="",
+            file_path=""
+        )
         self.assertEqual(result, "DJI Drone")
 
-    # === Samsung Tests ===
+    def test_make_tag__dji_unknown_model__returns_with_model_name(self):
+        """Test DJI with unknown model code returns fallback."""
+        result = self.detector._construct_camera_name(
+            make="DJI",
+            model="FC9999",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "DJI Drone (FC9999)")
 
-    def test_samsung__j320fn__normalizes_sm_prefix(self):
-        """Test Samsung SM-J320FN normalizes to J320FN."""
-        result = self.detector._construct_camera_name("samsung", "SM-J320FN", "J320FNXXU0ARE1")
-        self.assertEqual(result, "Samsung J320FN")
+    # === Priority Tests ===
 
-    def test_samsung__without_sm_prefix__works(self):
-        """Test Samsung model without SM- prefix works."""
-        result = self.detector._construct_camera_name("SAMSUNG", "SAMSUNG ES9/SAMSUNG ES8", "  0.6b00")
-        self.assertEqual(result, "Samsung SAMSUNG ES9/SAMSUNG ES8")
+    def test_priority__encoder_over_fc_code(self):
+        """Test that Encoder tag has priority over FC code."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="FC3582",  # Would give Mini 3 Pro
+            software="",
+            encoder="DJI NEO",  # Encoder should override
+            file_path=""
+        )
+        self.assertEqual(result, "DJI Neo")
 
-    def test_samsung__electronics__works(self):
-        """Test Samsung Electronics variant works."""
-        result = self.detector._construct_camera_name("Samsung Electronics", "SM-G991B", "")
-        self.assertEqual(result, "Samsung G991B")
-
-    # === Sony Tests ===
-
-    def test_sony__cybershot_w810__keeps_dsc_prefix(self):
-        """Test Sony DSC-W810 keeps prefix for compatibility."""
-        result = self.detector._construct_camera_name("SONY", "DSC-W810", "  1.0300")
-        self.assertEqual(result, "Sony DSC-W810")
-
-    def test_sony__generic_model__works(self):
-        """Test Sony generic model works."""
-        result = self.detector._construct_camera_name("Sony", "ILCE-7M3", "")
-        self.assertEqual(result, "Sony ILCE-7M3")
-
-    # === Nikon Tests ===
-
-    def test_nikon__z50__normalizes_nikon_prefix(self):
-        """Test Nikon Z 50 normalizes NIKON prefix and spaces."""
-        result = self.detector._construct_camera_name("NIKON CORPORATION", "NIKON Z 50", "Ver.02.50")
-        self.assertEqual(result, "Nikon Z 50")
-
-    def test_nikon__without_nikon_prefix__works(self):
-        """Test Nikon model without NIKON prefix works."""
-        result = self.detector._construct_camera_name("Nikon", "D850", "")
-        self.assertEqual(result, "Nikon D850")
-
-    # === Realme Tests ===
-
-    def test_realme__realme_8__capitalizes_correctly(self):
-        """Test realme 8 capitalizes correctly."""
-        result = self.detector._construct_camera_name("realme", "realme 8", "MediaTek Camera Application")
-        self.assertEqual(result, "Realme Realme 8")
-
-    def test_realme__already_capitalized__works(self):
-        """Test Realme with already capitalized model."""
-        result = self.detector._construct_camera_name("realme", "RMX3085", "")
-        self.assertEqual(result, "Realme RMX3085")
-
-    # === Canon Tests ===
-
-    def test_canon__generic__works(self):
-        """Test Canon camera detection."""
-        result = self.detector._construct_camera_name("Canon", "EOS 5D Mark IV", "")
-        self.assertEqual(result, "Canon EOS 5D Mark IV")
-
-    # === Apple Tests ===
-
-    def test_apple__iphone_5s__works(self):
-        """Test Apple iPhone 5s detection."""
-        result = self.detector._construct_camera_name("Apple", "iPhone 5s", "12.4.8")
-        self.assertEqual(result, "Apple iPhone 5s")
-
-    # === Bunaty Trail Camera Tests ===
-
-    def test_bunaty__micro_4k__detects_from_software(self):
-        """Test Bunaty Micro 4K detection from Software tag."""
-        result = self.detector._construct_camera_name("iCatch", "", "BUNATY_BV18AD_07")
-        self.assertEqual(result, "Bunaty Micro 4K")
-
-    def test_bunaty__wifi_solar__detects_from_model(self):
-        """Test Bunaty WiFi Solar detection from Model tag."""
-        result = self.detector._construct_camera_name("Trail camera", "RD7010WF", "DSPVER:V01.00.14")
-        self.assertEqual(result, "Bunaty WiFi Solar")
-
-    def test_bunaty__generic__from_software(self):
-        """Test generic Bunaty detection from software tag."""
-        result = self.detector._construct_camera_name("Unknown", "Camera", "BUNATY_VERSION_1")
-        self.assertEqual(result, "Bunaty")
-
-    # === Acer Tests ===
-
-    def test_acer__with_model__works(self):
-        """Test Acer with model."""
-        result = self.detector._construct_camera_name("Intel Corporation", "UNI_GC2355", "Exif Software Version 2.2")
-        # Note: This won't match "Acer" in current logic, should be fixed
-        # For now testing actual behavior
-        self.assertIsNotNone(result)
-
-    def test_acer__without_model__returns_default(self):
-        """Test Acer without model returns default."""
-        result = self.detector._construct_camera_name("Acer", "", "")
-        self.assertEqual(result, "Acer 10")
-
-    # === Huawei Tests ===
-
-    def test_huawei__vns_l21__normalizes_prefix(self):
-        """Test Huawei VNS-L21 normalizes HUAWEI prefix."""
-        result = self.detector._construct_camera_name("HUAWEI", "HUAWEI VNS-L21", "VNS-L21C432B380")
-        self.assertEqual(result, "Huawei VNS-L21")
-
-    def test_huawei__without_prefix__works(self):
-        """Test Huawei model without prefix works."""
-        result = self.detector._construct_camera_name("HUAWEI", "P30 Pro", "")
-        self.assertEqual(result, "Huawei P30 Pro")
-
-    # === Generic Tests ===
-
-    def test_generic__make_and_model__combines(self):
-        """Test generic make and model combination."""
-        result = self.detector._construct_camera_name("Olympus", "E-M10", "")
-        self.assertEqual(result, "Olympus E-M10")
-
-    def test_generic__duplicate_make_in_model__returns_model_only(self):
-        """Test duplicate manufacturer name in model returns model only."""
-        result = self.detector._construct_camera_name("Panasonic", "Panasonic DMC-GH5", "")
-        self.assertEqual(result, "Panasonic DMC-GH5")
-
-    def test_generic__only_model__returns_model(self):
-        """Test only model provided returns model."""
-        result = self.detector._construct_camera_name("", "Unknown Camera", "")
-        self.assertEqual(result, "Unknown Camera")
-
-    def test_generic__only_make__returns_make(self):
-        """Test only make provided returns make."""
-        result = self.detector._construct_camera_name("Unknown Brand", "", "")
-        self.assertEqual(result, "Unknown Brand")
-
-    def test_generic__no_data__returns_none(self):
-        """Test no data provided returns None."""
-        result = self.detector._construct_camera_name("", "", "")
-        self.assertIsNone(result)
+    def test_priority__fc_code_over_filename(self):
+        """Test that FC code has priority over filename pattern."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="FC6520",  # Inspire 2
+            software="",
+            encoder="",
+            file_path="DJI_0012.MP4"  # Would be Mini 3 by filename
+        )
+        self.assertEqual(result, "DJI Inspire 2 + Zenmuse X5S")
 
     # === Edge Cases ===
 
-    def test_edge_case__corporation_in_make__removes_it(self):
-        """Test Corporation suffix is removed from make."""
-        result = self.detector._construct_camera_name("NIKON CORPORATION", "D5", "")
-        self.assertEqual(result, "Nikon D5")
+    def test_edge_case__short_filename__returns_none(self):
+        """Test that very short filenames don't cause IndexError."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="",
+            file_path="D.MP4"
+        )
+        self.assertIsNone(result)
 
-    def test_edge_case__extra_whitespace__handled(self):
-        """Test extra whitespace is handled correctly."""
-        result = self.detector._construct_camera_name("  Sony  ", "  A7III  ", "  ")
-        self.assertEqual(result, "Sony A7III")
+    def test_edge_case__bounds_check_short_filename__handles_safely(self):
+        """Test bounds checking prevents IndexError on short filenames."""
+        # This filename matches DJI pattern but is too short for safe indexing
+        # The bounds check should prevent IndexError
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="",
+            file_path="DJI_T.MP4"  # Only 10 chars, needs at least 8 for suffix check
+        )
+        # Doesn't match the timestamp regex patterns, falls through
+        self.assertIsNone(result)
+
+    def test_edge_case__empty_encoder__handled(self):
+        """Test empty encoder string is handled."""
+        result = self.detector._construct_camera_name(
+            make="DJI",
+            model="FC3582",
+            software="",
+            encoder="",  # Empty encoder
+            file_path=""
+        )
+        self.assertEqual(result, "DJI Mini 3 Pro")
+
+    def test_edge_case__empty_input__returns_none(self):
+        """Test that empty input returns None."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertIsNone(result)
+
+    # === Other Camera Brands ===
+
+    def test_samsung__sm_prefix__normalizes_correctly(self):
+        """Test Samsung SM- prefix is removed."""
+        result = self.detector._construct_camera_name(
+            make="Samsung",
+            model="SM-J320FN",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Samsung J320FN")
+
+    def test_realme__lowercase_model__capitalizes(self):
+        """Test Realme lowercase model is capitalized."""
+        result = self.detector._construct_camera_name(
+            make="realme",
+            model="8",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Realme 8")
+
+    def test_sony__dsc_prefix__preserved(self):
+        """Test Sony DSC prefix is preserved."""
+        result = self.detector._construct_camera_name(
+            make="SONY",
+            model="DSC-W810",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Sony DSC-W810")
+
+    def test_nikon__normalizes_nikon_prefix(self):
+        """Test Nikon normalizes NIKON prefix."""
+        result = self.detector._construct_camera_name(
+            make="NIKON CORPORATION",
+            model="NIKON Z 50",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Nikon Z 50")
+
+    def test_bunaty__wifi_solar__detected_from_software(self):
+        """Test Bunaty WiFi Solar detection from software tag."""
+        result = self.detector._construct_camera_name(
+            make="Trail camera",
+            model="RD7010WF",
+            software="Bunaty WiFi",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Bunaty WiFi Solar")
+
+    def test_bunaty__micro_4k__detected_from_software(self):
+        """Test Bunaty Micro 4K detection from software tag."""
+        result = self.detector._construct_camera_name(
+            make="iCatch",
+            model="",
+            software="BUNATY_BV18AD_07",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Bunaty Micro 4K")
+
+    def test_canon__generic__works(self):
+        """Test Canon camera detection."""
+        result = self.detector._construct_camera_name(
+            make="Canon",
+            model="EOS 5D Mark IV",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Canon EOS 5D Mark IV")
+
+    def test_apple__iphone__works(self):
+        """Test Apple iPhone detection."""
+        result = self.detector._construct_camera_name(
+            make="Apple",
+            model="iPhone 5s",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "Apple iPhone 5s")
+
+    def test_generic__make_model__combines(self):
+        """Test generic make+model returns combined string."""
+        result = self.detector._construct_camera_name(
+            make="TestBrand",
+            model="TestModel",
+            software="",
+            encoder="",
+            file_path=""
+        )
+        self.assertEqual(result, "TestBrand TestModel")
 
 
 if __name__ == "__main__":

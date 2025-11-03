@@ -26,10 +26,10 @@ class TestDJICameraMapping(unittest.TestCase):
         result = get_dji_drone_name("FC3582")
         self.assertEqual(result, "DJI Mini 3 Pro")
 
-    def test_single_camera_drones__mini_4_pro__returns_correct_name(self):
-        """Test Mini 4 Pro detection."""
+    def test_single_camera_drones__mini_3__returns_correct_name(self):
+        """Test Mini 3 detection."""
         result = get_dji_drone_name("FC3682")
-        self.assertEqual(result, "DJI Mini 4 Pro")
+        self.assertEqual(result, "DJI Mini 3")
 
     def test_single_camera_drones__mavic_pro__returns_correct_name(self):
         """Test Mavic Pro detection."""

@@ -12,7 +12,7 @@ import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict
 from shared.file_operations import list_files
-from sortunsortedmedialib.constants import EDITED_TAGS, EXTENSION_TYPES
+from sortunsortedmedialib.constants import EDITED_TAGS, EXTENSION_TYPES, DEFAULT_MAX_PARALLEL
 
 
 def open_media_file(media_path: str) -> bool:
@@ -259,98 +259,109 @@ def process_single_file(file_path: str, target_folder: str, file_index: int, tot
         return False, file_path, error_msg
 
 
-def process_unmatched_files(unmatched_files: List[str], target_folder: str, interval: int, max_parallel: int = 3) -> None:
+def process_unmatched_files(unmatched_files: List[str], target_folder: str, interval: int, max_parallel: int = DEFAULT_MAX_PARALLEL) -> None:
     """
-    Process unmatched files in parallel using multiple threads.
-    Each file opens its own window without waiting for previous ones to close.
+    Launch processes for unmatched files in fire-and-forget mode with parallel limit.
+    Maintains max_parallel concurrent processes, checking every 'interval' seconds.
+    Each process runs independently and can only be closed via its GUI window.
+    Main script does not wait for or terminate processes, only monitors them.
 
     Args:
         unmatched_files: List of unmatched file paths
         target_folder: Target folder for sorted media
-        interval: Interval in seconds to wait between launching new processes
-        max_parallel: Maximum number of parallel processes (default: 3)
+        interval: Interval in seconds between process checks and launches
+        max_parallel: Maximum number of concurrent processes (default: DEFAULT_MAX_PARALLEL)
     """
     if not unmatched_files:
         logging.info("No unmatched files to process")
         return
 
     total_files = len(unmatched_files)
-    completed_count = 0
-    failed_files = []
-    
-    print(f"\nStarting parallel processing of {total_files} files...")
-    logging.info(f"Starting parallel processing with max {max_parallel} parallel processes")
+    launched_count = 0
+    failed_count = 0
+    running_processes = []  # List of (process, file_path, file_index) tuples
 
-    # Launch processes with intervals - don't wait for completion during launch
-    launched_processes = []
+    print(f"\nLaunching {total_files} processes in fire-and-forget mode...")
+    print(f"Max parallel processes: {max_parallel}")
+    print(f"Check interval: {interval}s")
+    print(f"Each process can be closed individually via its GUI window.")
+    print(f"Press Ctrl+C to exit this script (running processes will continue).\n")
+    logging.info(f"Starting fire-and-forget processing of {total_files} files (max_parallel={max_parallel}, interval={interval}s)")
+
+    # Get script paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(script_dir)
+    sortunsortedmediafile_path = os.path.join(parent_dir, "sortunsortedmediafile.py")
+
     for i, file_path in enumerate(unmatched_files):
+        # Clean up finished processes from tracking list
+        running_processes = [(p, fp, idx) for p, fp, idx in running_processes if p.poll() is None]
+
+        # Wait until we have a free slot (less than max_parallel running)
+        while len(running_processes) >= max_parallel:
+            logging.info(f"Waiting for free slot ({len(running_processes)}/{max_parallel} processes running)...")
+            print(f"  Waiting for free slot ({len(running_processes)}/{max_parallel} running)...", end='\r')
+            time.sleep(interval)
+            # Clean up finished processes
+            running_processes = [(p, fp, idx) for p, fp, idx in running_processes if p.poll() is None]
+
+        # Now we have a free slot, launch new process
         logging.info(f"Launching process for file {i+1}/{total_files}: {file_path}")
-        print(f"Launching process {i+1}/{total_files}: {os.path.basename(file_path)}")
-        
+        print(f"\nLaunching {i+1}/{total_files}: {os.path.basename(file_path)}")
+
         try:
-            # Launch process asynchronously
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            parent_dir = os.path.dirname(script_dir)
-            sortunsortedmediafile_path = os.path.join(parent_dir, "sortunsortedmediafile.py")
-            
             cmd = [
                 sys.executable,
                 sortunsortedmediafile_path,
                 "--media_file", file_path,
                 "--target_folder", target_folder
             ]
-            
-            # Launch without waiting
-            process = subprocess.Popen(cmd)
-            launched_processes.append((process, file_path, i+1))
-            
-            print(f"✓ Launched process {i+1}/{total_files}: {os.path.basename(file_path)} (PID: {process.pid})")
-            logging.info(f"Launched process for {file_path} with PID {process.pid}")
-            
+
+            # Launch process in fire-and-forget mode with new console window
+            if os.name == 'nt':  # Windows
+                # CREATE_NEW_CONSOLE opens new terminal window where Ctrl+C works
+                # Start minimized using STARTUPINFO
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 6  # SW_MINIMIZE (6) or SW_SHOWMINNOACTIVE (7)
+
+                process = subprocess.Popen(
+                    cmd,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    startupinfo=startupinfo
+                )
+            else:  # Unix/Linux
+                # Start new session (detached from parent)
+                process = subprocess.Popen(
+                    cmd,
+                    start_new_session=True
+                )
+
+            running_processes.append((process, file_path, i+1))
+            launched_count += 1
+            active_count = len([p for p, _, _ in running_processes if p.poll() is None])
+            print(f"  ✓ Launched (PID: {process.pid}) - {active_count}/{max_parallel} slots used")
+            logging.info(f"Launched independent process for {file_path} with PID {process.pid}")
+
         except Exception as e:
-            failed_files.append((file_path, str(e)))
-            print(f"✗ Failed to launch {i+1}/{total_files}: {os.path.basename(file_path)} - {str(e)}")
+            failed_count += 1
+            print(f"  ✗ Failed to launch: {str(e)}")
             logging.error(f"Failed to launch process for {file_path}: {e}")
-        
-        # Add interval between launching processes
+
+        # Wait interval before launching next process
         if interval > 0 and i < total_files - 1:
-            logging.info(f"Waiting {interval} seconds before launching next process...")
             time.sleep(interval)
-    
-    print(f"\n=== All {len(launched_processes)} processes launched ===")
-    print("Now waiting for all processes to complete...")
-    logging.info(f"Successfully launched {len(launched_processes)} processes, now waiting for completion")
-    
-    # Now wait for all launched processes to complete
-    for process, file_path, file_index in launched_processes:
-        try:
-            return_code = process.wait()  # Wait for this specific process to finish
-            completed_count += 1
-            
-            if return_code == 0:
-                print(f"✓ Completed {completed_count}/{total_files}: {os.path.basename(file_path)}")
-                logging.info(f"Successfully processed {file_path}")
-            else:
-                failed_files.append((file_path, f"Process returned exit code {return_code}"))
-                print(f"✗ Failed {completed_count}/{total_files}: {os.path.basename(file_path)} - Exit code {return_code}")
-                logging.error(f"Process failed for {file_path} with exit code {return_code}")
-                
-        except Exception as e:
-            failed_files.append((file_path, str(e)))
-            print(f"✗ Failed {completed_count}/{total_files}: {os.path.basename(file_path)} - {str(e)}")
-            logging.error(f"Error waiting for process {file_path}: {e}")
-    
-    # Report final statistics
-    successful_count = total_files - len(failed_files)
-    print(f"\n=== Processing Complete ===")
-    print(f"Total files: {total_files}")
-    print(f"Successfully processed: {successful_count}")
-    print(f"Failed: {len(failed_files)}")
-    
-    logging.info(f"Processing complete. Success: {successful_count}, Failed: {len(failed_files)}")
-    
-    if failed_files:
-        print(f"\nFailed files:")
-        for file_path, error in failed_files:
-            print(f"  - {os.path.basename(file_path)}: {error}")
-            logging.error(f"Failed to process {file_path}: {error}")
+
+    # Report launch statistics
+    print(f"\n{'='*60}")
+    print(f"Launch Summary:")
+    print(f"  Total files: {total_files}")
+    print(f"  Successfully launched: {launched_count}")
+    print(f"  Failed to launch: {failed_count}")
+    print(f"  Currently running: {len([p for p, _, _ in running_processes if p.poll() is None])}")
+    print(f"\nAll processes launched and running independently.")
+    print(f"Close each GUI window to finish processing that file.")
+    print(f"Exiting main script now (Ctrl+C or just close).")
+    print(f"{'='*60}")
+
+    logging.info(f"Fire-and-forget launch complete. Launched: {launched_count}, Failed: {failed_count}")
