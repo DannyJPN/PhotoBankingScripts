@@ -333,6 +333,15 @@ class EXIFCameraDetector:
                 return "Bunaty Micro 4K"
             return "iCatch Camera"
 
+        # === Realme Videos - Filename-based detection (FALLBACK) ===
+        # Realme videos often lack Make/Model/Software tags entirely
+        # Pattern: VID20240908130819.mp4 (VID + YYYYMMDDHHMMSS + .mp4)
+        # This is a fallback when EXIF is completely missing
+        if filename and re.match(r'^VID\d{14}\.(mp4|MP4)$', filename, re.IGNORECASE):
+            # Only detect as Realme if Make/Model/Software are all missing
+            if not make and not model and not software:
+                return "Realme 8"
+
         # === Generic construction ===
         if make and model:
             # Remove duplicate manufacturer name from model
