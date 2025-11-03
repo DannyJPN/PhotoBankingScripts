@@ -4,6 +4,7 @@ Provides maximum format support for all media types including RAW, videos, audio
 """
 
 import os
+import re
 import subprocess
 import json
 import logging
@@ -52,8 +53,9 @@ class EXIFCameraDetector:
                 self.exiftool_path,
                 "-j",  # JSON output
                 "-Make",
-                "-Model", 
+                "-Model",
                 "-Software",
+                "-Encoder",  # DJI videos store model here
                 "-Creator",
                 "-Artist",
                 "-Copyright",
@@ -72,13 +74,14 @@ class EXIFCameraDetector:
                 return None
                 
             metadata = exif_data[0]  # First (and only) file
-            
+
             # Try to construct camera name from Make and Model
             make = metadata.get("Make", "").strip()
             model = metadata.get("Model", "").strip()
             software = metadata.get("Software", "").strip()
-            
-            camera_name = self._construct_camera_name(make, model, software)
+            encoder = metadata.get("Encoder", "").strip()
+
+            camera_name = self._construct_camera_name(make, model, software, encoder, file_path)
             
             if camera_name:
                 logging.info(f"EXIF detected camera for {file_path}: {camera_name}")
@@ -100,12 +103,12 @@ class EXIFCameraDetector:
             logging.error(f"Unexpected {type(e).__name__} in EXIF extraction for {file_path}: {e}", exc_info=True)
             return None
     
-    def _construct_camera_name(self, make: str, model: str, software: str) -> Optional[str]:
+    def _construct_camera_name(self, make: str, model: str, software: str, encoder: str = "", file_path: str = "") -> Optional[str]:
         """
         Construct camera name from EXIF data with enhanced detection.
 
         Combines manufacturer information with model details, with special handling for:
-        - DJI drones (uses comprehensive FC code database)
+        - DJI drones (uses comprehensive FC code database + Encoder tag + filename detection)
         - Samsung phones (normalizes SM- prefix)
         - Sony cameras (keeps DSC- prefix for compatibility)
         - Nikon cameras (normalizes NIKON prefix)
@@ -115,22 +118,62 @@ class EXIFCameraDetector:
             make: Camera manufacturer from EXIF Make tag
             model: Camera model from EXIF Model tag
             software: Software/firmware from EXIF Software tag
+            encoder: Encoder string from video metadata (DJI stores model here)
+            file_path: Full file path (for filename-based detection)
 
         Returns:
             Constructed camera name matching existing folder structure, or None
 
         Examples:
-            >>> _construct_camera_name("DJI", "FC3582", "")
+            >>> _construct_camera_name("DJI", "FC3582", "", "", "")
             "DJI Mini 3 Pro"
-            >>> _construct_camera_name("samsung", "SM-J320FN", "")
+            >>> _construct_camera_name("", "", "", "DJI NEO", "DJI_20250325145015_0001_D.MP4")
+            "DJI Neo"
+            >>> _construct_camera_name("samsung", "SM-J320FN", "", "", "")
             "Samsung J320FN"
         """
         # Clean up the strings
         make = make.replace("Corporation", "").replace("CORPORATION", "").strip()
         model = model.strip()
         software = software.strip()
+        encoder = encoder.strip()
+        filename = os.path.basename(file_path) if file_path else ""
 
-        # === DJI Drones - Use comprehensive database ===
+        # === DJI Drones - Detect by Encoder tag (highest priority) ===
+        # DJI videos without EXIF Make/Model store the drone model in Encoder tag
+        # Pattern: Encoder="DJI NEO", "DJIMavic3", etc.
+        if encoder and encoder.upper().startswith("DJI"):
+            # Parse encoder string to extract model name
+            if encoder == "DJI NEO":
+                return "DJI Neo"
+            elif encoder == "DJIMavic3":
+                return "DJI Mavic 3"
+            elif encoder.startswith("DJI"):
+                # Generic DJI encoder, try to parse model
+                model_part = encoder.replace("DJI", "").replace("dji", "").strip()
+                if model_part:
+                    # First try lookup in DJI database (handles M3T, M3E, M3M, etc.)
+                    dji_name = get_dji_drone_name(model_part)
+                    if dji_name:
+                        return dji_name
+
+                    # If not in database, normalize model name (e.g., "Mavic3" → "Mavic 3")
+                    # Add space before numbers if missing (Mavic3 → Mavic 3)
+                    model_part = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', model_part)
+                    return f"DJI {model_part}"
+                return "DJI Drone"
+
+        # === DJI Drones - Detect by FC code even if Make tag is missing (priority 2) ===
+        # DJI videos often lack Make tag but have Model=FC#### or Zenmuse codes
+        # These have HIGHER priority than filename patterns
+        if model and (model.startswith("FC") or model.startswith("ZH") or model.startswith("Zenmuse") or model.startswith("L1D-") or model.startswith("L2D-")):
+            # Check if it's a known DJI camera code
+            if is_dji_camera(model):
+                dji_name = get_dji_drone_name(model)
+                if dji_name:
+                    return dji_name
+
+        # === DJI Drones - Use comprehensive database when Make tag exists (priority 3) ===
         if make.lower() == "dji":
             if model:
                 # Try DJI database lookup first
@@ -141,6 +184,48 @@ class EXIFCameraDetector:
                 return f"DJI Drone ({model})"
             else:
                 return "DJI Drone"
+
+        # === DJI Drones - Detect by filename pattern + Encoder (FALLBACK - priority 4) ===
+        # Some DJI videos lack both Make/Model and have generic Encoder (Lavf*)
+        # but can be identified by filename pattern: DJI_####.MP4 or DJI_YYYYMMDDHHMMSS_####_D.MP4
+        # This is a FALLBACK when FC codes are not available
+        if filename and re.match(r'^DJI_.*\.(MP4|MOV|mp4|mov)$', filename, re.IGNORECASE):
+            # Check if it's old format (4-digit) or new format (timestamp)
+            if re.match(r'^DJI_\d{4}\.', filename):
+                # Old format: DJI_####.MP4
+                # DJI Mini 3 uses Lavf56.15.102 encoder with 4-digit filename
+                if encoder == "Lavf56.15.102":
+                    return "DJI Mini 3"
+                # Other old-format files without specific encoder
+                return "DJI Drone (Unknown Model)"
+            elif re.match(r'^DJI_\d{14}_\d+\.', filename):
+                # New format: DJI_YYYYMMDDHHMMSS_####.MP4 (no suffix - Matrice wide camera)
+                return "DJI Matrice 300 + Zenmuse H20T"
+            elif re.match(r'^DJI_\d{14}_\d+_[A-Z]\.', filename):
+                # New format: DJI_YYYYMMDDHHMMSS_####_X.MP4 (X = suffix)
+                # Detect by suffix:
+                # _T = Thermal camera (Matrice 300 + Zenmuse H20T)
+                # _W = Wide camera (Matrice 300 + Zenmuse H20T)
+                # _Z = Zoom camera (Matrice 300 + Zenmuse H20T)
+                # _S = Mavic 3 Thermal (but usually detected earlier by Encoder="DJI M3T")
+                # _D = Standard camera (Neo, etc.)
+
+                # Safety check: ensure filename is long enough for indexing
+                # Minimum valid: "DJI_20250402141639_0004_T.MP4" = 31 chars
+                if len(filename) < 8:
+                    return "DJI Drone (Unknown Model)"
+
+                suffix = filename[-6:-4].upper()  # Extract suffix safely
+                if suffix == '_T':  # _T.MP4 or _T.MOV
+                    return "DJI Matrice 300 + Zenmuse H20T"
+                elif suffix == '_W':  # _W.MP4 or _W.MOV
+                    return "DJI Matrice 300 + Zenmuse H20T"
+                elif suffix == '_Z':  # _Z.MP4 or _Z.MOV
+                    return "DJI Matrice 300 + Zenmuse H20T"
+                elif suffix == '_S':  # _S.MP4 or _S.MOV
+                    return "DJI Mavic 3 Thermal"
+                # _D or other suffix
+                return "DJI Drone (Unknown Model)"
 
         # === Samsung - Normalize model numbers ===
         # EXIF: "SM-J320FN" → Folder: "Samsung J320FN"
@@ -177,10 +262,16 @@ class EXIFCameraDetector:
         # EXIF: "realme 8" → Folder: "Realme 8"
         elif make.lower() == "realme":
             if model:
-                # Capitalize first letter of model if needed
+                # Check if model already contains "Realme"
+                if model.lower().startswith("realme"):
+                    # Model already contains "Realme", capitalize and return as-is
+                    return model[0].upper() + model[1:]
+                # Otherwise prepend "Realme"
                 if model[0].islower():
                     model = model[0].upper() + model[1:]
                 return f"Realme {model}"
+
+
 
 
         # === Canon ===

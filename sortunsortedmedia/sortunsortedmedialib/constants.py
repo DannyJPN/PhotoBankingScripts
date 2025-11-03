@@ -7,6 +7,11 @@ Contains default values, regular expressions, and dictionaries for media classif
 DEFAULT_UNSORTED_FOLDER = "I:/Neroztříděno"
 DEFAULT_TARGET_FOLDER = "I:/Roztříděno"
 DEFAULT_INTERVAL = 60  # seconds
+DEFAULT_MAX_PARALLEL = 60
+# Maximum number of parallel processes
+
+# Terminal pause duration after processing a single file (in seconds)
+TERMINAL_PAUSE_DURATION = 300  # 5 minutes = 300 seconds
 
 # ExifTool path
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
@@ -30,6 +35,9 @@ EDITED_TAGS = {
 
 # Regular expressions for camera detection based on actual file patterns found on J: drive
 CAMERA_REGEXES = {
+
+
+
     # Sony CyberShot W810 - DSC00151.JPG pattern (verified from J: analysis)
     r"^DSC\d{5}$": "Sony CyberShot W810",
     
@@ -53,8 +61,8 @@ CAMERA_REGEXES = {
     # Bunaty Micro 4K - PICT0195.JPG pattern (supports 4-6 digit numbering)
     r"^PICT\d{4,6}$": "Bunaty Micro 4K",
     
-    # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG pattern
-    r"^\d{14}_IM_\d{5}$": "Bunaty WiFi Solar",
+    # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG (image) and 20241111043058_VD_00882.MP4 (video) patterns
+    r"^\d{14}_(IM|VD)_\d{5}$": "Bunaty WiFi Solar",
     
     # Acer 10 - WIN_20180226_07_01_04_Pro.jpg pattern
     r"^WIN_\d{8}_\d{2}_\d{2}_\d{2}_Pro$": "Acer 10",
@@ -203,6 +211,31 @@ EXTENSION_TYPES = {
     "vox": "Audio",
     "wv": "Audio"
 }
+
+# RAW image format extensions (for full-size image loading with rawpy)
+RAW_EXTENSIONS = [
+    '.nef', '.nrw',  # Nikon
+    '.arw', '.srf', '.sr2',  # Sony
+    '.cr2', '.cr3', '.crw',  # Canon
+    '.dng',  # Adobe Digital Negative (universal)
+    '.orf',  # Olympus
+    '.rw2', '.raw',  # Panasonic
+    '.rwl',  # Leica
+    '.raf',  # Fuji
+    '.pef', '.ptx',  # Pentax
+    '.x3f',  # Sigma
+    '.3fr',  # Hasselblad
+    '.fff',  # Imacon
+    '.iiq', '.eip', '.cap',  # Phase One
+    '.mef',  # Mamiya
+    '.mrw',  # Minolta
+    '.erf',  # Epson
+    '.dcs', '.dcr', '.kdc', '.k25',  # Kodak
+    '.bay',  # Casio
+    '.gpr',  # GoPro
+    '.r3d',  # RED
+    '.data', '.drf',  # Other
+]
 
 # Categories for organizing media
 DEFAULT_CATEGORIES = [
