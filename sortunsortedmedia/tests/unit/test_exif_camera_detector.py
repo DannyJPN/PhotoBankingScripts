@@ -308,6 +308,40 @@ class TestEXIFCameraDetector(unittest.TestCase):
         )
         self.assertEqual(result, "Realme 8")
 
+    def test_realme__video_no_exif__filename_based_detection(self):
+        """Test Realme 8 video detection via filename when EXIF is missing."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="",
+            file_path="VID20240908130819.mp4"
+        )
+        self.assertEqual(result, "Realme 8")
+
+    def test_realme__video_uppercase_extension__detects(self):
+        """Test Realme detection works with uppercase .MP4 extension."""
+        result = self.detector._construct_camera_name(
+            make="",
+            model="",
+            software="",
+            encoder="",
+            file_path="VID20241231235959.MP4"
+        )
+        self.assertEqual(result, "Realme 8")
+
+    def test_realme__video_with_exif__prefers_exif(self):
+        """Test that EXIF detection has priority over filename pattern."""
+        result = self.detector._construct_camera_name(
+            make="samsung",
+            model="SM-G991B",
+            software="",
+            encoder="",
+            file_path="VID20240908130819.mp4"
+        )
+        # Should return Samsung, not Realme, because Make tag exists
+        self.assertEqual(result, "Samsung G991B")
+
     def test_sony__dsc_prefix__preserved(self):
         """Test Sony DSC prefix is preserved."""
         result = self.detector._construct_camera_name(
