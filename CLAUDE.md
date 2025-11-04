@@ -105,19 +105,35 @@ File-based approach avoids shell escaping issues and supports full formatting.
 
 **Before committing:**
 1. **Stop Dropbox**: Check if Dropbox is running and kill it before git operations
-   - Check: `tasklist | findstr Dropbox`
-   - Kill: `taskkill /f /im Dropbox.exe` (if running)
+
+   **On Windows (use PowerShell):**
+   - Check: `Get-Process | Where-Object {$_.Name -like "*Dropbox*"}`
+   - Kill: `Stop-Process -Name "Dropbox" -Force`
+   - **If permission denied**: Ask user to manually stop Dropbox via system tray (right-click → Quit Dropbox)
+
+   **On Linux/macOS (use bash):**
+   - Check: `ps aux | grep -i dropbox`
+   - Kill: `pkill -9 dropbox`
+
    - **Critical**: Git operations fail with "Permission denied" errors when Dropbox is syncing
+   - **Platform detection**: Check `platform` in <env> (win32 = Windows, linux = Linux, darwin = macOS)
+
 2. **Clean up temporary files**: Always remove `*.tmp.*` files before staging
 3. **Stage only modified files**: Never use `git add .` - explicitly list only the files you modified
 4. **Example**: `git add file1.py file2.py constants.py` (not `git add .`)
 
 **After pushing:**
-- **Restart Dropbox**: `start "" "C:\Program Files (x86)\Dropbox\Client\Dropbox.exe"`
 
-**Rationale**: 
-- Dropbox file locking prevents Git from writing to `.git/objects/` 
+**On Windows (PowerShell):**
+- **Restart Dropbox**: `Start-Process "C:\Program Files (x86)\Dropbox\Client\Dropbox.exe"`
+
+**On Linux/macOS (bash):**
+- **Restart Dropbox**: `dropbox start` or check system-specific command
+
+**Rationale**:
+- Dropbox file locking prevents Git from writing to `.git/objects/`
 - Prevents accidental commits of temporary files, build artifacts, or unrelated changes
+- PowerShell must be used on Windows for proper process management
 
 ---
 
