@@ -1,8 +1,11 @@
 from shared.file_operations import list_files, move_file
 import logging
 import os
+from datetime import datetime
 from shared.file_operations import get_hash_map_from_folder, compute_file_hash
 from shared.name_utils import extract_numeric_suffix, generate_indexed_filename, find_next_available_number
+from shared.exif_handler import get_best_creation_date
+from shared.exif_downloader import ensure_exiftool
 from tqdm import tqdm
 from shared.file_operations import list_files
 from pullnewmediatounsortedlib.constants import DEFAULT_NUMBER_WIDTH, MAX_NUMBER
@@ -47,6 +50,7 @@ def normalize_indexed_filenames(
     Upraví názvy souborů s daným `prefix` a číselným suffixem v `source_folder`:
       - Shodné obsahy podle hashů přejmenuje na stávající jméno z `reference_folder`.
       - Jiné přejmenuje na nejnižší dostupné číslo se zadanou `width`.
+      - Soubory jsou seřazeny chronologicky (nejstarší první), aby čísla odpovídala pořadí vytvoření.
     Renaming proběhne přímo na místě (změní se jen název, ne cesta ke složce).
     """
     logging.info(
@@ -86,8 +90,32 @@ def normalize_indexed_filenames(
             used_nums.add(num)
     logging.debug("Combined used numbers: %s", sorted(used_nums))
 
-    # 5) Projdi každý soubor a zjisti jeho hash
-    for src_path in tqdm(paths, desc="Normalizing indexed files", unit="file"):
+    # 5) Sort files chronologically (oldest first) to ensure correct numbering order
+    # Find ExifTool once at the beginning (not in every loop iteration)
+    try:
+        exiftool_path = ensure_exiftool()
+        logging.debug("ExifTool located at: %s", exiftool_path)
+    except FileNotFoundError as e:
+        logging.warning("ExifTool not found, will use filesystem dates only: %s", e)
+        exiftool_path = None
+
+    def get_file_date(path: str) -> datetime:
+        """Returns file creation date (EXIF or filesystem)"""
+        date = get_best_creation_date(path, tool_path=exiftool_path)
+        if date is None:
+            # Fallback to file modification time
+            try:
+                date = datetime.fromtimestamp(os.path.getmtime(path))
+            except Exception:
+                # Last resort: use epoch time to put problematic files at the beginning
+                date = datetime.fromtimestamp(0)
+        return date
+
+    logging.info("Sorting %d files chronologically for correct numbering...", len(paths))
+    sorted_paths = sorted(paths, key=get_file_date)
+
+    # 6) Projdi každý soubor a zjisti jeho hash
+    for src_path in tqdm(sorted_paths, desc="Normalizing indexed files", unit="file"):
         name = os.path.basename(src_path)
         try:
             h = compute_file_hash(src_path)
