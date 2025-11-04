@@ -10,7 +10,8 @@ from shared.logging_config import setup_logging
 from removealreadysortedoutlib.constants import (
     DEFAULT_UNSORTED_FOLDER,
     DEFAULT_TARGET_FOLDER,
-    DEFAULT_LOG_DIR
+    DEFAULT_LOG_DIR,
+    PREFIXES_TO_NORMALIZE,
 )
 
 from removealreadysortedoutlib.removal_operations import (
@@ -76,13 +77,14 @@ def main():
     
     # Step 3: Normalize indexed filenames in unsorted vs target
     logging.info("Step 3: Normalizing indexed filenames...")
-    normalize_indexed_filenames(
-        source_folder=args.unsorted_folder,
-        reference_folder=args.target_folder,
-        prefix=args.index_prefix,
-        width=args.index_width,
-        max_number=args.index_max,
-    )
+    for prefix in PREFIXES_TO_NORMALIZE:
+        normalize_indexed_filenames(
+            source_folder=args.unsorted_folder,
+            reference_folder=args.target_folder,
+            prefix=prefix,
+            width=args.index_width,
+            max_number=args.index_max,
+        )
     
     # Step 4: Get list of files from unsorted folder (after preprocessing)
     logging.info("Step 4: Listing files in unsorted folder...")
