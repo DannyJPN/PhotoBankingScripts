@@ -20,7 +20,9 @@ from pullnewmediatounsortedlib.constants import (
     DEFAULT_TARGET_FOLDER,
     DEFAULT_TARGET_SCREEN_FOLDER,
     DEFAULT_FINAL_TARGET_FOLDER,
-    DEFAULT_LOG_DIR, SCREENSHOT_MARKERS,
+    DEFAULT_LOG_DIR,
+    SCREENSHOT_MARKERS,
+    PREFIXES_TO_NORMALIZE,
 )
 
 from pullnewmediatounsortedlib.renaming         import replace_in_filenames
@@ -81,23 +83,25 @@ def main():
         replace_in_filenames(folder, "_NIK", "NIK_", recursive=True)
 
     # 2) Normalize indexed filenames in target vs final_target
-    normalize_indexed_filenames(
-        source_folder=args.target,
-        reference_folder=args.final_target,
-        prefix=args.index_prefix,
-        width=args.index_width,
-        max_number=args.index_max,
-    )
-
-    # 3) Normalize indexed filenames in sources vs target
-    for folder in sources + screen_sources:
+    for prefix in PREFIXES_TO_NORMALIZE:
         normalize_indexed_filenames(
-            source_folder=folder,
-            reference_folder=args.target,
-            prefix=args.index_prefix,
+            source_folder=args.target,
+            reference_folder=args.final_target,
+            prefix=prefix,
             width=args.index_width,
             max_number=args.index_max,
         )
+
+    # 3) Normalize indexed filenames in sources vs target
+    for folder in sources + screen_sources:
+        for prefix in PREFIXES_TO_NORMALIZE:
+            normalize_indexed_filenames(
+                source_folder=folder,
+                reference_folder=args.target,
+                prefix=prefix,
+                width=args.index_width,
+                max_number=args.index_max,
+            )
 
     # 4) Copy media files to target
     for folder in sources:
@@ -106,7 +110,7 @@ def main():
     # 5) Copy screenshot files to target_screen
     pattern = rf"(?:{'|'.join(re.escape(m) for m in SCREENSHOT_MARKERS)})"
     for folder in sources + screen_sources:
-        copy_folder(folder, args.target_screen,pattern = pattern )
+        copy_folder(folder, args.target_screen, pattern=pattern)
 
     # 6) Ensure temporary directory exists
     temp_dir = os.path.join(args.target, "FotoTemp")
