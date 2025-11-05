@@ -110,7 +110,7 @@ def main():
     # 5) Copy screenshot files to target_screen
     pattern = rf"(?:{'|'.join(re.escape(m) for m in SCREENSHOT_MARKERS)})"
     for folder in sources + screen_sources:
-        copy_folder(folder, args.target_screen,pattern = pattern )
+        copy_folder(folder, args.target_screen, pattern=pattern)
 
     # 6) Ensure temporary directory exists
     temp_dir = os.path.join(args.target, "FotoTemp")
