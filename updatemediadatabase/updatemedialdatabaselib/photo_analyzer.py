@@ -211,7 +211,16 @@ def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str
         Dictionary mapping photo bank names to boolean validation results
     """
     results = {}
-    
+
+    # Videos should not be validated against PhotoLimits (photo-only limits)
+    media_type = metadata.get("Type", "")
+    if media_type in [TYPE_VIDEO, TYPE_EDITED_VIDEO]:
+        logging.debug(f"Skipping PhotoLimits validation for video: {metadata.get('Filename', 'unknown')}")
+        for limit in limits:
+            bank_name = limit.get(LIMITS_COLUMN_BANK, "Unknown")
+            results[bank_name] = True  # Videos are not rejected based on photo limits
+        return results
+
     # If no dimensions available, assume file meets all limits
     if "Width" not in metadata or "Height" not in metadata:
         logging.debug(f"No dimensions available for {metadata.get('Filename', 'unknown file')}: assuming all limits met")

@@ -33,46 +33,55 @@ from updatemedialdatabaselib.constants import (
 from updatemedialdatabaselib.exif_downloader import ensure_exiftool
 from updatemedialdatabaselib.media_processor import process_media_file
 
-def apply_jpg_first_logic(all_files: List[str]) -> List[str]:
+def split_files_by_type(all_files: List[str]) -> Dict[str, List[str]]:
     """
-    Apply JPG-first logic to file list.
-    
-    Rules:
-    1. Always include JPG files
-    2. For non-JPG files, include only if no JPG with same basename exists
-    
+    Split files into JPG, non-JPG images, and videos.
+
     Args:
         all_files: List of all file paths
-        
+
     Returns:
-        Filtered list of files to process
+        Dictionary with keys 'jpg', 'non_jpg_images', 'videos' containing file lists
     """
-    import os
-    from collections import defaultdict
-    
-    # Group files by basename (without extension)
-    files_by_basename = defaultdict(list)
-    
+    jpg_files = []
+    non_jpg_images = []
+    videos = []
+
+    # Extensions for each category
+    JPG_EXTENSIONS = ('.jpg', '.jpeg')
+    VIDEO_EXTENSIONS = ('.mp4', '.mov', '.avi', '.wmv', '.mkv')
+    IMAGE_EXTENSIONS = ('.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw', '.psd')
+
     for file_path in all_files:
-        basename = os.path.splitext(os.path.basename(file_path))[0]
-        files_by_basename[basename].append(file_path)
-    
-    files_to_process = []
-    
-    for basename, file_paths in files_by_basename.items():
-        # Check if any JPG files exist for this basename
-        jpg_files = [f for f in file_paths if f.lower().endswith(('.jpg', '.jpeg'))]
-        
-        if jpg_files:
-            # If JPG files exist, add all JPG files
-            files_to_process.extend(jpg_files)
-            logging.debug(f"Added {len(jpg_files)} JPG files for basename '{basename}'")
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext in JPG_EXTENSIONS:
+            jpg_files.append(file_path)
+        elif ext in VIDEO_EXTENSIONS:
+            videos.append(file_path)
+        elif ext in IMAGE_EXTENSIONS:
+            non_jpg_images.append(file_path)
         else:
-            # If no JPG files, add all non-JPG files for this basename
-            files_to_process.extend(file_paths)
-            logging.debug(f"Added {len(file_paths)} non-JPG files for basename '{basename}' (no JPG found)")
-    
-    return files_to_process
+            logging.debug(f"Skipping file with unknown extension: {file_path}")
+
+    logging.debug(f"Split files: {len(jpg_files)} JPG, {len(non_jpg_images)} non-JPG images, {len(videos)} videos")
+    return {
+        'jpg': jpg_files,
+        'non_jpg_images': non_jpg_images,
+        'videos': videos
+    }
+
+def get_basename_from_filepath(file_path: str) -> str:
+    """
+    Get basename (filename without extension) from file path.
+
+    Args:
+        file_path: Full file path
+
+    Returns:
+        Basename without extension
+    """
+    return os.path.splitext(os.path.basename(file_path))[0]
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -148,58 +157,185 @@ def main():
         args.edit_photo_dir,
         args.edit_video_dir
     ]
-    
-    # Process each directory with JPG-first logic
-    new_records = []
+
+    # Step 1: Collect all files from all directories
+    print("Collecting files from all directories...")
+    all_files = []
     for directory in media_dirs:
         if not os.path.exists(directory):
             logging.warning(f"Directory does not exist, skipping: {directory}")
             continue
-        
-        print(f"Processing directory: {directory}")
-        logging.debug(f"Processing directory: {directory}")
-        
+
+        print(f"Scanning directory: {directory}")
+        logging.debug(f"Scanning directory: {directory}")
+
         # Get all files in the directory
-        all_files = list_files(directory, recursive=True)
-        print(f"Found {len(all_files)} files in {directory}")
-        logging.debug(f"Found {len(all_files)} files in {directory}")
-        
-        if not all_files:
-            continue
-            
-        # Apply JPG-first logic: prioritize JPG files, add non-JPG only if no JPG with same basename exists
-        files_to_process = apply_jpg_first_logic(all_files)
-        print(f"After JPG-first filtering: {len(files_to_process)} files to process")
-        logging.debug(f"After JPG-first filtering: {len(files_to_process)} files to process")
-        
-        # Process filtered files with progress bar
-        with tqdm(files_to_process, desc=f"Processing {os.path.basename(directory)}", unit="file") as pbar:
+        dir_files = list_files(directory, recursive=True)
+        all_files.extend(dir_files)
+        print(f"Found {len(dir_files)} files in {directory}")
+        logging.debug(f"Found {len(dir_files)} files in {directory}")
+
+    print(f"\nTotal files found: {len(all_files)}")
+    logging.info(f"Total files found: {len(all_files)}")
+
+    if not all_files:
+        print("No files found to process")
+        logging.info("No files found to process")
+        return
+
+    # Step 2: Split files by type (JPG, videos, non-JPG images)
+    print("Splitting files by type...")
+    files_by_type = split_files_by_type(all_files)
+    jpg_files = files_by_type['jpg']
+    videos = files_by_type['videos']
+    non_jpg_images = files_by_type['non_jpg_images']
+
+    print(f"  JPG files: {len(jpg_files)}")
+    print(f"  Videos: {len(videos)}")
+    print(f"  Non-JPG images: {len(non_jpg_images)}")
+    logging.info(f"Split files: {len(jpg_files)} JPG, {len(videos)} videos, {len(non_jpg_images)} non-JPG images")
+
+    # Step 3: Process JPG files first
+    if jpg_files:
+        print("\n=== Phase 1: Processing JPG files ===")
+        logging.info("Phase 1: Processing JPG files")
+        new_records = []
+
+        with tqdm(jpg_files, desc="Processing JPG files", unit="file") as pbar:
             for file_path in pbar:
                 pbar.set_postfix_str(f"Current: {os.path.basename(file_path)}")
                 record = process_media_file(file_path, database, limits, exiftool_path, existing_filenames)
                 if record:
                     new_records.append(record)
-                    # Add to existing filenames to prevent processing duplicates within this run
                     existing_filenames.add(record.get(COLUMN_FILENAME))
-    
-    # Update database with new records
-    if new_records:
-        print(f"\nAdding {len(new_records)} new records to database")
-        logging.debug(f"Adding {len(new_records)} new records to database")
-        updated_database = database + new_records
-        
-        # Save updated database
-        try:
-            print("Saving updated database...")
-            save_csv_with_backup(updated_database, args.media_csv)
-            print(f"✅ Successfully saved database with {len(updated_database)} total records")
-            logging.debug(f"Saved updated database with {len(updated_database)} records")
-        except Exception as e:
-            logging.error(f"Failed to save database: {e}")
-            print(f"❌ Failed to save database: {e}")
-    else:
-        print("No new records found to add to database")
-        logging.debug("No new records to add to database")
+
+        if new_records:
+            print(f"Adding {len(new_records)} JPG records to database")
+            logging.info(f"Adding {len(new_records)} JPG records to database")
+            database = database + new_records
+
+            try:
+                print("Saving database after JPG processing...")
+                save_csv_with_backup(database, args.media_csv)
+                print(f"✅ Saved database with {len(database)} total records")
+                logging.info(f"Saved database with {len(database)} records after JPG phase")
+            except Exception as e:
+                logging.error(f"Failed to save database after JPG phase: {e}")
+                print(f"❌ Failed to save database: {e}")
+                return
+
+            # Reload database to ensure we have the latest data
+            try:
+                database = load_csv(args.media_csv)
+                existing_filenames = set(record.get(COLUMN_FILENAME) for record in database if record.get(COLUMN_FILENAME))
+                logging.debug(f"Reloaded database: {len(database)} records, {len(existing_filenames)} filenames")
+            except Exception as e:
+                logging.error(f"Failed to reload database: {e}")
+        else:
+            print("No new JPG records to add")
+            logging.info("No new JPG records")
+
+    # Step 4: Process videos
+    if videos:
+        print("\n=== Phase 2: Processing videos ===")
+        logging.info("Phase 2: Processing videos")
+        new_records = []
+
+        with tqdm(videos, desc="Processing videos", unit="file") as pbar:
+            for file_path in pbar:
+                pbar.set_postfix_str(f"Current: {os.path.basename(file_path)}")
+                record = process_media_file(file_path, database, limits, exiftool_path, existing_filenames)
+                if record:
+                    new_records.append(record)
+                    existing_filenames.add(record.get(COLUMN_FILENAME))
+
+        if new_records:
+            print(f"Adding {len(new_records)} video records to database")
+            logging.info(f"Adding {len(new_records)} video records to database")
+            database = database + new_records
+
+            try:
+                print("Saving database after video processing...")
+                save_csv_with_backup(database, args.media_csv)
+                print(f"✅ Saved database with {len(database)} total records")
+                logging.info(f"Saved database with {len(database)} records after video phase")
+            except Exception as e:
+                logging.error(f"Failed to save database after video phase: {e}")
+                print(f"❌ Failed to save database: {e}")
+                return
+
+            # Reload database
+            try:
+                database = load_csv(args.media_csv)
+                existing_filenames = set(record.get(COLUMN_FILENAME) for record in database if record.get(COLUMN_FILENAME))
+                logging.debug(f"Reloaded database: {len(database)} records, {len(existing_filenames)} filenames")
+            except Exception as e:
+                logging.error(f"Failed to reload database: {e}")
+        else:
+            print("No new video records to add")
+            logging.info("No new video records")
+
+    # Step 5: Process non-JPG images (only if JPG version doesn't exist in DB)
+    if non_jpg_images:
+        print("\n=== Phase 3: Processing non-JPG images ===")
+        logging.info("Phase 3: Processing non-JPG images")
+
+        # Build a set of basenames from existing JPG files in database
+        jpg_basenames_in_db = set()
+        for record in database:
+            filename = record.get(COLUMN_FILENAME)
+            if filename and filename.lower().endswith(('.jpg', '.jpeg')):
+                basename = get_basename_from_filepath(filename)
+                jpg_basenames_in_db.add(basename)
+
+        logging.debug(f"Found {len(jpg_basenames_in_db)} JPG basenames in database")
+
+        # Filter non-JPG files: skip if JPG version exists
+        files_to_process = []
+        skipped_count = 0
+        for file_path in non_jpg_images:
+            basename = get_basename_from_filepath(file_path)
+            if basename in jpg_basenames_in_db:
+                logging.debug(f"Skipping {os.path.basename(file_path)} - JPG version exists in database")
+                skipped_count += 1
+            else:
+                files_to_process.append(file_path)
+
+        print(f"  Files to process: {len(files_to_process)}")
+        print(f"  Files skipped (JPG exists): {skipped_count}")
+        logging.info(f"Non-JPG: {len(files_to_process)} to process, {skipped_count} skipped (JPG exists)")
+
+        if files_to_process:
+            new_records = []
+
+            with tqdm(files_to_process, desc="Processing non-JPG images", unit="file") as pbar:
+                for file_path in pbar:
+                    pbar.set_postfix_str(f"Current: {os.path.basename(file_path)}")
+                    record = process_media_file(file_path, database, limits, exiftool_path, existing_filenames)
+                    if record:
+                        new_records.append(record)
+                        existing_filenames.add(record.get(COLUMN_FILENAME))
+
+            if new_records:
+                print(f"Adding {len(new_records)} non-JPG records to database")
+                logging.info(f"Adding {len(new_records)} non-JPG records to database")
+                database = database + new_records
+
+                try:
+                    print("Saving database after non-JPG processing...")
+                    save_csv_with_backup(database, args.media_csv)
+                    print(f"✅ Saved database with {len(database)} total records")
+                    logging.info(f"Saved database with {len(database)} records after non-JPG phase")
+                except Exception as e:
+                    logging.error(f"Failed to save database after non-JPG phase: {e}")
+                    print(f"❌ Failed to save database: {e}")
+                    return
+            else:
+                print("No new non-JPG records to add")
+                logging.info("No new non-JPG records")
+        else:
+            print("No non-JPG files to process (all have JPG versions)")
+            logging.info("No non-JPG files to process")
     
     print("\n✅ UpdateMediaDatabase completed successfully")
     logging.info("UpdateMediaDatabase completed successfully")

@@ -105,8 +105,7 @@
       "Write(./**)",
       "Edit(./**)",
       "Delete(./**)",
-	  "Update(./**)",
-      "Bash(python:*.py:*)",
+      "Bash(python *.py:*)",
       "Bash(pytest:*)",
       "Bash(coverage:*)",
 
