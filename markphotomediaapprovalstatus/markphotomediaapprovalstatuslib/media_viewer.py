@@ -389,9 +389,12 @@ class MediaViewer:
             if decision:  # Only process if user made a selection
                 decisions[bank] = decision
                     
-        if not decisions:
-            messagebox.showwarning("No Decisions", "Please make at least one approval decision.")
-            return
+
+
+
+
+
+
             
         # Call completion callback with decisions
         if self.completion_callback:
