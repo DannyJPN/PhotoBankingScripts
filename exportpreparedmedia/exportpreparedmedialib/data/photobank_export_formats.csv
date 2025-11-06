@@ -1,0 +1,11 @@
+bank,headers,delimiter
+ShutterStock,"Filename,Description,Keywords,Categories,Editorial,Mature content,illustration",","
+AdobeStock,"Filename,Title,Keywords,Category,Releases",","
+DreamsTime,"Filename,Image Name,Description,Category 1,Category 2,Category 3,keywords,Free,W-EL,P-EL,SR-EL,SR-Price,Editorial,MR doc Ids,Pr Docs",","
+DepositPhotos,"Filename,description,Keywords,Nudity,Editorial",","
+BigStockPhoto,"filename,description,keywords,categories,illustration,editorial",","
+123RF,"oldfilename,123rf_filename,description,keywords,country",","
+CanStockPhoto,"filename\ttitle\tdescription\tkeywords","\t"
+Pond5,"originalfilename,title,description,keywords,location,specifysource,copyright,price,imagetype",","
+GettyImages,"file name,created date,description,country,brief code,title,keywords",","
+Alamy,"Filename,Caption,Tags,License type,Username,Super Tags,Location,Date taken,Number of People,Model release,Is there property in this image,Property release ,Primary category,Secondary category,Image Type,Exclusive to Alamy,Additional Info",","
