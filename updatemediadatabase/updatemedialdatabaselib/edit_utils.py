@@ -207,7 +207,7 @@ def update_metadata_for_edit(metadata: Dict[str, str], edit_type: str) -> Dict[s
     if 'Keywords' in updated:
         updated['Keywords'] = modify_keywords_for_edit(updated['Keywords'], edit_type)
     else:
-        updated['Keywords'] = ', '.join(edit_keywords.get(edit_type, [edit_type]))
+        updated['Keywords'] = modify_keywords_for_edit("", edit_type)
     
     # Add edit type to metadata
     updated['EditType'] = edit_type
