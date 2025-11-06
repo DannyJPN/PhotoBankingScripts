@@ -25,6 +25,8 @@ logs/
 
 # Temporary files
 *.tmp
+*.tmp.*
+*.*.tmp
 *.temp
 *~
 
@@ -38,6 +40,17 @@ logs/
 **/config/api_keys.*
 .env
 .env.local
+
+# Scripts with credentials (PowerShell, Bash)
+fix_*.ps1
+*_credentials.ps1
+*_secrets.ps1
+*_password*.ps1
+*_credentials.sh
+*_secrets.sh
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # Build artifacts
 build/
