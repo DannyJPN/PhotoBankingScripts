@@ -1,0 +1,21 @@
+{
+  "_comment": "User Configuration Template for PhotoBanking Scripts",
+  "_instructions": [
+    "1. Copy this file to 'user.config.json' in the same directory",
+    "2. Edit 'user.config.json' with your personal information",
+    "3. IMPORTANT: 'user.config.json' is already in .gitignore and will NOT be committed to Git",
+    "4. Alternatively, you can set environment variables: PHOTOBANK_USERNAME, PHOTOBANK_AUTHOR, PHOTOBANK_LOCATION, PHOTOBANK_EMAIL"
+  ],
+
+  "username": "YourPhotobankUsername",
+  "author": "Your Full Name",
+  "location": "Your Country/Region",
+  "email": "your.email@example.com",
+
+  "_notes": {
+    "username": "Your username for photobank submissions (used in exports)",
+    "author": "Your full name or artist name for copyright notices",
+    "location": "Your default location for photo metadata",
+    "email": "Your contact email (optional, used for metadata)"
+  }
+}

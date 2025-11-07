@@ -41,6 +41,10 @@ logs/
 .env
 .env.local
 
+# User configuration with personal data
+user.config.json
+.photobanking/user.json
+
 # Scripts with credentials (PowerShell, Bash)
 fix_*.ps1
 *_credentials.ps1

@@ -1,14 +1,24 @@
 import os
+import sys
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from shared.user_config import get_username, get_author, get_location
 
 # Výchozí hodnoty pro vstupní a výstupní soubory
 DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_OUTPUT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
 DEFAULT_OUTPUT_PREFIX = "CSV"
 
-# Výchozí hodnoty pro metadata
-DEFAULT_LOCATION = "Czech republic"
-DEFAULT_USERNAME = "DannyJPN"
-DEFAULT_COPYRIGHT_AUTHOR = "Dan K."
+# Výchozí hodnoty pro metadata (loaded from user config or environment variables)
+# To configure, either:
+# 1. Set environment variables: PHOTOBANK_USERNAME, PHOTOBANK_AUTHOR, PHOTOBANK_LOCATION
+# 2. Create user.config.json file (see user.template.json)
+# 3. Create ~/.photobanking/user.json file
+DEFAULT_LOCATION = get_location()
+DEFAULT_USERNAME = get_username()
+DEFAULT_COPYRIGHT_AUTHOR = get_author()
 
 # Cesty k mapám kategorií
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
