@@ -73,3 +73,40 @@ MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing f
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
 DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
 MAX_NUMBER = 999999  # Maximum number with 6 digits
+
+# File extension lists
+VIDEO_EXTENSIONS_FILE = "config/video_extensions.txt"
+IMAGE_EXTENSIONS_FILE = "config/image_extensions.txt"
+ILLUSTRATION_EXTENSIONS_FILE = "config/illustration_extensions.txt"
+
+# Photobank export constant values (for CSV fields)
+LOCATION = get_location()  # User's location from config
+USERNAME = get_username()  # User's username from config
+MATURE_CONTENT = "no"
+FREE = "0"
+W_EL = "1"
+P_EL = "1"
+SR_EL = "0"
+SR_PRICE = "0"
+MR_DOC_IDS = "0"
+PR_DOCS = "0"
+NUDITY = "no"
+COUNTRY = "CZ"
+SPECIFY_SOURCE = ""
+EXCLUSIVE = "N"
+ADDITIONAL_INFO = ""
+NA_VALUE = "NA"
+
+# Photobank names
+PHOTOBANKS = [
+    "ShutterStock",
+    "AdobeStock",
+    "Dreamstime",
+    "DepositPhotos",
+    "BigStockPhoto",
+    "123RF",
+    "CanStockPhoto",
+    "Pond5",
+    "Alamy",
+    "GettyImages"
+]
