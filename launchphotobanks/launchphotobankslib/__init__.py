@@ -1,0 +1,1 @@
+"""LaunchPhotobanks library module."""

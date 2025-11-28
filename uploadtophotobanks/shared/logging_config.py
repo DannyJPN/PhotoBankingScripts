@@ -2,12 +2,12 @@ import logging
 import colorlog
 import json
 import os
-import sys
 
 def setup_logging(debug=False, log_file="logs/logfile.log"):
     # Load color configuration from the JSON file
     try:
-        with open(os.path.join(os.path.dirname(sys.argv[0]), 'shared/log_colors.json'), 'r') as f:
+        config_path = os.path.join(os.path.dirname(__file__), 'log_colors.json')
+        with open(config_path, 'r') as f:
             color_config = json.load(f)
     except Exception as e:
         logging.error(f"Failed to load color configuration: {e}", exc_info=True)
