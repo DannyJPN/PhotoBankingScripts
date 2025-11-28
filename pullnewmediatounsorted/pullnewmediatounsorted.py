@@ -4,7 +4,7 @@ import logging
 import re
 
 from shared.utils            import get_log_filename
-from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder
+from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder
 from shared.logging_config  import setup_logging
 
 from pullnewmediatounsortedlib.constants import (
@@ -112,7 +112,12 @@ def main():
     for folder in sources + screen_sources:
         copy_folder(folder, args.target_screen, pattern=pattern)
 
-    # 6) Ensure temporary directory exists
+    # 6) Flatten target folder structure (move all files to root level)
+    logging.info("Flattening target folder structure")
+    flatten_folder(args.target)
+    flatten_folder(args.target_screen)
+
+    # 7) Ensure temporary directory exists
     temp_dir = os.path.join(args.target, "FotoTemp")
     ensure_directory(temp_dir)
 
