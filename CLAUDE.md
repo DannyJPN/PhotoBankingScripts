@@ -106,10 +106,10 @@ File-based approach avoids shell escaping issues and supports full formatting.
 **Before committing:**
 1. **Stop Dropbox**: Check if Dropbox is running and kill it before git operations
 
-   **On Windows (use PowerShell):**
-   - Check: `Get-Process | Where-Object {$_.Name -like "*Dropbox*"}`
-   - Kill: `Stop-Process -Name "Dropbox" -Force`
-   - **If permission denied**: Ask user to manually stop Dropbox via system tray (right-click → Quit Dropbox)
+   **On Windows (use PowerShell via Bash tool):**
+   - Check: `powershell.exe -Command "Get-Process | Where-Object {\\$_.Name -like '*Dropbox*'}"`
+   - Kill: `powershell.exe -Command "Stop-Process -Name 'Dropbox' -Force"`
+   - **Note**: Always use `powershell.exe -Command` when calling PowerShell from Bash tool
 
    **On Linux/macOS (use bash):**
    - Check: `ps aux | grep -i dropbox`

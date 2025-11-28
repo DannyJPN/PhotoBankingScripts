@@ -24,9 +24,9 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Launch photobank login pages in web browser."
     )
-    parser.add_argument("--bank-csv", type=str, default=DEFAULT_BANK_CSV,
+    parser.add_argument("--bank_csv", type=str, default=DEFAULT_BANK_CSV,
                         help="Path to CSV file with bank URLs")
-    parser.add_argument("--log-dir", type=str, default=DEFAULT_LOG_DIR,
+    parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
@@ -34,7 +34,7 @@ def parse_arguments():
                         help="Delay between opening tabs (seconds)")
     parser.add_argument("--banks", nargs='*',
                         help="Specific banks to open (default: all)")
-    parser.add_argument("--dry-run", action="store_true",
+    parser.add_argument("--dry_run", action="store_true",
                         help="Show what would be opened without actually opening")
     return parser.parse_args()
 

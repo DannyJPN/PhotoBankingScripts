@@ -12,9 +12,9 @@ from shared.hash_utils      import compute_file_hash
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
-    Vrátí seznam souborů ve složce `folder`.
-    Pokud je zadán `pattern` (regex), vrátí jen soubory, jejichž jméno odpovídá výrazu.
-    Rekurzivní prohledávání lze ovládat parametrem `recursive`.
+    Returns list of files in folder `folder`.
+    If `pattern` (regex) is specified, returns only files whose name matches the expression.
+    Recursive search can be controlled with `recursive` parameter.
     """
     logging.debug("Listing files in folder: %s (pattern=%s, recursive=%s)", folder, pattern, recursive)
     matched: list[str] = []
@@ -29,7 +29,7 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
             return []
     for root, _, files in iterator:
         for name in files:
-            # pokud není zadán pattern, nebo odpovídá regexu, přidej
+            # if no pattern is given or matches regex, add it
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
@@ -63,7 +63,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
 
 def delete_folder(path: str) -> None:
     """
-    Smaže celou složku a její obsah.
+    Deletes entire folder and its contents.
     """
     logging.info("Deleting folder: %s", path)
     try:
@@ -106,15 +106,15 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-    Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.copy2 pro zachování metadat a ensure_directory pro vytvoření chybějící cesty.
+    Copies file from src to dest. Overwrites if overwrite=True.
+    Uses shutil.copy2 to preserve metadata and ensure_directory to create missing path.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping: %s", dest)
         return
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Create target folder if it does not exist
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -128,12 +128,12 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
-    Přesune soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.move a ensure_directory pro vytvoření chybějící cesty.
+    Moves file from src to dest. Overwrites if overwrite=True.
+    Uses shutil.move and ensure_directory to create missing path.
     """
     logging.debug("Moving file from %s to %s (overwrite=%s)", src, dest, overwrite)
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Create target folder if it does not exist
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -191,30 +191,30 @@ def load_csv(path: str, encoding: str = 'utf-8-sig', delimiter: str = ',', quote
 
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     """
-    V dané složce (a volitelně jejích podsložkách) sjednotí
-    soubory se stejným obsahem tak, že všechny budou mít
-    stejný basename podle toho, jehož basename je nejkratší.
+    In given folder (and optionally its subfolders) unifies
+    files with same content so that all will have
+    same basename according to the one whose basename is shortest.
     """
     logging.info("Unifying duplicates in %s (recursive=%s)", folder, recursive)
 
-    # 1) Mapa path->hash pro všechny soubory
+    # 1) Map path->hash for all files
     path_hash_map = get_hash_map_from_folder(folder, pattern="", recursive=recursive)
     if not path_hash_map:
         logging.info("No files found in %s, skipping unification.", folder)
         return
 
-    # 2) Seskup cesty podle hashů
+    # 2) Group paths by hashes
     hash_groups: dict[str, list[str]] = defaultdict(list)
     for path, h in path_hash_map.items():
         hash_groups[h].append(path)
 
     renamed_count = 0
-    # 3) Pro každou skupinu ≥2 souborů zvol canonical podle délky názvu
+    # 3) For each group with ≥2 files, choose canonical by name length
     for h, group in hash_groups.items():
         if len(group) < 2:
             continue
 
-        # Najdi cestu s nejkratším basename, potom z ní vezmi basename
+        # Find path with shortest basename, then take basename from it
         canonical_path = min(group, key=lambda p: len(os.path.basename(p)))
         canonical_basename = os.path.basename(canonical_path)
         basenames = [os.path.basename(p) for p in group]
@@ -237,17 +237,17 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
 
 def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
     """
-    Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
-    {full_path: hash} pro každý nalezený soubor.
+    Traverses folder `folder` recursively (by pattern) and returns dictionary
+    {full_path: hash} for each found file.
     """
     logging.info("Building hash map from folder: %s (pattern=%s)", folder, pattern)
-    # 1) Seber všechny soubory podle patternu
+    # 1) Collect all files matching pattern
     paths = list_files(folder, pattern, recursive=recursive)
     if not paths:
         logging.info("No files matching pattern '%s' in %s, skipping.", pattern, folder)
         return {}
     result: Dict[str, str] = {}
-    # 2) Pro každý soubor spočti hash a ulož ho pod klíč cesty
+    # 2) For each file compute hash and store it under path key
     for path in tqdm(paths, desc="Hashing files", unit="files"):
         try:
             file_hash = compute_file_hash(path)
@@ -260,9 +260,9 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
 
 def save_csv(records: List[Dict[str, str]], path: str) -> None:
     """
-    Uloží seznam záznamů jako CSV (UTF-8 s BOM).
-    Zachová hlavičku a pořadí sloupců.
-    Všechny hodnoty jsou uloženy v uvozovkách, nejen ty obsahující delimiter.
+    Saves list of records as CSV (UTF-8 with BOM).
+    Preserves header and column order.
+    All values are stored in quotes, not just those containing delimiter.
     """
     logging.debug("Saving CSV file to %s", path)
     try:
