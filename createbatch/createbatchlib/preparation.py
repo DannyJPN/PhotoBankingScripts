@@ -31,12 +31,13 @@ def prepare_media_file(
 
     processed_paths: List[str] = []
 
-    # Get metadata for EXIF update
+    # Get metadata for EXIF update (sanitize to prevent CSV injection)
+    from shared.csv_sanitizer import CSVSanitizer
     metadata = {
-        'title': record.get('Název', ''),
-        'keywords': record.get('Klíčová slova', ''),
-        'description': record.get('Popis', ''),
-        'datetimeoriginal': record.get('Datum pořízení', '')
+        'title': CSVSanitizer.sanitize_field(record.get('Název', '')),
+        'keywords': CSVSanitizer.sanitize_field(record.get('Klíčová slova', '')),
+        'description': CSVSanitizer.sanitize_field(record.get('Popis', '')),
+        'datetimeoriginal': CSVSanitizer.sanitize_field(record.get('Datum pořízení', ''))
     }
 
     # Process for each photobank that has PREPARED status

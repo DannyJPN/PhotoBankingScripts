@@ -164,6 +164,9 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         logging.debug(f"Exporting record to {bank}, output file: {output_file}")
         logging.debug(f"Complete record object: {json.dumps(record, indent=2)}")
 
+        # Import CSV sanitizer for injection protection
+        from shared.csv_sanitizer import CSVSanitizer
+
         # Získání mapy sloupců pro danou banku
         column_map = get_column_map(bank)
 
@@ -220,6 +223,9 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
                 except Exception as e:
                     logging.warning(f"Transform failed for {col['target']}: {e}")
                     value = ""
+
+            # Sanitize value to prevent CSV injection attacks
+            value = CSVSanitizer.sanitize_field(value)
 
             # Uvozovky kolem VŠECH hodnot (QUOTE_ALL standard)
             if isinstance(value, str):
