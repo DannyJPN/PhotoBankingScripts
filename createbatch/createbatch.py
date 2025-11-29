@@ -15,7 +15,7 @@ from createbatchlib.constants import (
     STATUS_FIELD_KEYWORD,
     PREPARED_STATUS_VALUE
 )
-from createbatchlib.filtering import filter_prepared_media
+from createbatchlib.optimization import RecordProcessor
 from createbatchlib.preparation import prepare_media_file
 
 def parse_arguments():
@@ -74,42 +74,27 @@ def main():
     logging.debug("EXIF: %s", exif_tool_path)
     logging.info("Starting CreateBatch process")
 
-    # Load and filter records
+    # Load CSV and process with optimized single-pass algorithm
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
-    prepared = filter_prepared_media(records, include_edited=args.include_edited)
-    if not prepared:
+
+    # Initialize optimized record processor
+    processor = RecordProcessor(STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE)
+
+    # Single-pass filtering and grouping by bank (O(n) instead of O(n²))
+    bank_records_map = processor.process_records_optimized(
+        records,
+        include_edited=args.include_edited
+    )
+
+    if not bank_records_map:
         logging.warning("No prepared media records found. Exiting.")
         return
 
-    # Identify unique photobanks
-    banks = sorted({
-        key[:key.lower().find(STATUS_FIELD_KEYWORD)].strip()
-        for rec in prepared
-        for key, val in rec.items()
-        if STATUS_FIELD_KEYWORD in key.lower() and isinstance(val, str) and PREPARED_STATUS_VALUE.lower() in val.lower()
-    })
-
     all_processed: List[str] = []
     # Process per photobank with individual progress bars
-    for bank in banks:
-        logging.info("Processing %d records for %s",
-                     sum(1 for rec in prepared if any(
-                         STATUS_FIELD_KEYWORD in k.lower()
-                         and k[:k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
-                         and PREPARED_STATUS_VALUE.lower() in v.lower()
-                         for k, v in rec.items()
-                     )), bank)
+    for bank, bank_records in bank_records_map.items():
+        logging.info("Processing %d records for %s", len(bank_records), bank)
         processed = []
-        # Filter records for this bank
-        bank_records = [
-            rec for rec in prepared
-            if any(
-                STATUS_FIELD_KEYWORD in k.lower()
-                and k[:k.lower().find(STATUS_FIELD_KEYWORD)].strip() == bank
-                and PREPARED_STATUS_VALUE.lower() in v.lower()
-                for k, v in rec.items()
-            )
-        ]
         for rec in tqdm(bank_records, desc=f"Preparing {bank}", unit="file"):
             try:
                 paths = prepare_media_file(

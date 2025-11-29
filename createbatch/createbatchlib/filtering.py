@@ -19,9 +19,10 @@ def filter_prepared_media(records: List[Dict[str, str]], include_edited: bool = 
 
     for record in tqdm(records, total=total, desc="Filtering prepared media", unit="records"):
         # Check if record has PREPARED status
+        # NOTE: Using exact match to avoid matching 'nepřipraveno' when looking for 'připraveno'
         has_prepared_status = False
         for key, value in record.items():
-            if STATUS_FIELD_KEYWORD in key.lower() and isinstance(value, str) and PREPARED_STATUS_VALUE.lower() in value.lower():
+            if STATUS_FIELD_KEYWORD in key.lower() and isinstance(value, str) and value.strip().lower() == PREPARED_STATUS_VALUE.lower():
                 has_prepared_status = True
                 break
 
