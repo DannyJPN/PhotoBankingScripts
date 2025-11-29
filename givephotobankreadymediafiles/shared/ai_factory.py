@@ -16,6 +16,7 @@ from .local_ai import LocalAIProvider
 from .neural_network import NeuralNetworkProvider
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
+from .ollama_provider import OllamaProvider
 
 
 class ProviderType(Enum):
@@ -46,6 +47,7 @@ class AIFactory:
         self._provider_classes: Dict[ProviderType, Type[AIProvider]] = {
             ProviderType.OPENAI: OpenAIProvider,
             ProviderType.ANTHROPIC: AnthropicProvider,
+            ProviderType.OLLAMA: OllamaProvider,
         }
     
     def register_provider_class(self, provider_type: ProviderType, 
@@ -155,7 +157,11 @@ class AIFactory:
             
         elif provider_type == ProviderType.MISTRAL:
             config.setdefault('api_key', os.getenv('MISTRAL_API_KEY'))
-        
+
+        elif provider_type == ProviderType.OLLAMA:
+            config.setdefault('base_url', os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'))
+            config.setdefault('timeout', int(os.getenv('OLLAMA_TIMEOUT', '300')))
+
         # Remove None values
         config = {k: v for k, v in config.items() if v is not None}
         
@@ -223,9 +229,14 @@ class AIFactory:
             ],
             ProviderType.MISTRAL: [
                 'mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'
+            ],
+            ProviderType.OLLAMA: [
+                'llava:7b', 'llava:13b', 'llava:34b', 'llava:7b-v1.6',
+                'bakllava:7b', 'llama3.2-vision:11b', 'llama3.2:3b',
+                'mistral:7b', 'codellama:13b'
             ]
         }
-        
+
         return models.get(provider_type, [])
     
     def create_from_model_selector(self, model_key: str, **kwargs) -> AIProvider:
