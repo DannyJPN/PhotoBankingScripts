@@ -255,8 +255,9 @@ def flatten_folder(folder: str) -> None:
 
         logging.info("Found %d files in subdirectories to move to root level", len(all_files))
 
-        # Track used names at root level
-        existing_names = set(os.listdir(folder))
+        # Track used names at root level (case-insensitive for Windows compatibility)
+        # Map lowercase name -> actual name for collision detection
+        existing_names = {name.casefold(): name for name in os.listdir(folder)}
         moved_count = 0
 
         # Move files with progress bar
@@ -264,14 +265,14 @@ def flatten_folder(folder: str) -> None:
             filename = os.path.basename(file_path)
             dest_path = os.path.join(folder, filename)
 
-            # Handle filename conflicts
-            if filename in existing_names:
+            # Handle filename conflicts (case-insensitive check for Windows)
+            if filename.casefold() in existing_names:
                 base, ext = os.path.splitext(filename)
                 counter = 1
                 while True:
                     new_filename = f"{base}_{counter:03d}{ext}"
                     dest_path = os.path.join(folder, new_filename)
-                    if new_filename not in existing_names:
+                    if new_filename.casefold() not in existing_names:
                         filename = new_filename
                         break
                     counter += 1
@@ -280,7 +281,7 @@ def flatten_folder(folder: str) -> None:
             # Move file to root
             try:
                 shutil.move(file_path, dest_path)
-                existing_names.add(filename)
+                existing_names[filename.casefold()] = filename
                 moved_count += 1
                 logging.debug("Moved file to root: %s -> %s", file_path, dest_path)
             except Exception as e:
