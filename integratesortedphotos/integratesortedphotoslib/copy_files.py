@@ -66,14 +66,20 @@ def estimate_file_count(src_folder: str, sample_size: int = 100) -> int:
     """
     subdirs = []
     file_counts = []
+    total_dirs = 0
 
-    # Collect subdirectories and count files
+    # Collect subdirectories and count files during sampling
     for root, dirs, files in os.walk(src_folder):
         subdirs.append(root)
         file_counts.append(len(files))
+        total_dirs += 1
 
-        # Stop sampling after reaching sample_size
+        # Stop sampling after reaching sample_size, but continue counting dirs
         if len(subdirs) >= sample_size:
+            # Finish counting remaining directories without processing files
+            for root, _, _ in os.walk(src_folder):
+                if root not in subdirs:
+                    total_dirs += 1
             break
 
     if not file_counts:
@@ -81,9 +87,6 @@ def estimate_file_count(src_folder: str, sample_size: int = 100) -> int:
 
     # Estimate based on average files per directory
     avg_files_per_dir = sum(file_counts) / len(file_counts)
-
-    # Count total subdirectories (quick scan)
-    total_dirs = sum(1 for _, _, _ in os.walk(src_folder))
 
     estimated_total = int(avg_files_per_dir * total_dirs)
 
@@ -237,7 +240,7 @@ def copy_files_with_progress_estimation(
         raise
 
 
-def copy_files_with_preserved_dates(src_folder: str, dest_folder: str) -> None:
+def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, overwrite: bool = True) -> None:
     """
     Legacy function wrapper - now uses streaming approach.
 
@@ -247,6 +250,7 @@ def copy_files_with_preserved_dates(src_folder: str, dest_folder: str) -> None:
     Args:
         src_folder: Source directory containing files to copy
         dest_folder: Destination directory where files will be copied
+        overwrite: Whether to overwrite existing files (default: True for backward compatibility)
 
     Note:
         This function is deprecated. Consider using copy_files_streaming()
@@ -254,6 +258,7 @@ def copy_files_with_preserved_dates(src_folder: str, dest_folder: str) -> None:
 
     Example:
         >>> copy_files_with_preserved_dates('/source', '/dest')
+        >>> copy_files_with_preserved_dates('/source', '/dest', overwrite=False)
     """
     logging.info("Using legacy function copy_files_with_preserved_dates (now memory-efficient)")
-    copy_files_streaming(src_folder, dest_folder, overwrite=False)
+    copy_files_streaming(src_folder, dest_folder, overwrite=overwrite)
