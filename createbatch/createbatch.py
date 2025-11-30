@@ -149,7 +149,7 @@ def main():
                     )
                     processed.extend(paths)
                     success_count += len(paths)
-                    progress_tracker.update_progress(len(paths))
+                    progress_tracker.update_progress(1)  # Track by record, not files
 
                 except Exception as e:
                     logging.error(

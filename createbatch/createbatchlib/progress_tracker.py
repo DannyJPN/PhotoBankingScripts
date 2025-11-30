@@ -86,9 +86,12 @@ class UnifiedProgressTracker:
         """Finish all processing."""
         if self.current_bank_pbar:
             self.current_bank_pbar.close()
-        self.main_pbar.close()
+            self.current_bank_pbar = None
+        if hasattr(self, 'main_pbar') and self.main_pbar:
+            self.main_pbar.close()
+            self.main_pbar = None
 
-        logging.info(f"Completed processing {self.processed_records} files")
+        logging.info(self.get_summary())
 
     def get_summary(self) -> str:
         """
