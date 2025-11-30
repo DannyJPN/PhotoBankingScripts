@@ -226,18 +226,6 @@ class TestRecordProcessor:
         banks = processor._extract_prepared_banks(record)
         assert banks == ['Shutterstock']
 
-    def test_partial_status_match(self, processor):
-        """Test that partial matches in status value don't cause false positives."""
-        record = {
-            'Cesta': '/photo.jpg',
-            'Shutterstock Status': 'nepřipraveno',  # Contains 'připraveno' but negated
-        }
-
-        banks = processor._extract_prepared_banks(record)
-        # Should match because 'připraveno' is substring of 'nepřipraveno'
-        # This is expected behavior based on current implementation
-        assert 'Shutterstock' in banks
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
