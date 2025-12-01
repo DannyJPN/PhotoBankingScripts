@@ -471,5 +471,5 @@ class OllamaProvider(LocalAIProvider):
         if hasattr(self, 'session'):
             try:
                 self.session.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logging.error("Failed to close Ollama session during cleanup: %s", e)
