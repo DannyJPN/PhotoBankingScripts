@@ -1,14 +1,24 @@
 import os
+import sys
+
+# Add parent directory to path to import shared modules
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from shared.user_config import get_username, get_author, get_location
 
 # Výchozí hodnoty pro vstupní a výstupní soubory
 DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_OUTPUT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
 DEFAULT_OUTPUT_PREFIX = "CSV"
 
-# Výchozí hodnoty pro metadata
-DEFAULT_LOCATION = "Czech republic"
-DEFAULT_USERNAME = "DannyJPN"
-DEFAULT_COPYRIGHT_AUTHOR = "Dan K."
+# Výchozí hodnoty pro metadata (loaded from user config or environment variables)
+# To configure, either:
+# 1. Set environment variables: PHOTOBANK_USERNAME, PHOTOBANK_AUTHOR, PHOTOBANK_LOCATION
+# 2. Create user.config.json file (see user.template.json)
+# 3. Create ~/.photobanking/user.json file
+DEFAULT_LOCATION = get_location()
+DEFAULT_USERNAME = get_username()
+DEFAULT_COPYRIGHT_AUTHOR = get_author()
 
 # Cesty k mapám kategorií
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,3 +73,40 @@ MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing f
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
 DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
 MAX_NUMBER = 999999  # Maximum number with 6 digits
+
+# File extension lists
+VIDEO_EXTENSIONS_FILE = "config/video_extensions.txt"
+IMAGE_EXTENSIONS_FILE = "config/image_extensions.txt"
+ILLUSTRATION_EXTENSIONS_FILE = "config/illustration_extensions.txt"
+
+# Photobank export constant values (for CSV fields)
+LOCATION = get_location()  # User's location from config
+USERNAME = get_username()  # User's username from config
+MATURE_CONTENT = "no"
+FREE = "0"
+W_EL = "1"
+P_EL = "1"
+SR_EL = "0"
+SR_PRICE = "0"
+MR_DOC_IDS = "0"
+PR_DOCS = "0"
+NUDITY = "no"
+COUNTRY = "CZ"
+SPECIFY_SOURCE = ""
+EXCLUSIVE = "N"
+ADDITIONAL_INFO = ""
+NA_VALUE = "NA"
+
+# Photobank names
+PHOTOBANKS = [
+    "ShutterStock",
+    "AdobeStock",
+    "Dreamstime",
+    "DepositPhotos",
+    "BigStockPhoto",
+    "123RF",
+    "CanStockPhoto",
+    "Pond5",
+    "Alamy",
+    "GettyImages"
+]
