@@ -227,6 +227,88 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
 
+def flatten_folder(folder: str) -> None:
+    """
+    Flatten folder structure by moving all files from subdirectories to root level.
+    Removes empty subdirectories after flattening.
+    Handles filename conflicts with numeric suffixes (_001, _002, etc.).
+
+    Args:
+        folder: Root folder to flatten
+    """
+    logging.info("Flattening folder structure: %s", folder)
+
+    try:
+        # Collect all files in subdirectories
+        all_files = []
+        for root, dirs, files in os.walk(folder):
+            # Skip root level files
+            if root == folder:
+                continue
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                all_files.append(file_path)
+
+        if not all_files:
+            logging.info("No files in subdirectories, folder already flat: %s", folder)
+            return
+
+        logging.info("Found %d files in subdirectories to move to root level", len(all_files))
+
+        # Track used names at root level (case-insensitive for Windows compatibility)
+        # Map lowercase name -> actual name for collision detection
+        existing_names = {name.casefold(): name for name in os.listdir(folder)}
+        moved_count = 0
+
+        # Move files with progress bar
+        for file_path in tqdm(all_files, desc="Flattening folder", unit="files"):
+            filename = os.path.basename(file_path)
+            dest_path = os.path.join(folder, filename)
+
+            # Handle filename conflicts (case-insensitive check for Windows)
+            if filename.casefold() in existing_names:
+                base, ext = os.path.splitext(filename)
+                counter = 1
+                while True:
+                    new_filename = f"{base}_{counter:03d}{ext}"
+                    dest_path = os.path.join(folder, new_filename)
+                    if new_filename.casefold() not in existing_names:
+                        filename = new_filename
+                        break
+                    counter += 1
+                logging.debug("Filename conflict resolved: %s -> %s", os.path.basename(file_path), filename)
+
+            # Move file to root
+            try:
+                shutil.move(file_path, dest_path)
+                existing_names[filename.casefold()] = filename
+                moved_count += 1
+                logging.debug("Moved file to root: %s -> %s", file_path, dest_path)
+            except Exception as e:
+                logging.error("Failed to move file %s to %s: %s", file_path, dest_path, e)
+
+        # Remove empty subdirectories
+        removed_dirs = 0
+        for root, dirs, files in os.walk(folder, topdown=False):
+            # Skip root folder itself
+            if root == folder:
+                continue
+            # Remove if empty
+            try:
+                if not os.listdir(root):
+                    os.rmdir(root)
+                    removed_dirs += 1
+                    logging.debug("Removed empty directory: %s", root)
+            except Exception as e:
+                logging.warning("Failed to remove directory %s: %s", root, e)
+
+        logging.info("Flattening complete: moved %d files, removed %d empty directories", moved_count, removed_dirs)
+
+    except Exception as e:
+        logging.error("Failed to flatten folder %s: %s", folder, e)
+        raise
+
+
 def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
     """
     Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
