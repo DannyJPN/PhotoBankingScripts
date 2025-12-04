@@ -200,53 +200,51 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         else:
             logging.debug(f"Using delimiter for {bank}: '{delimiter}'")
 
-        # Vytvoření řádku podle mapy sloupců
-        row = []
+        # Vytvoření záznamu podle mapy sloupců
+        csv_record = {}
         for col in column_map:
+            target_field = col['target']
+
             # Získání hodnoty ze záznamu nebo pevné hodnoty
             if "value" in col:
                 value = col["value"]
-                logging.debug(f"Using fixed value for {col['target']}: '{value}'")
+                logging.debug(f"Using fixed value for {target_field}: '{value}'")
             else:
                 source = col["source"]
                 value = record.get(source, "")
-                logging.debug(f"Using value from record for {col['target']} (source: {source}): '{value}'")
+                logging.debug(f"Using value from record for {target_field} (source: {source}): '{value}'")
 
             # Případná transformace hodnoty
             if "transform" in col and callable(col["transform"]):
                 try:
                     old_value = value
                     value = col["transform"](value)
-                    logging.debug(f"Transformed value for {col['target']}: '{old_value}' -> '{value}'")
+                    logging.debug(f"Transformed value for {target_field}: '{old_value}' -> '{value}'")
                 except Exception as e:
-                    logging.warning(f"Transform failed for {col['target']}: {e}")
+                    logging.warning(f"Transform failed for {target_field}: {e}")
                     value = ""
 
             # Sanitize value to prevent CSV injection attacks
             value = sanitize_field(value)
 
-            # Quote ALL values (QUOTE_ALL standard for maximum safety)
-            if isinstance(value, str):
-                # Escape quotes and wrap value in quotes
-                value = f'"{value.replace("\"", "\"\"")}"'
-                logging.debug(f"Quoted value for {col['target']}: {value}")
-            else:
-                # For non-string values, quote the string representation
-                value = f'"{str(value)}"'
-                logging.debug(f"Quoted non-string value for {col['target']}: {value}")
+            csv_record[target_field] = value
 
-            row.append(value)
-
-        # Spojení řádku pomocí oddělovače
-        line = delimiter.join(row)
-        logging.debug(f"Final line for {bank}: {line}")
-
-        # Zápis do souboru
-        logging.debug(f"Writing to file: {output_file}")
+        # Zápis do souboru pomocí csv.DictWriter (QUOTE_ALL pro bezpečnost)
+        logging.debug(f"Writing record to file: {output_file}")
         logging.debug(f"File exists before write: {os.path.exists(output_file)}")
 
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(line + '\n')
+        # Get fieldnames from column map
+        fieldnames = [col['target'] for col in column_map]
+
+        with open(output_file, 'a', encoding='utf-8', newline='') as csvfile:
+            writer = csv.DictWriter(
+                csvfile,
+                fieldnames=fieldnames,
+                delimiter=delimiter,
+                quotechar='"',
+                quoting=csv.QUOTE_ALL  # Force quoting for all fields
+            )
+            writer.writerow(csv_record)
 
         logging.debug(f"Successfully exported to {bank}: {record.get('filename', '')}")
         logging.debug(f"File exists after write: {os.path.exists(output_file)}")
