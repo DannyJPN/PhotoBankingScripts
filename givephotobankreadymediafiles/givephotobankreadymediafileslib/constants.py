@@ -111,3 +111,22 @@ DEFAULT_LOG_DIR = r"H:\Logs"
 # Processing settings
 DEFAULT_PROCESSED_MEDIA_MAX_COUNT = 20
 DEFAULT_INTERVAL = 60
+
+# Ollama AI settings
+DEFAULT_OLLAMA_URL = "http://localhost:11434"
+DEFAULT_OLLAMA_TIMEOUT = 300
+
+DEFAULT_OLLAMA_MODELS = [
+    "llava:7b",
+    "llava:13b",
+    "llava:34b",
+    "llava:7b-v1.6",
+    "llava:13b-v1.6",
+    "llava:34b-v1.6",
+    "bakllava:7b",
+    "llama3.2-vision:11b",
+    "llama3.2-vision:90b",
+    "cogvlm:17b"
+]
+
+DEFAULT_OLLAMA_VISION_MODEL = "llava:7b-v1.6"
