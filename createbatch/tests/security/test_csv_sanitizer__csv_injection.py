@@ -290,7 +290,7 @@ class TestCSVSanitizer_EdgeCases(unittest.TestCase):
     def test_double_quote_escaping__preserved(self):
         """Test that quote escaping still works after sanitization."""
         value = 'Text with "quotes" inside'
-        result = CSVSanitizer.sanitize_field(value)
+        result = sanitize_field(value)
 
         # Should not be modified (no dangerous prefix)
         self.assertEqual(result, value)
@@ -298,7 +298,7 @@ class TestCSVSanitizer_EdgeCases(unittest.TestCase):
     def test_existing_single_quote_prefix__not_doubled(self):
         """Test that existing single quote prefix is not doubled."""
         value = "'=SUM(1+1)"
-        result = CSVSanitizer.sanitize_field(value)
+        result = sanitize_field(value)
 
         # Should strip existing quote and add one (not double it)
         self.assertEqual(result, "'=SUM(1+1)")
