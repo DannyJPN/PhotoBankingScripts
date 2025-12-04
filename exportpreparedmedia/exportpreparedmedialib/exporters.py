@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 from shared.file_operations import save_csv
+from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
 from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS
 
@@ -164,9 +165,6 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         logging.debug(f"Exporting record to {bank}, output file: {output_file}")
         logging.debug(f"Complete record object: {json.dumps(record, indent=2)}")
 
-        # Import CSV sanitizer for injection protection
-        from shared.csv_sanitizer import sanitize_field
-
         # Získání mapy sloupců pro danou banku
         column_map = get_column_map(bank)
 
@@ -227,13 +225,13 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
             # Sanitize value to prevent CSV injection attacks
             value = sanitize_field(value)
 
-            # Uvozovky kolem VŠECH hodnot (QUOTE_ALL standard)
+            # Quote ALL values (QUOTE_ALL standard for maximum safety)
             if isinstance(value, str):
-                # Escapuj uvozovky a obal hodnotu uvozovkami
+                # Escape quotes and wrap value in quotes
                 value = f'"{value.replace("\"", "\"\"")}"'
                 logging.debug(f"Quoted value for {col['target']}: {value}")
             else:
-                # Pro non-string hodnoty přidej uvozovky kolem string reprezentace
+                # For non-string values, quote the string representation
                 value = f'"{str(value)}"'
                 logging.debug(f"Quoted non-string value for {col['target']}: {value}")
 

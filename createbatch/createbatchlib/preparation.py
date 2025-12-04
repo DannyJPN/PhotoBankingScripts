@@ -4,6 +4,7 @@ from typing import Dict, List
 from pathlib import Path
 from shared.file_operations import ensure_directory, copy_file
 from shared.exif_handler import update_exif_metadata
+from shared.csv_sanitizer import sanitize_field
 from createbatchlib.constants import (
     STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE,
     PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS, ALTERNATIVE_EDIT_TAGS
@@ -32,7 +33,6 @@ def prepare_media_file(
     processed_paths: List[str] = []
 
     # Get metadata for EXIF update (sanitize to prevent CSV injection)
-    from shared.csv_sanitizer import sanitize_field
     metadata = {
         'title': sanitize_field(record.get('Název', '')),
         'keywords': sanitize_field(record.get('Klíčová slova', '')),

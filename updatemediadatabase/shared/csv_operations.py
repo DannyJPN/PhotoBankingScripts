@@ -66,7 +66,7 @@ def save_csv(path: str, records: List[Dict[str, str]], backup: bool = True) -> N
         fieldnames = sorted(list(fieldnames))
         
         # Sanitize data to prevent CSV injection
-        sanitized_data = CSVSanitizer.sanitize_records(records)
+        sanitized_data = sanitize_records(records)
 
         # Write records to CSV with progress bar
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:

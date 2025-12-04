@@ -155,35 +155,35 @@ class TestCSVSanitizer_SafeValues(unittest.TestCase):
     def test_normal_text__unchanged(self):
         """Test that normal text is not modified."""
         safe_value = "Normal description text"
-        result = CSVSanitizer.sanitize_field(safe_value)
+        result = sanitize_field(safe_value)
 
         self.assertEqual(result, safe_value)
         self.assertFalse(is_dangerous(safe_value))
 
     def test_empty_string__unchanged(self):
         """Test that empty strings are handled correctly."""
-        result = CSVSanitizer.sanitize_field("")
+        result = sanitize_field("")
         self.assertEqual(result, "")
 
     def test_none_value__converted_to_empty(self):
         """Test that None values are converted to empty string."""
-        result = CSVSanitizer.sanitize_field(None)
+        result = sanitize_field(None)
         self.assertEqual(result, "")
 
     def test_numeric_value__converted_to_string(self):
         """Test that numeric values are converted to strings."""
-        result = CSVSanitizer.sanitize_field(12345)
+        result = sanitize_field(12345)
         self.assertEqual(result, "12345")
 
     def test_whitespace_only__returns_empty(self):
         """Test that whitespace-only values return empty string."""
-        result = CSVSanitizer.sanitize_field("   ")
+        result = sanitize_field("   ")
         self.assertEqual(result, "")
 
     def test_normal_url__unchanged(self):
         """Test that normal URLs (not in formula) are not modified."""
         safe_value = "Visit our website at example.com"
-        result = CSVSanitizer.sanitize_field(safe_value)
+        result = sanitize_field(safe_value)
 
         # This should not be modified as it's not a formula
         self.assertEqual(result, safe_value)
@@ -191,7 +191,7 @@ class TestCSVSanitizer_SafeValues(unittest.TestCase):
     def test_minus_in_middle__unchanged(self):
         """Test that minus sign in middle of text is not modified."""
         safe_value = "High-quality photo"
-        result = CSVSanitizer.sanitize_field(safe_value)
+        result = sanitize_field(safe_value)
 
         self.assertEqual(result, safe_value)
 

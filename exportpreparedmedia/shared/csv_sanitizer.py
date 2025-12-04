@@ -23,17 +23,21 @@ from typing import Any, Dict, List
 # Characters that can trigger formula execution in spreadsheet applications
 DANGEROUS_PREFIXES = ['=', '+', '-', '@', '\t', '\r', '\n']
 
-# Patterns that indicate potential injection attempts
+# Patterns that indicate potential injection attempts (excluding https?:// - see note below)
+# Note: https?:// pattern removed to avoid false positives on legitimate URLs in descriptions.
+# The =.*\( pattern already catches =HYPERLINK() and =IMPORTXML() formula attacks.
 SUSPICIOUS_PATTERNS = [
     r'cmd\|',  # Command pipe
-    r'=.*\(',  # Formula with function
+    r'=.*\(',  # Formula with function call (catches =HYPERLINK, =IMPORTXML, etc.)
     r'\+.*\(',  # Plus formula with function
     r'-.*\(',  # Minus formula with function
     r'@.*\(',  # @ formula with function
     r'\\\\.*\\',  # UNC paths (\\server\share)
     r'file:///',  # File URIs
-    r'https?://',  # HTTP URIs in formulas (only suspicious in formula context)
 ]
+
+# Pre-compile regex patterns for performance (avoids recompilation on every call)
+COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SUSPICIOUS_PATTERNS]
 
 
 def sanitize_field(value: Any) -> str:
@@ -78,18 +82,20 @@ def sanitize_field(value: Any) -> str:
             logging.debug("CSV Injection: Dangerous prefix '%s' detected in value: %s", prefix, value[:50])
             break
 
-    # Check for suspicious patterns
+    # Check for suspicious patterns using pre-compiled regex
     if not needs_neutralization:
-        for pattern in SUSPICIOUS_PATTERNS:
-            if re.search(pattern, value, re.IGNORECASE):
+        for compiled_pattern in COMPILED_PATTERNS:
+            if compiled_pattern.search(value):
                 needs_neutralization = True
-                logging.debug("CSV Injection: Suspicious pattern '%s' detected in value: %s", pattern, value[:50])
+                logging.debug("CSV Injection: Suspicious pattern detected in value: %s", value[:50])
                 break
 
     # Neutralize by prefixing with single quote if needed
     if needs_neutralization:
-        # Remove any existing leading single quotes to avoid double-quoting
-        value = value.lstrip("'")
+        # Remove only one leading single quote to avoid double-quoting
+        # Using [1:] instead of lstrip("'") to remove exactly one quote, not all
+        if value.startswith("'"):
+            value = value[1:]
         # Add single quote to force string interpretation
         value = "'" + value
 
@@ -159,9 +165,10 @@ def is_dangerous(value: Any) -> bool:
         if value.startswith(prefix):
             return True
 
-    # Check for suspicious patterns
-    for pattern in SUSPICIOUS_PATTERNS:
-        if re.search(pattern, value, re.IGNORECASE):
+    # Check for suspicious patterns using pre-compiled regex
+    for compiled_pattern in COMPILED_PATTERNS:
+        if compiled_pattern.search(value):
             return True
 
     return False
+

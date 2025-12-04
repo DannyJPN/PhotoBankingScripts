@@ -278,7 +278,7 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
         fieldnames = list(data[0].keys()) if data else []
 
         # Sanitize data to prevent CSV injection
-        sanitized_data = CSVSanitizer.sanitize_records(data)
+        sanitized_data = sanitize_records(data)
 
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')

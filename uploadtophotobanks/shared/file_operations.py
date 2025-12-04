@@ -1,8 +1,13 @@
 import os
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import re
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import shutil
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import logging
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import csv
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
@@ -117,7 +122,7 @@ def save_csv(records: List[Dict[str, str]], path: str) -> None:
         fieldnames = list(records[0].keys())
 
         # Sanitize data to prevent CSV injection
-        sanitized_data = CSVSanitizer.sanitize_records(records)
+        sanitized_data = sanitize_records(records)
 
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
             writer = csv.DictWriter(
