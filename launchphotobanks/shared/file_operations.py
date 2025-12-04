@@ -12,9 +12,9 @@ from shared.hash_utils      import compute_file_hash
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
-    Vrátí seznam souborů ve složce `folder`.
-    Pokud je zadán `pattern` (regex), vrátí jen soubory, jejichž jméno odpovídá výrazu.
-    Rekurzivní prohledávání lze ovládat parametrem `recursive`.
+    Returns list of files in folder `folder`.
+    If `pattern` (regex) is specified, returns only files whose name matches the expression.
+    Recursive search can be controlled with `recursive` parameter.
     """
     logging.debug("Listing files in folder: %s (pattern=%s, recursive=%s)", folder, pattern, recursive)
     matched: list[str] = []
@@ -29,7 +29,7 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
             return []
     for root, _, files in iterator:
         for name in files:
-            # pokud není zadán pattern, nebo odpovídá regexu, přidej
+            # if no pattern is given or matches regex, add it
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
@@ -40,7 +40,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
     Only copies files matching the regex `pattern`. If pattern is empty, all files are copied.
     Shows a progress bar for each file.
     """
-    logging.debug("Copying folder from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
+    logging.info("Copying folder from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
     try:
         if os.path.exists(dest) and not overwrite:
             logging.debug("Destination folder exists and overwrite is disabled, skipping copy.")
@@ -63,9 +63,9 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
 
 def delete_folder(path: str) -> None:
     """
-    Smaže celou složku a její obsah.
+    Deletes entire folder and its contents.
     """
-    logging.debug("Deleting folder: %s", path)
+    logging.info("Deleting folder: %s", path)
     try:
         shutil.rmtree(path)
         logging.info("Deleted folder: %s", path)
@@ -79,7 +79,7 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     Only moves files matching the regex `pattern`. If pattern is empty, all files are moved.
     Shows a progress bar for each file.
     """
-    logging.debug("Moving folder from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
+    logging.info("Moving folder from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
     try:
         if os.path.exists(dest):
             if overwrite:
@@ -106,15 +106,15 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-    Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.copy2 pro zachování metadat a ensure_directory pro vytvoření chybějící cesty.
+    Copies file from src to dest. Overwrites if overwrite=True.
+    Uses shutil.copy2 to preserve metadata and ensure_directory to create missing path.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping: %s", dest)
         return
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Create target folder if it does not exist
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -128,12 +128,12 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
-    Přesune soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.move a ensure_directory pro vytvoření chybějící cesty.
+    Moves file from src to dest. Overwrites if overwrite=True.
+    Uses shutil.move and ensure_directory to create missing path.
     """
     logging.debug("Moving file from %s to %s (overwrite=%s)", src, dest, overwrite)
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Create target folder if it does not exist
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -141,6 +141,13 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping move: %s", dest)
         return
+
+    try:
+        shutil.move(src, dest)
+        logging.debug("Moved file from %s to %s", src, dest)
+    except Exception as e:
+        logging.error("Failed to move file from %s to %s: %s", src, dest, e)
+        raise
 
 
 def ensure_directory(path: str) -> None:
@@ -157,21 +164,30 @@ def ensure_directory(path: str) -> None:
         raise
 
 
-def load_csv(path: str) -> List[Dict[str, str]]:
+def load_csv(path: str, encoding: str = 'utf-8-sig', delimiter: str = ',', quotechar: str = '"') -> List[Dict[str, str]]:
     """
     Load a CSV file and return a list of records as dictionaries.
-    Assumes comma delimiter and UTF-8 with BOM (utf-8-sig).
+
+    Args:
+        path: Path to the CSV file
+        encoding: File encoding (default: 'utf-8-sig' - UTF-8 with BOM)
+        delimiter: CSV delimiter character (default: ',')
+        quotechar: CSV quote character (default: '"')
+
+    Returns:
+        List of dictionaries representing CSV records
+
     Shows a progress bar during loading.
     """
-    logging.debug("Loading CSV file from %s", path)
+    logging.debug("Loading CSV file from %s (encoding=%s, delimiter=%s, quotechar=%s)", path, encoding, delimiter, quotechar)
     records: List[Dict[str, str]] = []
     try:
         # Count total data rows (excluding header)
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
+        with open(path, 'r', encoding=encoding, newline='') as csvfile:
             total_rows = sum(1 for _ in csvfile) - 1
         # Read and load records with progress bar
-        with open(path, 'r', encoding='utf-8-sig', newline='') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=',', quotechar='"')
+        with open(path, 'r', encoding=encoding, newline='') as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=delimiter, quotechar=quotechar)
             for row in tqdm(reader, total=total_rows, desc="Loading CSV", unit="rows"):
                 records.append(row)
         logging.info("Loaded %d records from CSV %s", len(records), path)
@@ -182,146 +198,63 @@ def load_csv(path: str) -> List[Dict[str, str]]:
 
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     """
-    V dané složce (a volitelně jejích podsložkách) sjednotí
-    soubory se stejným obsahem tak, že všechny budou mít
-    stejný basename podle toho, jehož basename je nejkratší.
+    In given folder (and optionally its subfolders) unifies
+    files with same content so that all will have
+    same basename according to the one whose basename is shortest.
     """
     logging.info("Unifying duplicates in %s (recursive=%s)", folder, recursive)
 
-    # 1) Mapa path->hash pro všechny soubory
+    # 1) Map path->hash for all files
     path_hash_map = get_hash_map_from_folder(folder, pattern="", recursive=recursive)
     if not path_hash_map:
         logging.info("No files found in %s, skipping unification.", folder)
         return
 
-    # 2) Seskup cesty podle hashů
+    # 2) Group paths by hashes
     hash_groups: dict[str, list[str]] = defaultdict(list)
     for path, h in path_hash_map.items():
         hash_groups[h].append(path)
 
     renamed_count = 0
-    # 3) Pro každou skupinu ≥2 souborů zvol canonical podle délky názvu
-    duplicate_groups = [(h, group) for h, group in hash_groups.items() if len(group) >= 2]
-    
-    with tqdm(total=len(duplicate_groups), desc="Unifying duplicates", unit="groups") as pbar:
-        for h, group in duplicate_groups:
-            # Najdi cestu s nejkratším basename, potom z ní vezmi basename
-            canonical_path = min(group, key=lambda p: len(os.path.basename(p)))
-            canonical_basename = os.path.basename(canonical_path)
-            logging.debug("Hash %s has %d duplicates, canonical = %s", h, len(group), canonical_basename)
+    # 3) For each group with ≥2 files, choose canonical by name length
+    for h, group in hash_groups.items():
+        if len(group) < 2:
+            continue
 
-            for path in group:
-                current_name = os.path.basename(path)
-                if current_name == canonical_basename:
-                    continue
+        # Find path with shortest basename, then take basename from it
+        canonical_path = min(group, key=lambda p: len(os.path.basename(p)))
+        canonical_basename = os.path.basename(canonical_path)
+        basenames = [os.path.basename(p) for p in group]
+        logging.debug("Hash %s has %d duplicates, canonical = %s, all basenames = %s", h, len(group), canonical_basename, basenames)
 
-                dst = os.path.join(os.path.dirname(path), canonical_basename)
-                try:
-                    os.replace(path, dst)
-                    renamed_count += 1
-                    logging.debug("Renamed %s -> %s", path, dst)
-                except Exception as e:
-                    logging.error("Failed to rename %s to %s: %s", path, dst, e)
-            
-            pbar.update(1)
+        for path in group:
+            current_name = os.path.basename(path)
+            if current_name == canonical_basename:
+                continue
+
+            dst = os.path.join(os.path.dirname(path), canonical_basename)
+            try:
+                os.replace(path, dst)
+                renamed_count += 1
+                logging.info("Renamed %s -> %s", path, dst)
+            except Exception as e:
+                logging.error("Failed to rename %s to %s: %s", path, dst, e)
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
 
-def flatten_folder(folder: str) -> None:
-    """
-    Flatten folder structure by moving all files from subdirectories to root level.
-    Removes empty subdirectories after flattening.
-    Handles filename conflicts with numeric suffixes (_001, _002, etc.).
-
-    Args:
-        folder: Root folder to flatten
-    """
-    logging.info("Flattening folder structure: %s", folder)
-
-    try:
-        # Collect all files in subdirectories
-        all_files = []
-        for root, dirs, files in os.walk(folder):
-            # Skip root level files
-            if root == folder:
-                continue
-            for filename in files:
-                file_path = os.path.join(root, filename)
-                all_files.append(file_path)
-
-        if not all_files:
-            logging.info("No files in subdirectories, folder already flat: %s", folder)
-            return
-
-        logging.info("Found %d files in subdirectories to move to root level", len(all_files))
-
-        # Track used names at root level (case-insensitive for Windows compatibility)
-        # Map lowercase name -> actual name for collision detection
-        existing_names = {name.casefold(): name for name in os.listdir(folder)}
-        moved_count = 0
-
-        # Move files with progress bar
-        for file_path in tqdm(all_files, desc="Flattening folder", unit="files"):
-            filename = os.path.basename(file_path)
-            dest_path = os.path.join(folder, filename)
-
-            # Handle filename conflicts (case-insensitive check for Windows)
-            if filename.casefold() in existing_names:
-                base, ext = os.path.splitext(filename)
-                counter = 1
-                while True:
-                    new_filename = f"{base}_{counter:03d}{ext}"
-                    dest_path = os.path.join(folder, new_filename)
-                    if new_filename.casefold() not in existing_names:
-                        filename = new_filename
-                        break
-                    counter += 1
-                logging.debug("Filename conflict resolved: %s -> %s", os.path.basename(file_path), filename)
-
-            # Move file to root
-            try:
-                shutil.move(file_path, dest_path)
-                existing_names[filename.casefold()] = filename
-                moved_count += 1
-                logging.debug("Moved file to root: %s -> %s", file_path, dest_path)
-            except Exception as e:
-                logging.error("Failed to move file %s to %s: %s", file_path, dest_path, e)
-
-        # Remove empty subdirectories
-        removed_dirs = 0
-        for root, dirs, files in os.walk(folder, topdown=False):
-            # Skip root folder itself
-            if root == folder:
-                continue
-            # Remove if empty
-            try:
-                if not os.listdir(root):
-                    os.rmdir(root)
-                    removed_dirs += 1
-                    logging.debug("Removed empty directory: %s", root)
-            except Exception as e:
-                logging.warning("Failed to remove directory %s: %s", root, e)
-
-        logging.info("Flattening complete: moved %d files, removed %d empty directories", moved_count, removed_dirs)
-
-    except Exception as e:
-        logging.error("Failed to flatten folder %s: %s", folder, e)
-        raise
-
-
 def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
     """
-    Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
-    {full_path: hash} pro každý nalezený soubor.
+    Traverses folder `folder` recursively (by pattern) and returns dictionary
+    {full_path: hash} for each found file.
     """
     logging.info("Building hash map from folder: %s (pattern=%s)", folder, pattern)
-    # 1) Seber všechny soubory podle patternu
+    # 1) Collect all files matching pattern
     paths = list_files(folder, pattern, recursive=recursive)
     if not paths:
         logging.info("No files matching pattern '%s' in %s, skipping.", pattern, folder)
         return {}
     result: Dict[str, str] = {}
-    # 2) Pro každý soubor spočti hash a ulož ho pod klíč cesty
+    # 2) For each file compute hash and store it under path key
     for path in tqdm(paths, desc="Hashing files", unit="files"):
         try:
             file_hash = compute_file_hash(path)
@@ -330,3 +263,36 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
             logging.error("Failed to hash %s: %s", path, e)
     logging.info("Built hash map with %d entries from %s", len(result), folder)
     return result
+
+
+def save_csv(records: List[Dict[str, str]], path: str) -> None:
+    """
+    Saves list of records as CSV (UTF-8 with BOM).
+    Preserves header and column order.
+    All values are stored in quotes, not just those containing delimiter.
+    """
+    logging.debug("Saving CSV file to %s", path)
+    try:
+        if not records:
+            logging.warning("No records to save to CSV file %s", path)
+            return
+
+        # Get fieldnames from the first record
+        fieldnames = list(records[0].keys())
+
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(
+                csvfile,
+                fieldnames=fieldnames,
+                delimiter=',',
+                quotechar='"',
+                quoting=csv.QUOTE_ALL  # Force quoting for all fields
+            )
+            writer.writeheader()
+            for row in tqdm(records, desc="Saving CSV", unit="rows"):
+                writer.writerow(row)
+
+        logging.info("Saved %d records to CSV %s", len(records), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise
