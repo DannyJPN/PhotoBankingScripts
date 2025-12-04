@@ -231,11 +231,17 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
 
         # Zápis do souboru pomocí csv.DictWriter (QUOTE_ALL pro bezpečnost)
         logging.debug(f"Writing record to file: {output_file}")
-        logging.debug(f"File exists before write: {os.path.exists(output_file)}")
+
+        # Check if file exists and has content (defensive programming)
+        file_exists = os.path.exists(output_file)
+        file_is_empty = not file_exists or os.path.getsize(output_file) == 0
+
+        logging.debug(f"File exists before write: {file_exists}, is empty: {file_is_empty}")
 
         # Get fieldnames from column map
         fieldnames = [col['target'] for col in column_map]
 
+        # Open in append mode, but write header if file is empty
         with open(output_file, 'a', encoding='utf-8', newline='') as csvfile:
             writer = csv.DictWriter(
                 csvfile,
@@ -244,6 +250,12 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
                 quotechar='"',
                 quoting=csv.QUOTE_ALL  # Force quoting for all fields
             )
+
+            # Write header if file is empty (defensive check)
+            if file_is_empty:
+                writer.writeheader()
+                logging.debug(f"Wrote CSV header for empty file: {output_file}")
+
             writer.writerow(csv_record)
 
         logging.debug(f"Successfully exported to {bank}: {record.get('filename', '')}")
