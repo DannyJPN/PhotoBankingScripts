@@ -195,6 +195,23 @@ class TestCSVSanitizer_SafeValues(unittest.TestCase):
 
         self.assertEqual(result, safe_value)
 
+    def test_hyphen_with_parenthesis__unchanged(self):
+        """Test that legitimate text with hyphen and parenthesis is not flagged (regression test)."""
+        test_cases = [
+            "High-quality photo (2024)",
+            "State-of-the-art technology (patent pending)",
+            "USB-C connector (type-C)",
+            "Co-founder (since 2020)",
+            "Well-known location (Europe)",
+        ]
+        for safe_value in test_cases:
+            with self.subTest(value=safe_value):
+                result = sanitize_field(safe_value)
+                self.assertEqual(result, safe_value,
+                    f"Legitimate text should not be modified: {safe_value}")
+                self.assertFalse(is_dangerous(safe_value),
+                    f"Should not be flagged as dangerous: {safe_value}")
+
 
 class TestCSVSanitizer_RecordSanitization(unittest.TestCase):
     """Test cases for sanitizing entire records and lists."""

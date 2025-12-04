@@ -23,17 +23,18 @@ from typing import Any, Dict, List
 # Characters that can trigger formula execution in spreadsheet applications
 DANGEROUS_PREFIXES = ['=', '+', '-', '@', '\t', '\r', '\n']
 
-# Patterns that indicate potential injection attempts (excluding https?:// - see note below)
-# Note: https?:// pattern removed to avoid false positives on legitimate URLs in descriptions.
-# The =.*\( pattern already catches =HYPERLINK() and =IMPORTXML() formula attacks.
+# Patterns that indicate potential injection attempts
+# Note: Formula patterns use ^ anchor to match only at START of value to avoid false positives
+# on legitimate text like "High-quality photo (2024)" which contains hyphen and parenthesis.
+# CSV injection only works when dangerous characters are at the START of a cell value.
 SUSPICIOUS_PATTERNS = [
-    r'cmd\|',  # Command pipe
-    r'=.*\(',  # Formula with function call (catches =HYPERLINK, =IMPORTXML, etc.)
-    r'\+.*\(',  # Plus formula with function
-    r'-.*\(',  # Minus formula with function
-    r'@.*\(',  # @ formula with function
-    r'\\\\.*\\',  # UNC paths (\\server\share)
-    r'file:///',  # File URIs
+    r'cmd\|',  # Command pipe (can appear anywhere in formula context)
+    r'^=.*\(',  # Formula with function call - anchored to start (catches =HYPERLINK, =IMPORTXML)
+    r'^\+.*\(',  # Plus formula with function - anchored to start
+    r'^-.*\(',  # Minus formula with function - anchored to start (avoids "USB-C (type)" FP)
+    r'^@.*\(',  # @ formula with function - anchored to start
+    r'\\\\.*\\',  # UNC paths (\\server\share) - can appear anywhere
+    r'file:///',  # File URIs - can appear anywhere
 ]
 
 # Pre-compile regex patterns for performance (avoids recompilation on every call)
