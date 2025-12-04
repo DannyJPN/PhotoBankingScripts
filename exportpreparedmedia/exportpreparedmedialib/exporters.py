@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 from shared.file_operations import save_csv
+from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
 from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS
 
@@ -199,50 +200,63 @@ def export_mediafile(bank: str, record: Dict[str, str], output_file: str, export
         else:
             logging.debug(f"Using delimiter for {bank}: '{delimiter}'")
 
-        # Vytvoření řádku podle mapy sloupců
-        row = []
+        # Vytvoření záznamu podle mapy sloupců
+        csv_record = {}
         for col in column_map:
+            target_field = col['target']
+
             # Získání hodnoty ze záznamu nebo pevné hodnoty
             if "value" in col:
                 value = col["value"]
-                logging.debug(f"Using fixed value for {col['target']}: '{value}'")
+                logging.debug(f"Using fixed value for {target_field}: '{value}'")
             else:
                 source = col["source"]
                 value = record.get(source, "")
-                logging.debug(f"Using value from record for {col['target']} (source: {source}): '{value}'")
+                logging.debug(f"Using value from record for {target_field} (source: {source}): '{value}'")
 
             # Případná transformace hodnoty
             if "transform" in col and callable(col["transform"]):
                 try:
                     old_value = value
                     value = col["transform"](value)
-                    logging.debug(f"Transformed value for {col['target']}: '{old_value}' -> '{value}'")
+                    logging.debug(f"Transformed value for {target_field}: '{old_value}' -> '{value}'")
                 except Exception as e:
-                    logging.warning(f"Transform failed for {col['target']}: {e}")
+                    logging.warning(f"Transform failed for {target_field}: {e}")
                     value = ""
 
-            # Uvozovky kolem VŠECH hodnot (QUOTE_ALL standard)
-            if isinstance(value, str):
-                # Escapuj uvozovky a obal hodnotu uvozovkami
-                value = f'"{value.replace("\"", "\"\"")}"'
-                logging.debug(f"Quoted value for {col['target']}: {value}")
-            else:
-                # Pro non-string hodnoty přidej uvozovky kolem string reprezentace
-                value = f'"{str(value)}"'
-                logging.debug(f"Quoted non-string value for {col['target']}: {value}")
+            # Sanitize value to prevent CSV injection attacks
+            value = sanitize_field(value)
 
-            row.append(value)
+            csv_record[target_field] = value
 
-        # Spojení řádku pomocí oddělovače
-        line = delimiter.join(row)
-        logging.debug(f"Final line for {bank}: {line}")
+        # Zápis do souboru pomocí csv.DictWriter (QUOTE_ALL pro bezpečnost)
+        logging.debug(f"Writing record to file: {output_file}")
 
-        # Zápis do souboru
-        logging.debug(f"Writing to file: {output_file}")
-        logging.debug(f"File exists before write: {os.path.exists(output_file)}")
+        # Check if file exists and has content (defensive programming)
+        file_exists = os.path.exists(output_file)
+        file_is_empty = not file_exists or os.path.getsize(output_file) == 0
 
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(line + '\n')
+        logging.debug(f"File exists before write: {file_exists}, is empty: {file_is_empty}")
+
+        # Get fieldnames from column map
+        fieldnames = [col['target'] for col in column_map]
+
+        # Open in append mode, but write header if file is empty
+        with open(output_file, 'a', encoding='utf-8', newline='') as csvfile:
+            writer = csv.DictWriter(
+                csvfile,
+                fieldnames=fieldnames,
+                delimiter=delimiter,
+                quotechar='"',
+                quoting=csv.QUOTE_ALL  # Force quoting for all fields
+            )
+
+            # Write header if file is empty (defensive check)
+            if file_is_empty:
+                writer.writeheader()
+                logging.debug(f"Wrote CSV header for empty file: {output_file}")
+
+            writer.writerow(csv_record)
 
         logging.debug(f"Successfully exported to {bank}: {record.get('filename', '')}")
         logging.debug(f"File exists after write: {os.path.exists(output_file)}")
