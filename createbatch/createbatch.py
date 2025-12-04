@@ -16,7 +16,7 @@ from createbatchlib.constants import (
     PREPARED_STATUS_VALUE
 )
 from createbatchlib.filtering import filter_prepared_media
-from createbatchlib.preparation import prepare_media_file
+from createbatchlib.media_preparation import prepare_media_file
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
