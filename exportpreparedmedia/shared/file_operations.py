@@ -8,7 +8,8 @@ from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
 
-from shared.hash_utils      import compute_file_hash
+from shared.hash_utils import compute_file_hash
+from shared.csv_sanitizer import sanitize_records
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -258,17 +259,27 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
     return result
 
 
-def save_csv(records: List[Dict[str, str]], path: str) -> None:
+def save_csv(records: List[Dict[str, str]], path: str, sanitize: bool = True) -> None:
     """
     Uloží seznam záznamů jako CSV (UTF-8 s BOM).
     Zachová hlavičku a pořadí sloupců.
     Všechny hodnoty jsou uloženy v uvozovkách, nejen ty obsahující delimiter.
+
+    Args:
+        records: List of dictionaries to save
+        path: Output file path
+        sanitize: Whether to sanitize data to prevent CSV injection (default: True)
     """
-    logging.debug("Saving CSV file to %s", path)
+    logging.debug("Saving CSV file to %s (sanitize=%s)", path, sanitize)
     try:
         if not records:
             logging.warning("No records to save to CSV file %s", path)
             return
+
+        # Sanitize records to prevent CSV injection attacks
+        if sanitize:
+            records = sanitize_records(records)
+            logging.debug("Applied CSV injection protection to %d records", len(records))
 
         # Get fieldnames from the first record
         fieldnames = list(records[0].keys())
@@ -285,7 +296,7 @@ def save_csv(records: List[Dict[str, str]], path: str) -> None:
             for row in tqdm(records, desc="Saving CSV", unit="rows"):
                 writer.writerow(row)
 
-        logging.info("Saved %d records to CSV %s", len(records), path)
+        logging.info("Saved %d sanitized records to CSV %s", len(records), path)
     except Exception as e:
         logging.error("Failed to save CSV file %s: %s", path, e)
         raise

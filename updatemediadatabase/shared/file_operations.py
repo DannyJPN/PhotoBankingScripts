@@ -8,7 +8,8 @@ from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
 
-from shared.hash_utils      import compute_file_hash
+from shared.hash_utils import compute_file_hash
+from shared.csv_sanitizer import CSVSanitizer
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -276,10 +277,13 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
         # Get fieldnames from the first row - this preserves order!
         fieldnames = list(data[0].keys()) if data else []
 
+        # Sanitize data to prevent CSV injection
+        sanitized_data = sanitize_records(data)
+
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
             writer.writeheader()
-            writer.writerows(data)
+            writer.writerows(sanitized_data)
 
         logging.info("Successfully saved %d records to %s", len(data), path)
     except Exception as e:

@@ -1,13 +1,19 @@
 import os
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import re
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import shutil
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import logging
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 import csv
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
 
 from shared.hash_utils      import compute_file_hash
+from shared.csv_sanitizer   import CSVSanitizer
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -115,6 +121,9 @@ def save_csv(records: List[Dict[str, str]], path: str) -> None:
         # Get fieldnames from the first record
         fieldnames = list(records[0].keys())
 
+        # Sanitize data to prevent CSV injection
+        sanitized_data = sanitize_records(records)
+
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
             writer = csv.DictWriter(
                 csvfile,
@@ -124,7 +133,7 @@ def save_csv(records: List[Dict[str, str]], path: str) -> None:
                 quoting=csv.QUOTE_ALL  # Force quoting for all fields
             )
             writer.writeheader()
-            for row in tqdm(records, desc="Saving CSV", unit="rows"):
+            for row in tqdm(sanitized_data, desc="Saving CSV", unit="rows"):
                 writer.writerow(row)
 
         logging.info("Saved %d records to CSV %s", len(records), path)

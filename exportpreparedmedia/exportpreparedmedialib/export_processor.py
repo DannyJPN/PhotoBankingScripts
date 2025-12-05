@@ -5,6 +5,7 @@ from datetime import datetime
 from tqdm import tqdm
 from shared.utils import is_editorial, load_extensions
 from shared.csv_handler import save_export_objects_to_csv
+from shared.user_config import get_copyright_notice
 from exportpreparedmedialib.category_handler import get_categories_for_photobank
 from exportpreparedmedialib.constants import (
     VIDEO_EXTENSIONS_FILE,
@@ -192,7 +193,7 @@ def create_export_object(photobank, item, all_categories):
             'Nudity': NUDITY,
             'country': COUNTRY,
             'specifysource': SPECIFY_SOURCE,
-            'copyright': f"Dan K. {year_created}",
+            'copyright': get_copyright_notice(year_created),
             'license_type': "RF" if editorial_status == "no" else "RF-E",
             'License type': "RF" if editorial_status == "no" else "RF-E",
             'username': USERNAME,

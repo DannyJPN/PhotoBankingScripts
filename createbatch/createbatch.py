@@ -15,7 +15,7 @@ from createbatchlib.constants import (
     STATUS_FIELD_KEYWORD,
     PREPARED_STATUS_VALUE
 )
-from createbatchlib.filtering import filter_prepared_media
+from createbatchlib.optimization import RecordProcessor
 from createbatchlib.preparation import prepare_media_file
 from createbatchlib.progress_tracker import UnifiedProgressTracker
 
@@ -103,10 +103,19 @@ def main():
     logging.debug("EXIF: %s", exif_tool_path)
     logging.info("Starting CreateBatch process")
 
-    # Load and filter records (no progress bar - fast operation)
+    # Load CSV and process with optimized single-pass algorithm
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
-    prepared = filter_prepared_media(records, include_edited=args.include_edited)
-    if not prepared:
+
+    # Initialize optimized record processor
+    processor = RecordProcessor(STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE)
+
+    # Single-pass filtering and grouping by bank (O(n) instead of O(n²))
+    bank_records_map = processor.process_records_optimized(
+        records,
+        include_edited=args.include_edited
+    )
+
+    if not bank_records_map:
         logging.warning("No prepared media records found. Exiting.")
         return
 

@@ -5,6 +5,7 @@ from typing import List, Dict
 from tqdm import tqdm
 import os
 import shutil
+from shared.csv_sanitizer import sanitize_records
 
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
@@ -69,3 +70,46 @@ def load_csv(path: str) -> List[Dict[str, str]]:
         logging.error("Failed to load CSV file %s: %s", path, e)
         raise
     return records
+
+
+def save_csv(records: List[Dict[str, str]], path: str, sanitize: bool = True) -> None:
+    """
+    Save a list of records as CSV (UTF-8 with BOM).
+    Preserves header and column order.
+    All values are quoted, not just those containing delimiters.
+
+    Args:
+        records: List of dictionaries to save
+        path: Output file path
+        sanitize: Whether to sanitize data to prevent CSV injection (default: True)
+    """
+    logging.debug("Saving CSV file to %s (sanitize=%s)", path, sanitize)
+    try:
+        if not records:
+            logging.warning("No records to save to CSV file %s", path)
+            return
+
+        # Sanitize records to prevent CSV injection attacks
+        if sanitize:
+            records = sanitize_records(records)
+            logging.debug("Applied CSV injection protection to %d records", len(records))
+
+        # Get fieldnames from the first record
+        fieldnames = list(records[0].keys())
+
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(
+                csvfile,
+                fieldnames=fieldnames,
+                delimiter=',',
+                quotechar='"',
+                quoting=csv.QUOTE_ALL  # Force quoting for all fields
+            )
+            writer.writeheader()
+            for row in tqdm(records, desc="Saving CSV", unit="rows"):
+                writer.writerow(row)
+
+        logging.info("Saved %d sanitized records to CSV %s", len(records), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise

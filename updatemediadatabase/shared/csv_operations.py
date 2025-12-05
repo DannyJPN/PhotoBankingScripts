@@ -6,6 +6,8 @@ from datetime import datetime
 from typing import List, Dict
 from tqdm import tqdm
 
+from shared.csv_sanitizer import CSVSanitizer
+
 def load_csv(path: str) -> List[Dict[str, str]]:
     """
     Load a CSV file and return a list of records as dictionaries.
@@ -63,12 +65,15 @@ def save_csv(path: str, records: List[Dict[str, str]], backup: bool = True) -> N
             fieldnames.update(record.keys())
         fieldnames = sorted(list(fieldnames))
         
+        # Sanitize data to prevent CSV injection
+        sanitized_data = sanitize_records(records)
+
         # Write records to CSV with progress bar
         with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             writer.writeheader()
-            
-            for record in tqdm(records, desc="Saving CSV", unit="rows"):
+
+            for record in tqdm(sanitized_data, desc="Saving CSV", unit="rows"):
                 writer.writerow(record)
                 
         logging.info(f"Saved {len(records)} records to CSV {path}")
