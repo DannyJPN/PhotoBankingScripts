@@ -16,7 +16,7 @@ from createbatchlib.constants import (
     PREPARED_STATUS_VALUE
 )
 from createbatchlib.optimization import RecordProcessor
-from createbatchlib.preparation import prepare_media_file
+from createbatchlib.media_preparation import prepare_media_file
 from createbatchlib.progress_tracker import UnifiedProgressTracker
 
 def parse_arguments():
