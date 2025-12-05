@@ -629,3 +629,580 @@ Odhad pro 1 fotku:
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/batch_processor.py` (NEW)
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/prompts.py` (NEW)
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/media_viewer.py` (UI úpravy)
+
+---
+
+# AKTUALIZACE PO DŮKLADNÉ ANALÝZE
+
+**Datum**: 2025-12-05
+**Analytik**: Claude (Sonnet 4.5)
+**Rozsah**: Identifikováno 42 kritických zádrhelů, všechny probrány a vyřešeny
+
+## Shrnutí analýzy
+
+Původní návrh batch režimu byl podroben důkladné analýze zaměřené na:
+1. **Technické zádrhely** (P0, P1, P2) - limity API, konkurence, validace
+2. **Procesní zádrhely** (P0-P1) - synchronizace stavů, konflikt batch↔manual režimů
+3. **Uživatelské scénáře** - všechny možné edge cases a konfliktní situace
+
+**Výsledek**: Všechny kritické problémy identifikovány a vyřešeny. Implementace **DOPORUČENA** s níže uvedenými rozhodnutími.
+
+---
+
+## KRITICKÁ ARCHITEKTONICKÁ ROZHODNUTÍ
+
+### 1. Batch Size & Structure
+
+**Problém**: OpenAI Batch API limit 100MB JSONL, base64 overhead 33%.
+
+**Rozhodnutí**:
+- **Vision batch size**: 20 fotek (default) kvůli 100MB limitu
+- **Alternative batch size**: ~2000 souborů (text-only, bez vision)
+- **Parametr `--batch_size`**: Celkový počet fotek v run → automaticky rozdělí na multiple OpenAI batches
+
+**Příklad**:
+```bash
+python givephotobankreadymediafiles.py --batch_mode --batch_size 100
+# Vytvoří:
+# - 5× vision batch (20 fotek each) pro originals
+# - 5× text-only batch (100 alternatives each) pro každý typ (_bw, _negative, atd.)
+# CELKEM: 10 OpenAI batchů
+```
+
+### 2. Image Preprocessing Pipeline
+
+**Problém**: Velké obrázky přesahují 100MB base64 limit.
+
+**Rozhodnutí**:
+- **Progressive resize**: Start 4000px @ quality 90%
+- If still too large → resize to 3000px @ quality 90%
+- Continue until fits nebo minimum 2000px
+- **Minimum**: 2000px (pod tímto = skip)
+- **Skip handling**: Status zůstane "nezpracováno" (možnost manual mode)
+- **RAW handling**: On-the-fly convert to JPG pokud se nevejde
+
+### 3. Workflow Architecture (3 fáze)
+
+**KRITICKÉ**: Batch režim MUSÍ dodržet toto pořadí:
+
+```
+FÁZE 0: Cleanup (auto při startu)
+└─ Delete completed batches > 12 měsíců
+
+FÁZE 1: Retrieve Completed Batches
+├─ Scan batch_registry.json pro batche se status="sent"
+├─ Check každou na OpenAI API (parallel, progress bar)
+├─ If status="completed" → retrieve results
+├─ Save metadata to CSV (transactional - per file)
+├─ Update status="batch_completed" v registry
+└─ Mark failed files for retry
+
+FÁZE 2: Send Ready Batches
+├─ Check daily batch limit (OpenAI: 500/day)
+├─ If limit reached → keep batches as "ready", try tomorrow
+├─ Scan batch_registry.json pro batche se status="ready"
+├─ Send každou (sequential, progress bar)
+├─ Update status="sent" + store openai_batch_id
+└─ Handle upload failures (error-specific: size→split, network→retry)
+
+FÁZE 3: Collect New Descriptions (GUI loop)
+├─ Find or create active "collecting" batch
+├─ Load PhotoMedia.csv → filter status="nezpracováno"
+├─ SKIP files in active batches (read batch_state)
+├─ For each file:
+│  ├─ Show GUI (textbox 50+ chars minimum, progress bar)
+│  ├─ Editorial checkbox → modal dialog (same as regular mode)
+│  ├─ Save/Reject/Show in Explorer buttons
+│  ├─ Save description to batch_state
+│  └─ If batch full (reaches --batch_size) → mark "ready", create new
+└─ Generate alternatives metadata (text-only, separate batches)
+```
+
+**SEKVENČNÍ PROCESSING ALTERNATIVES**:
+- Alternative step JEN až po completion stejného stepu na originals
+- Např: FÁZE 1 retrieve originals → pak FÁZE 1 retrieve alternatives
+
+### 4. Batch State Management
+
+**Storage struktura**:
+```
+BATCH_STATE_DIR/
+├── batch_registry.json          # Global index všech batchů + file registry
+├── batches/
+│   ├── batch_abc123/
+│   │   ├── state.json           # Files, status, metadata
+│   │   ├── descriptions.json    # User descriptions
+│   │   └── results.json         # AI results po completion
+│   └── batch_xyz789/
+│       └── ...
+```
+
+**batch_registry.json** (klíčový soubor):
+```json
+{
+  "active_batches": {
+    "batch_abc123": {
+      "status": "collecting|ready|sent|completed",
+      "created_at": "2024-06-15T10:00:00",
+      "batch_type": "originals|alternatives_bw|alternatives_negative|...",
+      "file_count": 50,
+      "batch_size_limit": 100,
+      "openai_batch_id": null
+    }
+  },
+  "completed_batches": [
+    {"batch_id": "batch_old1", "completed_at": "2024-05-01T10:00:00"}
+  ],
+  "file_registry": {
+    "J:\\Foto\\IMG_001.jpg": "batch_abc123"
+  }
+}
+```
+
+**Tracking**:
+- **Global file registry**: Prevent duplicate files across batches (hard error)
+- **Completed batches**: Skip already processed batches při resume
+- **Daily batch count**: Track against OpenAI 500/day limit
+
+### 5. Concurrency & Locking
+
+**Problém**: Batch (stateful) vs. Manual (stateless) mode může způsobit data corruption.
+
+**Rozhodnutí**:
+- **Single instance only**: Hard lock file (msvcrt/fcntl)
+- **Manual mode MUSÍ**: Číst batch_state → hard-skip soubory v active batchi
+- **Lock violation**: Hard error + exit
+
+**Manual mode filtrování**:
+```python
+def is_in_active_batch(file_path: str) -> bool:
+    # Scan batch_registry.json
+    for batch_id in active_batches:
+        if file_path in batch_files[batch_id]:
+            if status in ["collecting", "ready", "sent"]:
+                return True
+    return False
+
+unprocessed = [f for f in records
+               if f.status == "nezpracováno"
+               and not is_in_active_batch(f.path)]
+```
+
+### 6. Alternatives Generation
+
+**KRITICKÉ**: Batch režim BUDE generovat alternativy.
+
+**Strategie**:
+- **Separate batches** per alternative type (text-only, bez vision)
+- **Batch structure**: Jedna batch = všechny pending soubory jednoho typu
+  - `alternatives_bw`: až 2000 souborů
+  - `alternatives_negative`: až 2000 souborů
+  - atd.
+- **Processing**: Sekvenční (originals completion → alternatives collection → alternatives send)
+- **Prompt**: Totožné jako regular mode, AI dostane original metadata + alternative type
+
+**Proces**:
+```
+1. FÁZE 1: Retrieve originals batches
+2. FÁZE 1: Retrieve alternatives batches (až po 1.)
+3. FÁZE 2: Send originals batches
+4. FÁZE 2: Send alternatives batches (až po 3.)
+5. FÁZE 3: Collect originals descriptions
+6. FÁZE 3: Generate alternatives metadata → create alternative batches (až po 5.)
+```
+
+### 7. CSV Update Strategy
+
+**Problém**: Transactional vs. all-or-nothing updates.
+
+**Rozhodnutí**:
+- **Transactional**: Save CSV after each file (minimize double-processing risk)
+- **Backup**: Auto-backup při každém `save_csv_with_backup()` call (current behavior OK)
+- **Status update**: Kopírovat regular mode logiku
+  ```python
+  # Update POUZE columns s "nezpracováno"
+  for field_name, field_value in csv_record.items():
+      if field_name.endswith(" status") and field_value == "nezpracováno":
+          csv_record[field_name] = "připraveno"
+  # SKIP columns které už mají "připraveno" nebo jiný status
+  ```
+
+### 8. Cost Calculation & Tracking
+
+**Problém**: Issue odhad $0.004/fotka nezahrnuje vision tokens.
+
+**Rozhodnutí**:
+- **Přesný výpočet input tokens**:
+  ```python
+  prompt_tokens = tiktoken.encode(prompt_template)
+  vision_tokens = calculate_vision_tokens(width, height, detail="high")
+  description_tokens = tiktoken.encode(user_description)
+  total_input = prompt_tokens + vision_tokens + description_tokens
+  ```
+- **Vision token formula** (OpenAI documented):
+  ```python
+  def calculate_vision_tokens(width, height, detail="high"):
+      if detail == "low": return 85
+      # Resize to fit 2048x2048, scale shortest to 768px
+      # Count 512px tiles
+      tiles_wide = (width + 511) // 512
+      tiles_high = (height + 511) // 512
+      return 85 + (tiles_wide * tiles_high * 170)
+  ```
+- **Output tokens**: Conservative estimate 150 tokens (actual varies)
+- **Logging**: `cost_log.json` per batch:
+  ```json
+  {
+    "batch_abc123": {
+      "estimated_input_tokens": 65700,
+      "estimated_output_tokens": 3000,
+      "estimated_cost": 0.097,
+      "actual_cost": null  // fill after completion
+    }
+  }
+  ```
+- **Display**: Show estimate před send, zobrazit breakdown na request
+
+**Skutečný cost**:
+```
+Pro 4000×3000 obrázek:
+- Prompt: 500 tokens
+- Vision: 1785 tokens (high detail)
+- Description: 100 tokens
+- Output: 150 tokens (estimated)
+= Input: 2385 tokens × $1.25/1M = $0.00298
+= Output: 150 tokens × $5.00/1M = $0.00075
+= TOTAL: $0.00373 per fotka (ne $0.004!)
+```
+
+---
+
+## VŠECHNA TECHNICKÁ ROZHODNUTÍ
+
+### P0 KRITICKÉ PROBLÉMY (Blockers)
+
+#### #1: Base64 Limit Exceeded
+**Rozhodnutí**: Progressive resize 4000px→2000px @ quality 90%, skip if still too large
+
+#### #2: Concurrent Writes
+**Rozhodnutí**: Single instance only, hard lock file, hard error on violation
+
+#### #3: Custom ID Collisions
+**Rozhodnutí**: Simple `{stem}_{batch_id}` (system garantuje unique filenames)
+
+#### #4: CSV Update Strategy
+**Rozhodnutí**: Transactional (save after each file to minimize double-processing)
+
+#### #5: Orphaned Batches
+**Rozhodnutí**: 3-fázový workflow, multi-batch registry, parallel retrieve
+
+#### #6: File Hash Validation
+**Rozhodnutí**: NE (user responsibility, re-validation by implementation)
+
+### P1 ZÁVAŽNÉ PROBLÉMY
+
+#### #7: Cost Calculation Error
+**Rozhodnutí**: Přesný výpočet (tiktoken + vision formula), log to cost_log.json
+
+#### #8: GUI Validation - Min Length
+**Rozhodnutí**: Hard minimum 50 znaků, disable Save button
+
+#### #9: Partial Recovery
+**Rozhodnutí**: Auto-resume s preview info, MUSÍ pokračovat (bez volby cancel)
+
+#### #10: Alternative Generation (řešeno výše)
+**Rozhodnutí**: Separate text-only batches per type, ~2000 souborů per batch
+
+#### #11: Batch Timeout
+**Rozhodnutí**: Exit normálně při timeout, log info, pokračovat příště (podle issue návrhu)
+
+#### #12: Failed Files in Batch
+**Rozhodnutí**: Retry individually v sync mode (až 3 pokusy per file)
+
+---
+
+## PROCESNÍ ROZHODNUTÍ (State Management)
+
+### #28: Batch ↔ Manual Mode Synchronization ⚠️ KRITICKÉ
+
+**Problém**: Batch (stateful) vs. Manual (stateless) může způsobit data loss.
+
+**Rozhodnutí**:
+- Manual mode **MUSÍ** číst batch_state
+- Hard-skip soubory které jsou v active batchi (status: collecting|ready|sent)
+- Log: "Skipped 5 files (in active batch)"
+
+### #29: Missing Files During Completion
+
+**Rozhodnutí**: Mark as error v batch_state, continue with others
+```json
+{"file_path": "missing.jpg", "status": "file_not_found", "error": "..."}
+```
+
+### #30: Duplicate Files Across Batches
+
+**Rozhodnutí**: Global file registry - prevent duplicates (hard error)
+```python
+if file in any_active_batch:
+    raise Error(f"File {file} already in batch {batch_id}")
+```
+
+### #31: Resume After Interruption
+
+**Rozhodnutí**: Již vyřešeno v #9 (auto-resume from last position)
+
+### #32: Stale Batch State Detection
+
+**Rozhodnutí**: Registry tracking completed batches → skip already processed
+
+### #33: Alternatives Inconsistency
+
+**Rozhodnutí**: Již vyřešeno v #10 (separate batches per type)
+
+### #34: Mode Confusion
+
+**Rozhodnutí**:
+- Logging: `"=== BATCH MODE STARTED ==="`
+- Progress bars pro všechny operace
+- GUI title bar: `"[BATCH MODE] Collecting descriptions (50/100)"`
+
+### #35: Upload Failure Handling
+
+**Rozhodnutí**: Error-specific handling
+```python
+try:
+    upload_batch(jsonl_file)
+except FileSizeExceeded:
+    split_batch_and_retry()
+except NetworkTimeout:
+    retry_with_backoff()
+except RateLimitError:
+    wait_and_retry()
+except AuthenticationError:
+    fail_permanently("Check API key")
+# Implementor musí nastudovat OpenAI error types
+```
+
+### #36: Long-Running Batch
+
+**Rozhodnutí**: Již vyřešeno v #11 (timeout + resume)
+
+### #37: CSV Backup Timing
+
+**Rozhodnutí**: Current behavior OK (transactional + auto-backup)
+
+### #38: User Interruption (Ctrl+C)
+
+**Rozhodnutí**: Immediate exit všude, batch state auto-saved after each operation (no special SIGINT handler needed)
+
+### #39: Multi-Bank Status Update ⚠️ KRITICKÉ
+
+**Rozhodnutí**: Kopírovat regular mode logiku
+```python
+# preparemediafile.py:156-160
+for field_name, field_value in record.items():
+    if field_name.endswith(" status") and field_value == "nezpracováno":
+        record[field_name] = "připraveno"
+# SKIP columns které už nejsou "nezpracováno"
+```
+
+### #40: Editorial Metadata ⚠️ KRITICKÉ
+
+**Rozhodnutí**: Totožné jako regular mode
+- Editorial checkbox v batch GUI
+- Opens EditorialInfoDialog (modal)
+- Save/Reject/Show in Explorer buttons fungují stejně
+
+### #41: Cost Tracking
+
+**Rozhodnutí**: Již vyřešeno v #7 (cost_log.json)
+
+### #42: Batch Cleanup
+
+**Rozhodnutí**: Auto-cleanup při startu, delete completed batches > 12 měsíců
+
+---
+
+## FINÁLNÍ ROZHODNUTÍ
+
+### Daily Batch Limit (OpenAI: 500/day)
+
+**Kalkulace**:
+```
+Jeden run (100 fotek):
+- Originals: 5 vision batches (20 fotek each)
+- Alternatives: 5 text-only batches (100 alternatives each)
+= CELKEM: 10 OpenAI batches
+
+500 limit / 10 = max 50 runs/day = 5,000 fotek/den
+```
+
+**Rozhodnutí**: Track daily count + graceful handling
+```python
+daily_count = get_todays_batch_count()  # Z OpenAI API
+if daily_count + batch_count > 500:
+    logging.warning("Daily limit would be exceeded")
+    # Keep batch as "ready", send tomorrow
+    break
+```
+
+### Notification System
+
+**Rozhodnutí**: CLI check command
+```bash
+python givephotobankreadymediafiles.py --check-batch-status
+# Output:
+# Batch ABC123: completed (50 files ready)
+# Batch XYZ789: in_progress (est. 2h remaining)
+```
+
+---
+
+## GUI REQUIREMENTS
+
+**Batch mode GUI MUSÍ být totožné s regular mode + additions**:
+
+```
+┌─────────────────────────────────────────────┐
+│ [BATCH MODE] Give Photobank Ready Media... │ ← Title bar indicator
+├─────────────────────────────────────────────┤
+│                                             │
+│  [Image Preview]                            │
+│                                             │
+│  ┌─────────────────────────────────────┐   │
+│  │ User Description (min 50 chars)     │   │
+│  │                                     │   │
+│  │ [Large textbox - 250+ chars]       │   │
+│  │                                     │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  [✓] Editorial → (opens modal)              │
+│                                             │
+│  [Save] [Reject] [Show in Explorer]        │
+│                                             │
+│  Progress: 50/100 files | Est: $0.50       │ ← Status bar
+└─────────────────────────────────────────────┘
+```
+
+**Validace**:
+- Save button disabled pokud `length < 50`
+- Live character counter: "15/50 characters minimum"
+
+---
+
+## PROGRESS BARS (povinné)
+
+```python
+# FÁZE 1
+for batch in tqdm(active_batches_sent, desc="Checking completed batches"):
+    check_and_retrieve(batch)
+
+# FÁZE 2
+for batch in tqdm(ready_batches, desc="Sending batches to API"):
+    send_batch(batch)
+
+# FÁZE 3
+for file in tqdm(unprocessed_files, desc="Collecting descriptions"):
+    show_gui(file)
+
+# Results processing
+for file in tqdm(batch_results, desc="Saving metadata to CSV"):
+    save_to_csv(file, metadata)
+```
+
+---
+
+## IMPLEMENTAČNÍ DOPORUČENÍ
+
+### Fázování
+
+**Fáze 1 (MVP)**:
+- ✅ Batch state management
+- ✅ 3-fázový workflow
+- ✅ GUI s textboxem
+- ✅ Vision batches (originals only)
+- ❌ Bez alternatives (přidat později)
+
+**Fáze 2 (Full)**:
+- ✅ Alternative generation
+- ✅ Text-only batches
+- ✅ Cost tracking
+- ✅ Daily limit handling
+
+### Testing Requirements
+
+**KRITICKÉ test scenarios**:
+1. **Batch↔Manual conflict**: Start batch → switch to manual → resume batch
+2. **Interruption recovery**: Ctrl+C během každé fáze → resume
+3. **Missing files**: Delete files během batch processing
+4. **Duplicate detection**: Add same file to 2 batches
+5. **API failures**: Network timeout, rate limit, size exceeded
+6. **Cost calculation**: Verify vision token formula accuracy
+7. **Multi-bank status**: Verify pouze "nezpracováno" columns updated
+
+### P2 Issues (Implementor MUSÍ řešit)
+
+Následující problémy jsou implementační detail, ale **NESMÍ být ignorovány**:
+
+- **#16 Prompt injection**: Sanitize user descriptions (escape {}, newlines)
+- **#17 Rate limits**: Již vyřešeno výše (daily limit tracking)
+- **#18 JSON parsing**: Validate AI responses, handle malformed JSON
+- **#19 Notifications**: Již vyřešeno výše (CLI check command)
+- **#20 CSV encoding**: UTF-8-BOM consistency check
+- **#21 Memory usage**: Stream large JSONL results (line-by-line parse)
+
+---
+
+## RIZIKA A MITIGACE
+
+### Vysoké riziko
+
+1. **Data corruption** (CSV conflicts)
+   - Mitigace: Transactional updates + backups + lock file
+
+2. **Cost overruns** (vision tokens)
+   - Mitigace: Přesný výpočet + cost_log.json + display estimate
+
+3. **State inconsistency** (batch vs. manual)
+   - Mitigace: Manual mode read batch_state + hard-skip
+
+4. **Lost work** (crashes, interruptions)
+   - Mitigace: Auto-save after each operation + resume capability
+
+### Střední riziko
+
+5. **API rate limits** (500/day)
+   - Mitigace: Daily count tracking + graceful queuing
+
+6. **Missing files** (user moves/deletes)
+   - Mitigace: Mark as error, continue with others
+
+7. **Upload failures** (network, size)
+   - Mitigace: Error-specific retry strategies
+
+---
+
+## ZÁVĚREČNÉ DOPORUČENÍ
+
+**STATUS**: ✅ **GO - Implementace doporučena**
+
+**Důvody**:
+- ✅ Všechny blocking issues (P0) vyřešeny
+- ✅ Všechny serious issues (P1) vyřešeny
+- ✅ Všechny procesní konflikty vyřešeny
+- ✅ Jasná architektura a rozhodnutí
+- ✅ 50% cost benefit + bulk processing capability
+
+**Podmínky**:
+1. Implementátor **MUSÍ** číst všechna rozhodnutí v této sekci
+2. **MUSÍ** implementovat všechna kritická rozhodnutí (P0, P1)
+3. **MUSÍ** testovat všechny konfliktní scénáře (batch↔manual)
+4. **DOPORUČENO** fázovat implementaci (MVP bez alternatives → Full s alternatives)
+
+**Odhadovaná složitost**: 2-3× více než původní issue návrh (kvůli state synchronization a error handling)
+
+**Benefit**: 50% cost savings + 10-50× faster bulk processing
+
+---
+
+**Konec aktualizace**
