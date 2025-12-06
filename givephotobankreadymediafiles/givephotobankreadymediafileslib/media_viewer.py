@@ -522,6 +522,7 @@ class MediaViewer:
         try:
             selected_model = self.model_combo.get()
             if not selected_model or selected_model in ["No models available", "Error loading models"]:
+                logging.debug(f"get_current_ai_provider: No valid model selected: '{selected_model}'")
                 return None
 
             from shared.config import get_config
@@ -536,13 +537,18 @@ class MediaViewer:
                     break
 
             if not model_key:
+                logging.debug(f"get_current_ai_provider: Model key not found for '{selected_model}'")
                 return None
 
             # Get provider
-            return config.get_ai_provider(model_key)
+            provider = config.get_ai_provider(model_key)
+            logging.debug(f"get_current_ai_provider: Got provider for '{selected_model}' (key: {model_key})")
+            return provider
 
         except Exception as e:
-            logging.debug(f"Error getting AI provider: {e}")
+            logging.error(f"Error getting AI provider: {e}")
+            import traceback
+            logging.debug(traceback.format_exc())
             return None
 
     def check_available_inputs(self, field_type: str) -> Dict[str, bool]:
@@ -602,21 +608,37 @@ class MediaViewer:
         """
         # Always disable if no file is loaded
         if not self.current_file_path:
-            return False
-
-        # Check if model is valid
-        ai_provider = self.get_current_ai_provider()
-        if not ai_provider:
+            logging.debug(f"Button {field_type}: Disabled - no file loaded")
             return False
 
         # Check available inputs
         inputs = self.check_available_inputs(field_type)
+        logging.debug(f"Button {field_type}: has_image={inputs['has_image']}, has_text={inputs['has_text']}")
+
+        # If we have no inputs at all, disable
+        if not inputs['has_image'] and not inputs['has_text']:
+            logging.debug(f"Button {field_type}: Disabled - no inputs available")
+            return False
+
+        # Try to get AI provider to check capabilities
+        ai_provider = self.get_current_ai_provider()
+        if not ai_provider:
+            # If we can't get provider, enable based on having ANY input
+            # This allows buttons to work even if provider check fails
+            logging.debug(f"Button {field_type}: Enabled (fallback) - provider not available but have inputs")
+            return inputs['has_image'] or inputs['has_text']
+
+        # Check if model supports images
+        supports_images = ai_provider.supports_images()
+        logging.debug(f"Button {field_type}: Model supports_images={supports_images}")
 
         # Check if model can generate with available inputs
-        return ai_provider.can_generate_with_inputs(
+        can_generate = ai_provider.can_generate_with_inputs(
             has_image=inputs['has_image'],
             has_text=inputs['has_text']
         )
+        logging.debug(f"Button {field_type}: {'Enabled' if can_generate else 'Disabled'} - can_generate={can_generate}")
+        return can_generate
 
     def update_all_button_states(self):
         """Update enabled/disabled state of all generation buttons."""
