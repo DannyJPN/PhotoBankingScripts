@@ -66,9 +66,6 @@ class MediaViewer:
         }
         self.generation_lock = threading.Lock()
 
-        # Button state update debouncing timer
-        self._button_update_timer: Optional[int] = None
-
         # Configure styles for tags
         self.setup_styles()
         
@@ -603,12 +600,13 @@ class MediaViewer:
             'has_text': has_text
         }
 
-    def should_enable_generation_button(self, field_type: str) -> bool:
+    def should_enable_generation_button(self, field_type: str, ai_provider=None) -> bool:
         """
         Determine if a generation button should be enabled.
 
         Args:
             field_type: One of 'title', 'description', 'keywords', 'categories'
+            ai_provider: Optional AI provider instance (if None, will be fetched)
 
         Returns:
             True if button should be enabled
@@ -620,44 +618,50 @@ class MediaViewer:
 
         # Check available inputs
         inputs = self.check_available_inputs(field_type)
-        logging.debug(f"Button {field_type}: has_image={inputs['has_image']}, has_text={inputs['has_text']}")
+
+        # Log only in debug mode to reduce spam
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"Button {field_type}: has_image={inputs['has_image']}, has_text={inputs['has_text']}")
 
         # If we have no inputs at all, disable
         if not inputs['has_image'] and not inputs['has_text']:
             logging.debug(f"Button {field_type}: Disabled - no inputs available")
             return False
 
-        # Try to get AI provider to check capabilities
-        ai_provider = self.get_current_ai_provider()
-        if not ai_provider:
-            # If we can't get provider, enable based on having ANY input
-            # This allows buttons to work even if provider check fails
-            logging.debug(f"Button {field_type}: Enabled (fallback) - provider not available but have inputs")
-            return inputs['has_image'] or inputs['has_text']
+        # Get AI provider if not provided
+        if ai_provider is None:
+            ai_provider = self.get_current_ai_provider()
 
-        # Check if model supports images
-        supports_images = ai_provider.supports_images()
-        logging.debug(f"Button {field_type}: Model supports_images={supports_images}")
+        if not ai_provider:
+            # Cannot determine model capabilities - disable button to prevent errors
+            logging.warning(f"Button {field_type}: Disabled - AI provider unavailable (check model selection)")
+            return False
 
         # Check if model can generate with available inputs
         can_generate = ai_provider.can_generate_with_inputs(
             has_image=inputs['has_image'],
             has_text=inputs['has_text']
         )
-        logging.debug(f"Button {field_type}: {'Enabled' if can_generate else 'Disabled'} - can_generate={can_generate}")
+
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(f"Button {field_type}: {'Enabled' if can_generate else 'Disabled'} - can_generate={can_generate}")
+
         return can_generate
 
-    def update_all_button_states(self):
+    def update_all_button_states(self) -> None:
         """Update enabled/disabled state of all generation buttons."""
         if not hasattr(self, 'title_generate_button'):
             # UI not fully initialized yet
             return
 
+        # Get AI provider once and reuse for all buttons (performance optimization)
+        ai_provider = self.get_current_ai_provider()
+
         # Update individual generation buttons
-        self.update_button_state('title', self.title_generate_button)
-        self.update_button_state('description', self.desc_generate_button)
-        self.update_button_state('keywords', self.keywords_generate_button)
-        self.update_button_state('categories', self.categories_generate_button)
+        self.update_button_state('title', self.title_generate_button, ai_provider)
+        self.update_button_state('description', self.desc_generate_button, ai_provider)
+        self.update_button_state('keywords', self.keywords_generate_button, ai_provider)
+        self.update_button_state('categories', self.categories_generate_button, ai_provider)
 
         # Update Generate All button - enabled if ANY individual button is enabled
         any_enabled = (
@@ -668,41 +672,20 @@ class MediaViewer:
         )
         self.generate_all_button.configure(state='normal' if any_enabled else 'disabled')
 
-    def update_all_button_states_debounced(self, delay_ms: int = 300):
-        """
-        Debounced version of update_all_button_states for text input handlers.
-
-        Prevents excessive AI provider lookups on every keystroke by delaying
-        the update until user stops typing for delay_ms milliseconds.
-
-        Args:
-            delay_ms: Delay in milliseconds before updating (default: 300ms)
-        """
-        # Cancel any pending update
-        if self._button_update_timer is not None:
-            self.root.after_cancel(self._button_update_timer)
-
-        # Schedule new update
-        self._button_update_timer = self.root.after(delay_ms, self._execute_button_update)
-
-    def _execute_button_update(self):
-        """Execute the actual button update and clear the timer."""
-        self._button_update_timer = None
-        self.update_all_button_states()
-
-    def update_button_state(self, field_type: str, button: ttk.Button):
+    def update_button_state(self, field_type: str, button: ttk.Button, ai_provider=None) -> None:
         """
         Update a single button's state.
 
         Args:
             field_type: Type of field
             button: Button widget to update
+            ai_provider: Optional AI provider instance (performance optimization)
         """
         # Don't disable if generation is currently running (button shows "Cancel")
         if button['text'] == 'Cancel':
             return
 
-        should_enable = self.should_enable_generation_button(field_type)
+        should_enable = self.should_enable_generation_button(field_type, ai_provider)
         button.configure(state='normal' if should_enable else 'disabled')
 
     def populate_categories_ui(self):
@@ -799,11 +782,11 @@ class MediaViewer:
             self.title_char_label.configure(foreground='black')
         # Note: Button state update happens on focus loss, not on keystroke
 
-    def on_title_focus_out(self, event=None):
+    def on_title_focus_out(self, event=None) -> None:
         """Handle title field losing focus - update button states."""
         self.update_all_button_states()
-    
-    def on_description_change(self, event=None):
+
+    def on_description_change(self, event=None) -> None:
         """Update description character counter."""
         current_text = self.desc_text.get('1.0', tk.END)
         current_length = len(current_text.strip())
@@ -814,18 +797,18 @@ class MediaViewer:
             self.desc_char_label.configure(foreground='black')
         # Note: Button state update happens on focus loss, not on keystroke
 
-    def on_description_focus_out(self, event=None):
+    def on_description_focus_out(self, event=None) -> None:
         """Handle description field losing focus - update button states."""
         self.update_all_button_states()
-    
-    def on_keywords_change(self):
+
+    def on_keywords_change(self) -> None:
         """Handle keywords change from TagEntry widget."""
         # Update keywords list for compatibility with existing code
         self.keywords_list = self.keywords_tag_entry.get_tags()
         self.update_keywords_counter()
         # Note: Button state update happens on focus loss, not on change
 
-    def on_keywords_focus_out(self, event=None):
+    def on_keywords_focus_out(self, event=None) -> None:
         """Handle keywords field losing focus - update button states."""
         self.update_all_button_states()
     
