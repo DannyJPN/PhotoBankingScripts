@@ -177,6 +177,7 @@ class MediaViewer:
         self.title_entry.pack(fill=tk.X, padx=10, pady=(0, 5))
         self.title_entry.bind('<KeyRelease>', self.on_title_change)
         self.title_entry.bind('<Return>', self.handle_title_input)
+        self.title_entry.bind('<FocusOut>', self.on_title_focus_out)
         
         # Title controls
         title_controls_frame = ttk.Frame(title_frame)
@@ -199,6 +200,7 @@ class MediaViewer:
         self.desc_text = tk.Text(desc_frame, height=4, wrap=tk.WORD, font=('Arial', 9), width=30)
         self.desc_text.pack(fill=tk.X, padx=10, pady=(0, 5))
         self.desc_text.bind('<KeyRelease>', self.on_description_change)
+        self.desc_text.bind('<FocusOut>', self.on_description_focus_out)
         
         # Description controls
         desc_controls_frame = ttk.Frame(desc_frame)
@@ -219,6 +221,8 @@ class MediaViewer:
         self.keywords_tag_entry = TagEntry(keywords_frame, width=25,
                                           max_tags=50, on_change=self.on_keywords_change)
         self.keywords_tag_entry.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 5))
+        # Bind focus out to update button states
+        self.keywords_tag_entry.bind('<FocusOut>', self.on_keywords_focus_out)
         
         # Keywords controls at bottom
         keywords_controls_frame = ttk.Frame(keywords_frame)
@@ -793,8 +797,11 @@ class MediaViewer:
             self.title_char_label.configure(foreground='red')
         else:
             self.title_char_label.configure(foreground='black')
-        # Update button states when title changes (debounced to avoid excessive lookups)
-        self.update_all_button_states_debounced()
+        # Note: Button state update happens on focus loss, not on keystroke
+
+    def on_title_focus_out(self, event=None):
+        """Handle title field losing focus - update button states."""
+        self.update_all_button_states()
     
     def on_description_change(self, event=None):
         """Update description character counter."""
@@ -805,16 +812,22 @@ class MediaViewer:
             self.desc_char_label.configure(foreground='red')
         else:
             self.desc_char_label.configure(foreground='black')
-        # Update button states when description changes (debounced to avoid excessive lookups)
-        self.update_all_button_states_debounced()
+        # Note: Button state update happens on focus loss, not on keystroke
+
+    def on_description_focus_out(self, event=None):
+        """Handle description field losing focus - update button states."""
+        self.update_all_button_states()
     
     def on_keywords_change(self):
         """Handle keywords change from TagEntry widget."""
         # Update keywords list for compatibility with existing code
         self.keywords_list = self.keywords_tag_entry.get_tags()
         self.update_keywords_counter()
-        # Update button states when keywords change (debounced to avoid excessive lookups)
-        self.update_all_button_states_debounced()
+        # Note: Button state update happens on focus loss, not on change
+
+    def on_keywords_focus_out(self, event=None):
+        """Handle keywords field losing focus - update button states."""
+        self.update_all_button_states()
     
     def refresh_keywords_display(self):
         """Refresh the keywords display after loading from file."""
