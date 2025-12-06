@@ -5,6 +5,7 @@ Graphical media viewer with responsive layout for categorizing files.
 import os
 import sys
 import logging
+import traceback
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
@@ -64,6 +65,9 @@ class MediaViewer:
             'categories': False
         }
         self.generation_lock = threading.Lock()
+
+        # Button state update debouncing timer
+        self._button_update_timer: Optional[int] = None
 
         # Configure styles for tags
         self.setup_styles()
@@ -547,7 +551,6 @@ class MediaViewer:
 
         except Exception as e:
             logging.error(f"Error getting AI provider: {e}")
-            import traceback
             logging.debug(traceback.format_exc())
             return None
 
@@ -661,6 +664,28 @@ class MediaViewer:
         )
         self.generate_all_button.configure(state='normal' if any_enabled else 'disabled')
 
+    def update_all_button_states_debounced(self, delay_ms: int = 300):
+        """
+        Debounced version of update_all_button_states for text input handlers.
+
+        Prevents excessive AI provider lookups on every keystroke by delaying
+        the update until user stops typing for delay_ms milliseconds.
+
+        Args:
+            delay_ms: Delay in milliseconds before updating (default: 300ms)
+        """
+        # Cancel any pending update
+        if self._button_update_timer is not None:
+            self.root.after_cancel(self._button_update_timer)
+
+        # Schedule new update
+        self._button_update_timer = self.root.after(delay_ms, self._execute_button_update)
+
+    def _execute_button_update(self):
+        """Execute the actual button update and clear the timer."""
+        self._button_update_timer = None
+        self.update_all_button_states()
+
     def update_button_state(self, field_type: str, button: ttk.Button):
         """
         Update a single button's state.
@@ -768,8 +793,8 @@ class MediaViewer:
             self.title_char_label.configure(foreground='red')
         else:
             self.title_char_label.configure(foreground='black')
-        # Update button states when title changes
-        self.update_all_button_states()
+        # Update button states when title changes (debounced to avoid excessive lookups)
+        self.update_all_button_states_debounced()
     
     def on_description_change(self, event=None):
         """Update description character counter."""
@@ -780,16 +805,16 @@ class MediaViewer:
             self.desc_char_label.configure(foreground='red')
         else:
             self.desc_char_label.configure(foreground='black')
-        # Update button states when description changes
-        self.update_all_button_states()
+        # Update button states when description changes (debounced to avoid excessive lookups)
+        self.update_all_button_states_debounced()
     
     def on_keywords_change(self):
         """Handle keywords change from TagEntry widget."""
         # Update keywords list for compatibility with existing code
         self.keywords_list = self.keywords_tag_entry.get_tags()
         self.update_keywords_counter()
-        # Update button states when keywords change
-        self.update_all_button_states()
+        # Update button states when keywords change (debounced to avoid excessive lookups)
+        self.update_all_button_states_debounced()
     
     def refresh_keywords_display(self):
         """Refresh the keywords display after loading from file."""
