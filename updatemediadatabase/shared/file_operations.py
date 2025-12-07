@@ -52,6 +52,10 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
             regex = re.compile(pattern, re.IGNORECASE)
             files = [f for f in files if regex.search(os.path.basename(f))]
 
+        if not files:
+            logging.info("No files to copy from %s to %s", src, dest)
+            return
+
         for file_path in tqdm(files, desc="Copying folder", unit="file"):
             rel_path = os.path.relpath(file_path, src)
             dest_path = os.path.join(dest, rel_path)
@@ -94,6 +98,10 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         if pattern:
             regex = re.compile(pattern, re.IGNORECASE)
             files = [f for f in files if regex.search(os.path.basename(f))]
+
+        if not files:
+            logging.info("No files to move from %s to %s", src, dest)
+            return
 
         for file_path in tqdm(files, desc="Moving folder", unit="file"):
             rel_path = os.path.relpath(file_path, src)

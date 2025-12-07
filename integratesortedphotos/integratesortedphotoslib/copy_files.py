@@ -21,6 +21,10 @@ def copy_files_with_preserved_dates(src_folder, dest_folder):
                 dest_file = os.path.join(dest_folder, rel_path, file)
                 all_files.append((src_file, dest_file))
 
+        if not all_files:
+            logging.info("No files to copy from %s to %s", src_folder, dest_folder)
+            return
+
         # Copy files with progress bar
         with tqdm(total=len(all_files), desc="Copying files", unit="file") as pbar:
             for src_file, dest_file in all_files:
