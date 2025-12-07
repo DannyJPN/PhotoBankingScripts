@@ -278,16 +278,41 @@ def flatten_folder(folder: str) -> None:
 
             # Handle filename conflicts (case-insensitive check for Windows)
             if filename.casefold() in existing_names:
-                base, ext = os.path.splitext(filename)
-                counter = 1
-                while True:
-                    new_filename = f"{base}_{counter:03d}{ext}"
-                    dest_path = os.path.join(folder, new_filename)
-                    if new_filename.casefold() not in existing_names:
-                        filename = new_filename
-                        break
-                    counter += 1
-                logging.debug("Filename conflict resolved: %s -> %s", os.path.basename(file_path), filename)
+                # Check if files are identical by comparing hashes
+                existing_file_path = os.path.join(folder, existing_names[filename.casefold()])
+                try:
+                    source_hash = compute_file_hash(file_path)
+                    existing_hash = compute_file_hash(existing_file_path)
+
+                    if source_hash == existing_hash:
+                        # Files are identical - delete duplicate instead of renaming
+                        os.remove(file_path)
+                        logging.debug("Removed duplicate file (identical content): %s", file_path)
+                        continue
+                    else:
+                        # Files are different - rename with numeric suffix
+                        base, ext = os.path.splitext(filename)
+                        counter = 1
+                        while True:
+                            new_filename = f"{base}_{counter:03d}{ext}"
+                            dest_path = os.path.join(folder, new_filename)
+                            if new_filename.casefold() not in existing_names:
+                                filename = new_filename
+                                break
+                            counter += 1
+                        logging.debug("Filename conflict resolved (different content): %s -> %s", os.path.basename(file_path), filename)
+                except Exception as e:
+                    logging.warning("Failed to compare hashes for %s and %s: %s. Using rename strategy.", file_path, existing_file_path, e)
+                    # Fallback to rename if hash comparison fails
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while True:
+                        new_filename = f"{base}_{counter:03d}{ext}"
+                        dest_path = os.path.join(folder, new_filename)
+                        if new_filename.casefold() not in existing_names:
+                            filename = new_filename
+                            break
+                        counter += 1
 
             # Move file to root
             try:
