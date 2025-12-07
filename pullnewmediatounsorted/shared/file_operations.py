@@ -269,6 +269,9 @@ def flatten_folder(folder: str) -> None:
         # Track used names at root level (case-insensitive for Windows compatibility)
         # Map lowercase name -> actual name for collision detection
         existing_names = {name.casefold(): name for name in os.listdir(folder)}
+
+        # Hash cache to avoid redundant computation for large files
+        hash_cache: Dict[str, str] = {}
         moved_count = 0
 
         # Move files with progress bar
@@ -278,32 +281,44 @@ def flatten_folder(folder: str) -> None:
 
             # Handle filename conflicts (case-insensitive check for Windows)
             if filename.casefold() in existing_names:
-                # Check if files are identical by comparing hashes
+                # Check if files are identical by comparing size first, then hashes
                 existing_file_path = os.path.join(folder, existing_names[filename.casefold()])
                 try:
-                    source_hash = compute_file_hash(file_path)
-                    existing_hash = compute_file_hash(existing_file_path)
+                    # Quick size check first (defense in depth against hash collisions)
+                    source_size = os.path.getsize(file_path)
+                    existing_size = os.path.getsize(existing_file_path)
 
-                    if source_hash == existing_hash:
-                        # Files are identical - delete duplicate instead of renaming
-                        os.remove(file_path)
-                        logging.debug("Removed duplicate file (identical content): %s", file_path)
-                        continue
-                    else:
-                        # Files are different - rename with numeric suffix
-                        base, ext = os.path.splitext(filename)
-                        counter = 1
-                        while True:
-                            new_filename = f"{base}_{counter:03d}{ext}"
-                            dest_path = os.path.join(folder, new_filename)
-                            if new_filename.casefold() not in existing_names:
-                                filename = new_filename
-                                break
-                            counter += 1
-                        logging.debug("Filename conflict resolved (different content): %s -> %s", os.path.basename(file_path), filename)
-                except Exception as e:
-                    logging.warning("Failed to compare hashes for %s and %s: %s. Using rename strategy.", file_path, existing_file_path, e)
-                    # Fallback to rename if hash comparison fails
+                    if source_size == existing_size:
+                        # Sizes match - compute hashes to verify content
+                        # Use cache to avoid redundant computation
+                        if file_path not in hash_cache:
+                            hash_cache[file_path] = compute_file_hash(file_path)
+                        if existing_file_path not in hash_cache:
+                            hash_cache[existing_file_path] = compute_file_hash(existing_file_path)
+
+                        source_hash = hash_cache[file_path]
+                        existing_hash = hash_cache[existing_file_path]
+
+                        if source_hash == existing_hash:
+                            # Files are identical - delete duplicate instead of renaming
+                            os.remove(file_path)
+                            logging.debug("Removed duplicate file (identical size and hash): %s", file_path)
+                            continue
+
+                    # Files are different (size or hash mismatch) - rename with numeric suffix
+                    base, ext = os.path.splitext(filename)
+                    counter = 1
+                    while True:
+                        new_filename = f"{base}_{counter:03d}{ext}"
+                        dest_path = os.path.join(folder, new_filename)
+                        if new_filename.casefold() not in existing_names:
+                            filename = new_filename
+                            break
+                        counter += 1
+                    logging.debug("Filename conflict resolved (different content): %s -> %s", os.path.basename(file_path), filename)
+                except (OSError, IOError, RuntimeError) as e:
+                    logging.warning("Failed to compare files %s and %s: %s. Using rename strategy.", file_path, existing_file_path, e)
+                    # Fallback to rename if comparison fails
                     base, ext = os.path.splitext(filename)
                     counter = 1
                     while True:
@@ -320,7 +335,7 @@ def flatten_folder(folder: str) -> None:
                 existing_names[filename.casefold()] = filename
                 moved_count += 1
                 logging.debug("Moved file to root: %s -> %s", file_path, dest_path)
-            except Exception as e:
+            except (OSError, IOError) as e:
                 logging.error("Failed to move file %s to %s: %s", file_path, dest_path, e)
 
         # Remove empty subdirectories
