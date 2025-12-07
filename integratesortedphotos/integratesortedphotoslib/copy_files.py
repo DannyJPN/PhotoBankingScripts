@@ -51,11 +51,12 @@ def estimate_file_count(src_folder: str, sample_size: int = 100) -> int:
     Estimate total file count by sampling subdirectories.
 
     This function provides a quick estimate of total files without traversing
-    the entire directory tree, useful for progress bar initialization.
+    the entire directory tree multiple times. It counts all directories but
+    only samples file counts from the first N directories for efficiency.
 
     Args:
         src_folder: Directory to estimate
-        sample_size: Number of directories to sample for estimation
+        sample_size: Number of directories to sample for file counting
 
     Returns:
         Estimated total file count
@@ -64,33 +65,25 @@ def estimate_file_count(src_folder: str, sample_size: int = 100) -> int:
         >>> count = estimate_file_count('/large/directory')
         >>> print(f"Estimated {count} files")
     """
-    subdirs = []
     file_counts = []
     total_dirs = 0
 
-    # Collect subdirectories and count files during sampling
+    # Single traversal: count all directories, sample first N for file counts
     for root, dirs, files in os.walk(src_folder):
-        subdirs.append(root)
-        file_counts.append(len(files))
         total_dirs += 1
 
-        # Stop sampling after reaching sample_size, but continue counting dirs
-        if len(subdirs) >= sample_size:
-            # Finish counting remaining directories without processing files
-            for root, _, _ in os.walk(src_folder):
-                if root not in subdirs:
-                    total_dirs += 1
-            break
+        # Only sample file counts up to sample_size
+        if len(file_counts) < sample_size:
+            file_counts.append(len(files))
 
     if not file_counts:
         return 0
 
     # Estimate based on average files per directory
     avg_files_per_dir = sum(file_counts) / len(file_counts)
-
     estimated_total = int(avg_files_per_dir * total_dirs)
 
-    logging.debug(f"Estimated {estimated_total} files from {total_dirs} directories (sampled {len(subdirs)})")
+    logging.debug(f"Estimated {estimated_total} files from {total_dirs} directories (sampled {len(file_counts)})")
     return estimated_total
 
 
@@ -240,7 +233,7 @@ def copy_files_with_progress_estimation(
         raise
 
 
-def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, overwrite: bool = True) -> None:
+def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, overwrite: bool = False) -> None:
     """
     Legacy function wrapper - now uses streaming approach.
 
@@ -250,7 +243,7 @@ def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, overwrite
     Args:
         src_folder: Source directory containing files to copy
         dest_folder: Destination directory where files will be copied
-        overwrite: Whether to overwrite existing files (default: True for backward compatibility)
+        overwrite: Whether to overwrite existing files (default: False)
 
     Note:
         This function is deprecated. Consider using copy_files_streaming()
@@ -258,7 +251,7 @@ def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, overwrite
 
     Example:
         >>> copy_files_with_preserved_dates('/source', '/dest')
-        >>> copy_files_with_preserved_dates('/source', '/dest', overwrite=False)
+        >>> copy_files_with_preserved_dates('/source', '/dest', overwrite=True)
     """
     logging.info("Using legacy function copy_files_with_preserved_dates (now memory-efficient)")
     copy_files_streaming(src_folder, dest_folder, overwrite=overwrite)

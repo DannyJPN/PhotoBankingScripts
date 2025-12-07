@@ -144,7 +144,7 @@ def main():
                 copy_files_streaming(args.sortedFolder, args.targetFolder, args.overwrite)
             else:
                 logging.info(f"File count ({estimated_count}) is within batch limit, proceeding with batch method")
-                copy_files_with_preserved_dates(args.sortedFolder, args.targetFolder)
+                copy_files_with_preserved_dates(args.sortedFolder, args.targetFolder, overwrite=args.overwrite)
 
         logging.info("=" * 80)
         logging.info("Integration completed successfully")
