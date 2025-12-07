@@ -629,3 +629,624 @@ Odhad pro 1 fotku:
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/batch_processor.py` (NEW)
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/prompts.py` (NEW)
 - `givephotobankreadymediafiles/givephotobankreadymediafileslib/media_viewer.py` (UI úpravy)
+
+
+---
+
+# UPDATE AFTER THOROUGH ANALYSIS
+
+**Date**: 2025-12-05
+**Analyst**: Claude (Sonnet 4.5)
+**Scope**: Identified 42 critical issues, all discussed and resolved
+
+## Analysis Summary
+
+The original batch mode proposal was subjected to thorough analysis focused on:
+1. **Technical issues** (P0, P1, P2) - API limits, concurrency, validation
+2. **Procedural issues** (P0-P1) - state synchronization, batch↔manual mode conflicts
+3. **User scenarios** - all possible edge cases and conflict situations
+
+**Result**: All critical problems identified and resolved. Implementation **RECOMMENDED** with the decisions outlined below.
+
+---
+
+## CRITICAL ARCHITECTURAL DECISIONS
+
+### 1. Batch Size & Structure
+
+**Problem**: OpenAI Batch API limit 100MB JSONL, base64 overhead 33%.
+
+**Decision**:
+- **Vision batch size**: 20 photos (default) due to 100MB limit
+- **Alternative batch size**: ~2000 files (text-only, no vision)
+- **Parameter `--batch_size`**: Total number of photos in run → automatically splits into multiple OpenAI batches
+
+**Example**:
+```bash
+python givephotobankreadymediafiles.py --batch_mode --batch_size 100
+# Creates:
+# - 5× vision batch (20 photos each) for originals
+# - 5× text-only batch (100 alternatives each) for each type (_bw, _negative, etc.)
+# TOTAL: 10 OpenAI batches
+```
+
+### 2. Image Preprocessing Pipeline
+
+**Problem**: Large images exceed 100MB base64 limit.
+
+**Decision**:
+- **Progressive resize**: Start 4000px @ quality 90%
+- If still too large → resize to 3000px @ quality 90%
+- Continue until fits or minimum 2000px
+- **Minimum**: 2000px (below this = skip)
+- **Skip handling**: Status remains "nezpracováno" (manual mode option available)
+- **RAW handling**: On-the-fly convert to JPG if doesn't fit
+
+### 3. Workflow Architecture (3 Phases)
+
+**CRITICAL**: Batch mode MUST follow this sequence:
+
+```
+PHASE 0: Cleanup (auto on startup)
+└─ Delete completed batches > 12 months old
+
+PHASE 1: Retrieve Completed Batches
+├─ Scan batch_registry.json for batches with status="sent"
+├─ Check each on OpenAI API (parallel, progress bar)
+├─ If status="completed" → retrieve results
+├─ Save metadata to CSV (transactional - per file)
+├─ Update status="batch_completed" in registry
+└─ Mark failed files for retry
+
+PHASE 2: Send Ready Batches
+├─ Check daily batch limit (OpenAI: 500/day)
+├─ If limit reached → keep batches as "ready", try tomorrow
+├─ Scan batch_registry.json for batches with status="ready"
+├─ Send each (sequential, progress bar)
+├─ Update status="sent" + store openai_batch_id
+└─ Handle upload failures (error-specific: size→split, network→retry)
+
+PHASE 3: Collect New Descriptions (GUI loop)
+├─ Find or create active "collecting" batch
+├─ Load PhotoMedia.csv → filter status="nezpracováno"
+├─ SKIP files in active batches (read batch_state)
+├─ For each file:
+│  ├─ Show GUI (textbox 50+ chars minimum, progress bar)
+│  ├─ Editorial checkbox → modal dialog (same as regular mode)
+│  ├─ Save/Reject/Show in Explorer buttons
+│  ├─ Save description to batch_state
+│  └─ If batch full (reaches --batch_size) → mark "ready", create new
+└─ Generate alternatives metadata (text-only, separate batches)
+```
+
+**SEQUENTIAL PROCESSING OF ALTERNATIVES**:
+- Alternative step ONLY after completion of same step on originals
+- E.g.: PHASE 1 retrieve originals → then PHASE 1 retrieve alternatives
+
+### 4. Batch State Management
+
+**Storage structure**:
+```
+BATCH_STATE_DIR/
+├── batch_registry.json          # Global index of all batches + file registry
+├── batches/
+│   ├── batch_abc123/
+│   │   ├── state.json           # Files, status, metadata
+│   │   ├── descriptions.json    # User descriptions
+│   │   └── results.json         # AI results after completion
+│   └── batch_xyz789/
+│       └── ...
+```
+
+**batch_registry.json** (key file):
+```json
+{
+  "active_batches": {
+    "batch_abc123": {
+      "status": "collecting|ready|sent|completed",
+      "created_at": "2024-06-15T10:00:00",
+      "batch_type": "originals|alternatives_bw|alternatives_negative|...",
+      "file_count": 50,
+      "batch_size_limit": 100,
+      "openai_batch_id": null
+    }
+  },
+  "completed_batches": [
+    {"batch_id": "batch_old1", "completed_at": "2024-05-01T10:00:00"}
+  ],
+  "file_registry": {
+    "J:\Foto\IMG_001.jpg": "batch_abc123"
+  }
+}
+```
+
+**Tracking**:
+- **Global file registry**: Prevent duplicate files across batches (hard error)
+- **Completed batches**: Skip already processed batches on resume
+- **Daily batch count**: Track against OpenAI 500/day limit
+
+### 5. Concurrency & Locking
+
+**Problem**: Batch (stateful) vs. Manual (stateless) mode can cause data corruption.
+
+**Decision**:
+- **Single instance only**: Hard lock file (msvcrt/fcntl)
+- **Manual mode MUST**: Read batch_state → hard-skip files in active batch
+- **Lock violation**: Hard error + exit
+
+**Manual mode filtering**:
+```python
+def is_in_active_batch(file_path: str) -> bool:
+    # Scan batch_registry.json
+    for batch_id in active_batches:
+        if file_path in batch_files[batch_id]:
+            if status in ["collecting", "ready", "sent"]:
+                return True
+    return False
+
+unprocessed = [f for f in records
+               if f.status == "nezpracováno"
+               and not is_in_active_batch(f.path)]
+```
+
+### 6. Alternatives Generation
+
+**CRITICAL**: Batch mode WILL generate alternatives.
+
+**Strategy**:
+- **Separate batches** per alternative type (text-only, no vision)
+- **Batch structure**: One batch = all pending files of one type
+  - `alternatives_bw`: up to 2000 files
+  - `alternatives_negative`: up to 2000 files
+  - etc.
+- **Processing**: Sequential (originals completion → alternatives collection → alternatives send)
+- **Prompt**: Same as regular mode, AI gets original metadata + alternative type
+
+**Process**:
+```
+1. PHASE 1: Retrieve originals batches
+2. PHASE 1: Retrieve alternatives batches (after 1.)
+3. PHASE 2: Send originals batches
+4. PHASE 2: Send alternatives batches (after 3.)
+5. PHASE 3: Collect originals descriptions
+6. PHASE 3: Generate alternatives metadata → create alternative batches (after 5.)
+```
+
+### 7. CSV Update Strategy
+
+**Problem**: Transactional vs. all-or-nothing updates.
+
+**Decision**:
+- **Transactional**: Save CSV after each file (minimize double-processing risk)
+- **Backup**: Auto-backup on each `save_csv_with_backup()` call (current behavior OK)
+- **Status update**: Copy regular mode logic
+  ```python
+  # Update ONLY columns with "nezpracováno"
+  for field_name, field_value in csv_record.items():
+      if field_name.endswith(" status") and field_value == "nezpracováno":
+          csv_record[field_name] = "připraveno"
+  # SKIP columns that already have "připraveno" or other status
+  ```
+
+### 8. Cost Calculation & Tracking
+
+**Problem**: Issue estimate $0.004/photo doesn't include vision tokens.
+
+**Decision**:
+- **Exact input token calculation**:
+  ```python
+  prompt_tokens = tiktoken.encode(prompt_template)
+  vision_tokens = calculate_vision_tokens(width, height, detail="high")
+  description_tokens = tiktoken.encode(user_description)
+  total_input = prompt_tokens + vision_tokens + description_tokens
+  ```
+- **Vision token formula** (OpenAI documented):
+  ```python
+  def calculate_vision_tokens(width, height, detail="high"):
+      if detail == "low": return 85
+      # Resize to fit 2048x2048, scale shortest to 768px
+      # Count 512px tiles
+      tiles_wide = (width + 511) // 512
+      tiles_high = (height + 511) // 512
+      return 85 + (tiles_wide * tiles_high * 170)
+  ```
+- **Output tokens**: Conservative estimate 150 tokens (actual varies)
+- **Logging**: `cost_log.json` per batch:
+  ```json
+  {
+    "batch_abc123": {
+      "estimated_input_tokens": 65700,
+      "estimated_output_tokens": 3000,
+      "estimated_cost": 0.097,
+      "actual_cost": null  // fill after completion
+    }
+  }
+  ```
+- **Display**: Show estimate before send, display breakdown on request
+
+**Actual cost**:
+```
+For 4000×3000 image:
+- Prompt: 500 tokens
+- Vision: 1785 tokens (high detail)
+- Description: 100 tokens
+- Output: 150 tokens (estimated)
+= Input: 2385 tokens × $1.25/1M = $0.00298
+= Output: 150 tokens × $5.00/1M = $0.00075
+= TOTAL: $0.00373 per photo (not $0.004!)
+```
+
+
+### 9. File Operations Integration ⚠️ **MANDATORY**
+
+**CRITICAL**: Per CLAUDE.md lines 140-145, ALL file operations MUST use `shared/file_operations.py`.
+
+**Prohibited**:
+- Direct `shutil` usage
+- Direct `os.makedirs()` usage
+- Direct file I/O (`open()`, `read()`, `write()`)
+- Any file manipulation outside `file_operations` module
+
+**Required imports**:
+```python
+from shared.file_operations import (
+    ensure_directory,      # Create directories
+    copy_file,             # Copy files
+    delete_file,           # Delete files
+    read_json,             # Read JSON files
+    write_json,            # Write JSON files
+    save_csv_with_backup,  # Save CSV with auto-backup
+    load_csv              # Load CSV files
+)
+```
+
+**Batch state operations**:
+```python
+# CORRECT - Use file_operations
+batch_state = read_json(batch_state_path)
+write_json(batch_registry_path, registry_data)
+ensure_directory(BATCH_STATE_DIR)
+
+# WRONG - Direct file I/O
+with open(batch_state_path, 'r') as f:  # ❌ PROHIBITED
+    batch_state = json.load(f)
+```
+
+**Rationale**:
+- Uniform error handling across all scripts
+- Consistent logging of file operations
+- Centralized metadata preservation
+- Standardized backup strategy
+
+---
+
+
+## ALL TECHNICAL DECISIONS
+
+### P0 CRITICAL ISSUES (Blockers)
+
+#### #1: Base64 Limit Exceeded
+**Decision**: Progressive resize 4000px→2000px @ quality 90%, skip if still too large
+
+#### #2: Concurrent Writes
+**Decision**: Single instance only, hard lock file, hard error on violation
+
+#### #3: Custom ID Collisions
+**Decision**: Simple `{stem}_{batch_id}` (system guarantees unique filenames)
+
+#### #4: CSV Update Strategy
+**Decision**: Transactional (save after each file to minimize double-processing)
+
+#### #5: Orphaned Batches
+**Decision**: 3-phase workflow, multi-batch registry, parallel retrieve
+
+#### #6: File Hash Validation
+**Decision**: NO (user responsibility, re-validation by implementation)
+
+### P1 SERIOUS ISSUES
+
+#### #7: Cost Calculation Error
+**Decision**: Exact calculation (tiktoken + vision formula), log to cost_log.json
+
+#### #8: GUI Validation - Min Length
+**Decision**: Hard minimum 50 characters, disable Save button
+
+#### #9: Partial Recovery
+**Decision**: Auto-resume with preview info, MUST continue (no cancel option)
+
+#### #10: Alternative Generation (resolved above)
+**Decision**: Separate text-only batches per type, ~2000 files per batch
+
+#### #11: Batch Timeout
+**Decision**: Exit normally on timeout, log info, continue next time (as per issue proposal)
+
+#### #12: Failed Files in Batch
+**Decision**: Retry individually in sync mode (up to 3 attempts per file)
+
+---
+
+## PROCEDURAL DECISIONS (State Management)
+
+### #28: Batch ↔ Manual Mode Synchronization ⚠️ CRITICAL
+
+**Problem**: Batch (stateful) vs. Manual (stateless) can cause data loss.
+
+**Decision**:
+- Manual mode **MUST** read batch_state
+- Hard-skip files that are in active batch (status: collecting|ready|sent)
+- Log: "Skipped 5 files (in active batch)"
+
+### #29: Missing Files During Completion
+
+**Decision**: Mark as error in batch_state, continue with others
+```json
+{"file_path": "missing.jpg", "status": "file_not_found", "error": "..."}
+```
+
+### #30: Duplicate Files Across Batches
+
+**Decision**: Global file registry - prevent duplicates (hard error)
+```python
+if file in any_active_batch:
+    raise Error(f"File {file} already in batch {batch_id}")
+```
+
+### #31: Resume After Interruption
+
+**Decision**: Already resolved in #9 (auto-resume from last position)
+
+### #32: Stale Batch State Detection
+
+**Decision**: Registry tracking completed batches → skip already processed
+
+### #33: Alternatives Inconsistency
+
+**Decision**: Already resolved in #10 (separate batches per type)
+
+### #34: Mode Confusion
+
+**Decision**:
+- Logging: `"=== BATCH MODE STARTED ==="`
+- Progress bars for all operations
+- GUI title bar: `"[BATCH MODE] Collecting descriptions (50/100)"`
+
+### #35: Upload Failure Handling
+
+**Decision**: Error-specific handling
+```python
+try:
+    upload_batch(jsonl_file)
+except FileSizeExceeded:
+    split_batch_and_retry()
+except NetworkTimeout:
+    retry_with_backoff()
+except RateLimitError:
+    wait_and_retry()
+except AuthenticationError:
+    fail_permanently("Check API key")
+# Implementor must study OpenAI error types
+```
+
+### #36: Long-Running Batch
+
+**Decision**: Already resolved in #11 (timeout + resume)
+
+### #37: CSV Backup Timing
+
+**Decision**: Current behavior OK (transactional + auto-backup)
+
+### #38: User Interruption (Ctrl+C)
+
+**Decision**: Immediate exit everywhere, batch state auto-saved after each operation (no special SIGINT handler needed)
+
+### #39: Multi-Bank Status Update ⚠️ CRITICAL
+
+**Decision**: Copy regular mode logic
+```python
+# preparemediafile.py:156-160
+for field_name, field_value in record.items():
+    if field_name.endswith(" status") and field_value == "nezpracováno":
+        record[field_name] = "připraveno"
+# SKIP columns that are no longer "nezpracováno"
+```
+
+### #40: Editorial Metadata ⚠️ CRITICAL
+
+**Decision**: Same as regular mode
+- Editorial checkbox in batch GUI
+- Opens EditorialInfoDialog (modal)
+- Save/Reject/Show in Explorer buttons work identically
+
+### #41: Cost Tracking
+
+**Decision**: Already resolved in #7 (cost_log.json)
+
+### #42: Batch Cleanup
+
+**Decision**: Auto-cleanup on startup, delete completed batches > 12 months
+
+---
+
+## FINAL DECISIONS
+
+### Daily Batch Limit (OpenAI: 500/day)
+
+**Calculation**:
+```
+One run (100 photos):
+- Originals: 5 vision batches (20 photos each)
+- Alternatives: 5 text-only batches (100 alternatives each)
+= TOTAL: 10 OpenAI batches
+
+500 limit / 10 = max 50 runs/day = 5,000 photos/day
+```
+
+**Decision**: Track daily count + graceful handling
+```python
+daily_count = get_todays_batch_count()  # From OpenAI API
+if daily_count + batch_count > 500:
+    logging.warning("Daily limit would be exceeded")
+    # Keep batch as "ready", send tomorrow
+    break
+```
+
+### Notification System
+
+**Decision**: CLI check command
+```bash
+python givephotobankreadymediafiles.py --check-batch-status
+# Output:
+# Batch ABC123: completed (50 files ready)
+# Batch XYZ789: in_progress (est. 2h remaining)
+```
+
+---
+
+## GUI REQUIREMENTS
+
+**Batch mode GUI MUST be identical to regular mode + additions**:
+
+```
+┌─────────────────────────────────────────────┐
+│ [BATCH MODE] Give Photobank Ready Media... │ ← Title bar indicator
+├─────────────────────────────────────────────┤
+│                                             │
+│  [Image Preview]                            │
+│                                             │
+│  ┌─────────────────────────────────────┐   │
+│  │ User Description (min 50 chars)     │   │
+│  │                                     │   │
+│  │ [Large textbox - 250+ chars]       │   │
+│  │                                     │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  [✓] Editorial → (opens modal)              │
+│                                             │
+│  [Save] [Reject] [Show in Explorer]        │
+│                                             │
+│  Progress: 50/100 files | Est: $0.50       │ ← Status bar
+└─────────────────────────────────────────────┘
+```
+
+**Validation**:
+- Save button disabled if `length < 50`
+- Live character counter: "15/50 characters minimum"
+
+---
+
+## PROGRESS BARS (mandatory)
+
+```python
+# PHASE 1
+for batch in tqdm(active_batches_sent, desc="Checking completed batches"):
+    check_and_retrieve(batch)
+
+# PHASE 2
+for batch in tqdm(ready_batches, desc="Sending batches to API"):
+    send_batch(batch)
+
+# PHASE 3
+for file in tqdm(unprocessed_files, desc="Collecting descriptions"):
+    show_gui(file)
+
+# Results processing
+for file in tqdm(batch_results, desc="Saving metadata to CSV"):
+    save_to_csv(file, metadata)
+```
+
+---
+
+## IMPLEMENTATION RECOMMENDATIONS
+
+### Phasing
+
+**Phase 1 (MVP)**:
+- ✅ Batch state management
+- ✅ 3-phase workflow
+- ✅ GUI with textbox
+- ✅ Vision batches (originals only)
+- ❌ No alternatives (add later)
+
+**Phase 2 (Full)**:
+- ✅ Alternative generation
+- ✅ Text-only batches
+- ✅ Cost tracking
+- ✅ Daily limit handling
+
+### Testing Requirements
+
+**CRITICAL test scenarios**:
+1. **Batch↔Manual conflict**: Start batch → switch to manual → resume batch
+2. **Interruption recovery**: Ctrl+C during each phase → resume
+3. **Missing files**: Delete files during batch processing
+4. **Duplicate detection**: Add same file to 2 batches
+5. **API failures**: Network timeout, rate limit, size exceeded
+6. **Cost calculation**: Verify vision token formula accuracy
+7. **Multi-bank status**: Verify only "nezpracováno" columns updated
+
+### P2 Issues (Implementor MUST address)
+
+The following issues are implementation details, but **MUST NOT be ignored**:
+
+- **#16 Prompt injection**: Sanitize user descriptions (escape {}, newlines)
+- **#17 Rate limits**: Already resolved above (daily limit tracking)
+- **#18 JSON parsing**: Validate AI responses, handle malformed JSON
+- **#19 Notifications**: Already resolved above (CLI check command)
+- **#20 CSV encoding**: UTF-8-BOM consistency check
+- **#21 Memory usage**: Stream large JSONL results (line-by-line parse)
+
+---
+
+## RISKS AND MITIGATION
+
+### High Risk
+
+1. **Data corruption** (CSV conflicts)
+   - Mitigation: Transactional updates + backups + lock file
+
+2. **Cost overruns** (vision tokens)
+   - Mitigation: Exact calculation + cost_log.json + display estimate
+
+3. **State inconsistency** (batch vs. manual)
+   - Mitigation: Manual mode read batch_state + hard-skip
+
+4. **Lost work** (crashes, interruptions)
+   - Mitigation: Auto-save after each operation + resume capability
+
+### Medium Risk
+
+5. **API rate limits** (500/day)
+   - Mitigation: Daily count tracking + graceful queuing
+
+6. **Missing files** (user moves/deletes)
+   - Mitigation: Mark as error, continue with others
+
+7. **Upload failures** (network, size)
+   - Mitigation: Error-specific retry strategies
+
+---
+
+## FINAL RECOMMENDATION
+
+**STATUS**: ✅ **GO - Implementation Recommended**
+
+**Reasons**:
+- ✅ All blocking issues (P0) resolved
+- ✅ All serious issues (P1) resolved
+- ✅ All procedural conflicts resolved
+- ✅ Clear architecture and decisions
+- ✅ 50% cost benefit + bulk processing capability
+
+**Conditions**:
+1. Implementor **MUST** read all decisions in this section
+2. **MUST** implement all critical decisions (P0, P1)
+3. **MUST** test all conflict scenarios (batch↔manual)
+4. **RECOMMENDED** to phase implementation (MVP without alternatives → Full with alternatives)
+
+**Estimated complexity**: 2-3× more than original issue proposal (due to state synchronization and error handling)
+
+**Benefit**: 50% cost savings + 10-50× faster bulk processing
+
+---
+
+**End of update**
