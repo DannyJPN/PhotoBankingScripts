@@ -119,6 +119,22 @@ def main():
         logging.error(f"Source path is not a directory: {args.sortedFolder}")
         sys.exit(1)
 
+    # Validate source and destination paths to prevent dangerous operations
+    src_abs = os.path.abspath(args.sortedFolder)
+    dest_abs = os.path.abspath(args.targetFolder)
+
+    if src_abs == dest_abs:
+        logging.error("Source and destination cannot be the same directory")
+        sys.exit(1)
+
+    if dest_abs.startswith(src_abs + os.sep):
+        logging.error("Destination cannot be inside source directory (would cause infinite loop)")
+        sys.exit(1)
+
+    if src_abs.startswith(dest_abs + os.sep):
+        logging.error("Source cannot be inside destination directory (would cause data loss)")
+        sys.exit(1)
+
     # Choose copy method based on arguments
     try:
         if args.copy_method == "streaming":

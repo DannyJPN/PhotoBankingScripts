@@ -1,4 +1,4 @@
-﻿"""
+"""
 File copying functions with memory-efficient streaming approach.
 
 This module provides functions for copying files from source to destination while:
@@ -33,7 +33,7 @@ def generate_file_pairs(src_folder: str, dest_folder: str) -> Iterator[Tuple[str
         >>> for src, dest in generate_file_pairs('/source', '/dest'):
         ...     print(f"Copy {src} to {dest}")
     """
-    for root, _, files in os.walk(src_folder):
+    for root, _, files in os.walk(src_folder, followlinks=False):
         rel_path = os.path.relpath(root, src_folder)
 
         for file in files:
@@ -69,7 +69,7 @@ def estimate_file_count(src_folder: str, sample_size: int = 100) -> int:
     total_dirs = 0
 
     # Single traversal: count all directories, sample first N for file counts
-    for root, dirs, files in os.walk(src_folder):
+    for root, dirs, files in os.walk(src_folder, followlinks=False):
         total_dirs += 1
 
         # Only sample file counts up to sample_size
@@ -133,7 +133,7 @@ def copy_files_streaming(src_folder: str, dest_folder: str, overwrite: bool = Fa
 
                     pbar.update(1)
 
-                except Exception as e:
+                except (OSError, IOError, PermissionError) as e:
                     logging.error(f"Failed to copy {src_file}: {e}")
                     error_count += 1
                     pbar.update(1)
@@ -148,7 +148,7 @@ def copy_files_streaming(src_folder: str, dest_folder: str, overwrite: bool = Fa
         if error_count > 0:
             logging.warning(f"{error_count} files failed to copy. Check logs for details.")
 
-    except Exception as e:
+    except (OSError, IOError, PermissionError) as e:
         logging.error(f"Copy operation failed: {e}", exc_info=True)
         raise
 
@@ -203,12 +203,12 @@ def copy_files_with_progress_estimation(
 
                         pbar.update(1)
 
-                        # Adjust total if we exceed estimate
-                        if pbar.n > pbar.total:
-                            pbar.total = pbar.n + int(pbar.n * 0.1)  # Add 10% buffer
+                        # Adjust total if we exceed estimate (double total or add 100, whichever is larger)
+                        if pbar.n >= pbar.total:
+                            pbar.total = max(pbar.total * 2, pbar.n + 100)
                             pbar.refresh()
 
-                    except Exception as e:
+                    except (OSError, IOError, PermissionError) as e:
                         logging.error(f"Failed to copy {src_file}: {e}")
                         error_count += 1
                         pbar.update(1)
@@ -228,7 +228,7 @@ def copy_files_with_progress_estimation(
         if error_count > 0:
             logging.warning(f"{error_count} files failed to copy. Check logs for details.")
 
-    except Exception as e:
+    except (OSError, IOError, PermissionError) as e:
         logging.error(f"Copy operation failed: {e}", exc_info=True)
         raise
 
