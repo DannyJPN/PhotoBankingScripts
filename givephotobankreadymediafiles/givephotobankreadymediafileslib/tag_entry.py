@@ -80,37 +80,37 @@ class TagEntry(tk.Frame):
         buttons_frame.pack(fill=tk.X, pady=(0, 5))
         
         # Reordering buttons - all text
-        self.up_button = ttk.Button(buttons_frame, text="Up", width=5, 
+        self.up_button = ttk.Button(buttons_frame, text="Up", width=8,
                                    command=self.move_up, state='disabled')
         self.up_button.pack(side=tk.LEFT, padx=(0, 2))
-        
-        self.down_button = ttk.Button(buttons_frame, text="Down", width=5,
-                                     command=self.move_down, state='disabled')  
+
+        self.down_button = ttk.Button(buttons_frame, text="Down", width=8,
+                                     command=self.move_down, state='disabled')
         self.down_button.pack(side=tk.LEFT, padx=(0, 2))
-        
-        self.top_button = ttk.Button(buttons_frame, text="Top", width=5,
+
+        self.top_button = ttk.Button(buttons_frame, text="Top", width=8,
                                     command=self.move_to_top, state='disabled')
         self.top_button.pack(side=tk.LEFT, padx=(0, 2))
-        
-        self.bottom_button = ttk.Button(buttons_frame, text="Bottom", width=6,
+
+        self.bottom_button = ttk.Button(buttons_frame, text="Bottom", width=8,
                                        command=self.move_to_bottom, state='disabled')
         self.bottom_button.pack(side=tk.LEFT, padx=(0, 10))
-        
+
         # Edit/Delete buttons
-        self.edit_button = ttk.Button(buttons_frame, text="Edit", width=6,
+        self.edit_button = ttk.Button(buttons_frame, text="Edit", width=8,
                                      command=self.start_edit_mode, state='disabled')
         self.edit_button.pack(side=tk.LEFT, padx=(0, 2))
-        
-        self.delete_button = ttk.Button(buttons_frame, text="Delete", width=6, 
+
+        self.delete_button = ttk.Button(buttons_frame, text="Delete", width=8,
                                        command=self.remove_selected_tags, state='disabled')
         self.delete_button.pack(side=tk.LEFT, padx=(0, 10))
-        
+
         # Counter and clear button
         self.counter_label = ttk.Label(buttons_frame, text="0/50")
         self.counter_label.pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.clear_button = ttk.Button(buttons_frame, text="Clear All", width=8,
-                                      command=self.clear_tags, state='disabled')  
+
+        self.clear_button = ttk.Button(buttons_frame, text="Clear All", width=10,
+                                      command=self.clear_tags, state='disabled')
         self.clear_button.pack(side=tk.RIGHT)
         
         # Bottom frame for entry and add
@@ -126,7 +126,7 @@ class TagEntry(tk.Frame):
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
         # Add button - now enables entry
-        self.add_button = ttk.Button(bottom_frame, text="Add", width=8,
+        self.add_button = ttk.Button(bottom_frame, text="Add", width=10,
                                     command=self.start_add_mode)
         self.add_button.pack(side=tk.RIGHT)
         
