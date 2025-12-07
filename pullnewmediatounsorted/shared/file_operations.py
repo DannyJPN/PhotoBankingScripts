@@ -142,6 +142,13 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         logging.debug("File exists and overwrite disabled, skipping move: %s", dest)
         return
 
+    try:
+        shutil.move(src, dest)
+        logging.debug("Moved file from %s to %s", src, dest)
+    except Exception as e:
+        logging.error("Failed to move file from %s to %s: %s", src, dest, e)
+        raise
+
 
 def ensure_directory(path: str) -> None:
     """
@@ -202,7 +209,11 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     renamed_count = 0
     # 3) Pro každou skupinu ≥2 souborů zvol canonical podle délky názvu
     duplicate_groups = [(h, group) for h, group in hash_groups.items() if len(group) >= 2]
-    
+
+    if not duplicate_groups:
+        logging.info("No duplicate files found in %s", folder)
+        return
+
     with tqdm(total=len(duplicate_groups), desc="Unifying duplicates", unit="groups") as pbar:
         for h, group in duplicate_groups:
             # Najdi cestu s nejkratším basename, potom z ní vezmi basename
@@ -222,7 +233,7 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
                     logging.debug("Renamed %s -> %s", path, dst)
                 except Exception as e:
                     logging.error("Failed to rename %s to %s: %s", path, dst, e)
-            
+
             pbar.update(1)
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)

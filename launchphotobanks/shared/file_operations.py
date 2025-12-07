@@ -215,6 +215,12 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     for path, h in path_hash_map.items():
         hash_groups[h].append(path)
 
+    # Check if there are any duplicate groups
+    duplicate_groups = [(h, group) for h, group in hash_groups.items() if len(group) >= 2]
+    if not duplicate_groups:
+        logging.info("No duplicate files found in %s", folder)
+        return
+
     renamed_count = 0
     # 3) For each group with ≥2 files, choose canonical by name length
     for h, group in hash_groups.items():
