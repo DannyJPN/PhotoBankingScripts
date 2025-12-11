@@ -5,3 +5,4 @@ Pillow>=10.0.0
 pygame>=2.1.0
 rawpy>=0.18.0
 opencv-python>=4.8.0
+xxhash>=3.0.0
