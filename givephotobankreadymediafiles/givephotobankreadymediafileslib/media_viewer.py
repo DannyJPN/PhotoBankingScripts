@@ -598,20 +598,38 @@ class MediaViewer:
                             logging.debug(f"Loaded category for {photobank} [{i+1}]: {category}")
     
     def on_title_change(self, event=None):
-        """Update title character counter."""
-        current_length = len(self.title_entry.get())
-        self.title_char_label.configure(text=f"{current_length}/{MAX_TITLE_LENGTH}")
+        """Update title character counter and enforce character limit."""
+        current_text = self.title_entry.get()
+        current_length = len(current_text)
+
+        # Enforce character limit by truncating
         if current_length > MAX_TITLE_LENGTH:
+            truncated_text = current_text[:MAX_TITLE_LENGTH]
+            self.title_entry.delete(0, tk.END)
+            self.title_entry.insert(0, truncated_text)
+            current_length = MAX_TITLE_LENGTH
+
+        self.title_char_label.configure(text=f"{current_length}/{MAX_TITLE_LENGTH}")
+        if current_length == MAX_TITLE_LENGTH:
             self.title_char_label.configure(foreground='red')
         else:
             self.title_char_label.configure(foreground='black')
     
     def on_description_change(self, event=None):
-        """Update description character counter."""
-        current_text = self.desc_text.get('1.0', tk.END)
-        current_length = len(current_text.strip())
-        self.desc_char_label.configure(text=f"{current_length}/{MAX_DESCRIPTION_LENGTH}")
+        """Update description character counter and enforce character limit."""
+        # Get current text (tk.Text adds a newline at the end, so we strip it)
+        current_text = self.desc_text.get('1.0', tk.END).rstrip('\n')
+        current_length = len(current_text)
+
+        # Enforce character limit by truncating
         if current_length > MAX_DESCRIPTION_LENGTH:
+            truncated_text = current_text[:MAX_DESCRIPTION_LENGTH]
+            self.desc_text.delete('1.0', tk.END)
+            self.desc_text.insert('1.0', truncated_text)
+            current_length = MAX_DESCRIPTION_LENGTH
+
+        self.desc_char_label.configure(text=f"{current_length}/{MAX_DESCRIPTION_LENGTH}")
+        if current_length == MAX_DESCRIPTION_LENGTH:
             self.desc_char_label.configure(foreground='red')
         else:
             self.desc_char_label.configure(foreground='black')
