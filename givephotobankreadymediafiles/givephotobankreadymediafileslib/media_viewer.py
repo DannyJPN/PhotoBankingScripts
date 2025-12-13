@@ -66,6 +66,9 @@ class MediaViewer:
         }
         self.generation_lock = threading.Lock()
 
+        # Debouncing timer for button state updates
+        self._button_update_timer = None
+
         # Configure styles for tags
         self.setup_styles()
         
@@ -672,6 +675,23 @@ class MediaViewer:
         )
         self.generate_all_button.configure(state='normal' if any_enabled else 'disabled')
 
+    def update_all_button_states_debounced(self, delay_ms: int = 200) -> None:
+        """
+        Debounced version of update_all_button_states() for text input handlers.
+
+        This prevents excessive button state updates during rapid typing by delaying
+        the update until the user stops typing for delay_ms milliseconds.
+
+        Args:
+            delay_ms: Delay in milliseconds before updating (default: 200ms)
+        """
+        # Cancel any pending update
+        if self._button_update_timer:
+            self.root.after_cancel(self._button_update_timer)
+
+        # Schedule new update
+        self._button_update_timer = self.root.after(delay_ms, self.update_all_button_states)
+
     def update_button_state(self, field_type: str, button: ttk.Button, ai_provider=None) -> None:
         """
         Update a single button's state.
@@ -681,9 +701,12 @@ class MediaViewer:
             button: Button widget to update
             ai_provider: Optional AI provider instance (performance optimization)
         """
-        # Don't disable if generation is currently running (button shows "Cancel")
-        if button['text'] == 'Cancel':
-            return
+        # Don't update button state if generation is currently running for this field
+        # Use thread-safe check instead of reading button text (prevents race condition)
+        if field_type in self.ai_threads:
+            thread = self.ai_threads[field_type]
+            if thread and thread.is_alive():
+                return
 
         should_enable = self.should_enable_generation_button(field_type, ai_provider)
         button.configure(state='normal' if should_enable else 'disabled')
@@ -783,8 +806,8 @@ class MediaViewer:
         # Note: Button state update happens on focus loss, not on keystroke
 
     def on_title_focus_out(self, event=None) -> None:
-        """Handle title field losing focus - update button states."""
-        self.update_all_button_states()
+        """Handle title field losing focus - update button states with debouncing."""
+        self.update_all_button_states_debounced()
 
     def on_description_change(self, event=None) -> None:
         """Update description character counter."""
@@ -798,8 +821,8 @@ class MediaViewer:
         # Note: Button state update happens on focus loss, not on keystroke
 
     def on_description_focus_out(self, event=None) -> None:
-        """Handle description field losing focus - update button states."""
-        self.update_all_button_states()
+        """Handle description field losing focus - update button states with debouncing."""
+        self.update_all_button_states_debounced()
 
     def on_keywords_change(self) -> None:
         """Handle keywords change from TagEntry widget."""
@@ -809,8 +832,8 @@ class MediaViewer:
         # Note: Button state update happens on focus loss, not on change
 
     def on_keywords_focus_out(self, event=None) -> None:
-        """Handle keywords field losing focus - update button states."""
-        self.update_all_button_states()
+        """Handle keywords field losing focus - update button states with debouncing."""
+        self.update_all_button_states_debounced()
     
     def refresh_keywords_display(self):
         """Refresh the keywords display after loading from file."""
