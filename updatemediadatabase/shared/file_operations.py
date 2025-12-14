@@ -9,7 +9,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from shared.hash_utils import compute_file_hash
-from shared.csv_sanitizer import CSVSanitizer
+from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
