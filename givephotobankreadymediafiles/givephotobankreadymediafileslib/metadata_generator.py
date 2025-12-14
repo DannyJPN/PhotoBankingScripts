@@ -748,14 +748,14 @@ class MetadataGenerator:
         """
         Validate and clean keyword according to photobank requirements.
 
-        Keywords must contain only letters, spaces, and numbers.
+        Keywords must be single words - no spaces allowed.
         No hyphens, special characters, or diacritics allowed.
 
         Args:
             keyword: Raw keyword string
 
         Returns:
-            Cleaned keyword or empty string if invalid
+            Cleaned keyword or empty string if invalid (multi-word or empty)
         """
         import re
         import unicodedata
@@ -772,8 +772,15 @@ class MetadataGenerator:
         # Normalize whitespace (collapse multiple spaces to single space)
         keyword = ' '.join(keyword.split())
 
-        # Trim and return
-        return keyword.strip()
+        # Trim
+        keyword = keyword.strip()
+
+        # ENFORCE SINGLE-WORD ONLY: Reject multi-word keywords
+        if ' ' in keyword:
+            logging.warning("Rejected multi-word keyword: '%s' (only single-word keywords allowed)", keyword)
+            return ''
+
+        return keyword
 
     def _parse_keywords(self, raw_keywords: str) -> List[str]:
         """Parse keywords from AI response."""
