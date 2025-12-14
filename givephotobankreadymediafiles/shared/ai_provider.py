@@ -230,15 +230,33 @@ class AIProvider(ABC):
     def supports_images(self) -> bool:
         """Check if provider supports image inputs."""
         return True
-    
+
     def supports_streaming(self) -> bool:
         """Check if provider supports streaming responses."""
         return True
-    
+
     def supports_batch(self) -> bool:
         """Check if provider supports batch processing."""
         return True
-    
+
+    def can_generate_with_inputs(self, has_image: bool = False, has_text: bool = False) -> bool:
+        """
+        Check if the model can generate with the available inputs.
+
+        Args:
+            has_image: Whether an image is available
+            has_text: Whether text input is available
+
+        Returns:
+            True if the model can generate with these inputs
+        """
+        # Text-only models need text input
+        if not self.supports_images():
+            return has_text
+
+        # Vision models can use either image or text
+        return has_image or has_text
+
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about the current model."""
         return {
