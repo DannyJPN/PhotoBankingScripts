@@ -109,6 +109,8 @@ class AICoordinator:
                 return None
 
             from shared.config import get_config
+            from shared.ai_factory import create_from_model_key
+
             config = get_config()
             available_models = config.get_available_ai_models()
 
@@ -123,8 +125,8 @@ class AICoordinator:
                 logging.debug(f"get_current_ai_provider: Model key not found for '{selected_model}'")
                 return None
 
-            # Get provider
-            provider = config.get_ai_provider(model_key)
+            # Create provider from model key
+            provider = create_from_model_key(model_key)
             logging.debug(f"get_current_ai_provider: Got provider for '{selected_model}' (key: {model_key})")
             return provider
 
