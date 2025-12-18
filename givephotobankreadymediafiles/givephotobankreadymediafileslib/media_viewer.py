@@ -639,7 +639,17 @@ class MediaViewer:
 
         if not ai_provider:
             # Cannot determine model capabilities - disable button to prevent errors
-            logging.warning(f"Button {field_type}: Disabled - AI provider unavailable (check model selection)")
+            # Distinguish between initialization (expected) and runtime error (unexpected)
+            from shared.config import get_config
+            config = get_config()
+            has_default = bool(config.get_default_ai_model())
+
+            if has_default and not self.model_combo.get():
+                # Initialization phase - default model not loaded yet
+                logging.debug(f"Button {field_type}: Disabled - AI provider unavailable (initialization in progress)")
+            else:
+                # Runtime error - model should be available but isn't
+                logging.warning(f"Button {field_type}: Disabled - AI provider unavailable (check model selection)")
             return False
 
         # Check if model can generate with available inputs
