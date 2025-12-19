@@ -32,6 +32,7 @@ COL_WIDTH = "Šířka"
 COL_HEIGHT = "Výška"
 COL_RESOLUTION = "Rozlišení"
 COL_KEYWORDS = "Klíčová slova"
+COL_EDITORIAL = "Editorial"
 COL_CATEGORIES = "Kategorie"
 COL_CREATE_DATE = "Datum vytvoření"
 COL_ORIGINAL = "Originál"
@@ -52,7 +53,8 @@ def get_category_column(photobank: str) -> str:
 ORIGINAL_YES = "ano"
 ORIGINAL_NO = "ne"
 
-
+# Status values
+STATUS_REJECTED = "zamítnuto"
 
 # Alternative edit tags for processed versions
 ALTERNATIVE_EDIT_TAGS = {
@@ -130,3 +132,17 @@ DEFAULT_OLLAMA_MODELS = [
 ]
 
 DEFAULT_OLLAMA_VISION_MODEL = "llava:7b-v1.6"
+
+# Photobank category counts (verified 2025 research)
+PHOTOBANK_CATEGORY_COUNTS = {
+    'shutterstock': 2,   # Up to 2 categories
+    'adobestock': 1,     # 1 category
+    'dreamstime': 3,     # Up to 3 categories
+    'alamy': 2,          # Primary + optional Secondary
+    'depositphotos': 0,
+    'bigstockphoto': 0,
+    '123rf': 0,
+    'canstockphoto': 0,
+    'pond5': 0,
+    'gettyimages': 0
+}

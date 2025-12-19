@@ -8,7 +8,10 @@ import logging
 import tkinter as tk
 from typing import Optional, Callable, List
 
-from givephotobankreadymediafileslib.constants import MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH
+from givephotobankreadymediafileslib.constants import (
+    MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH,
+    COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS, COL_EDITORIAL, ORIGINAL_YES
+)
 
 
 class ViewerState:
@@ -176,19 +179,19 @@ class ViewerState:
             return
 
         # Load title
-        title = record.get('Název', '')
+        title = record.get(COL_TITLE, '')
         self.title_entry.delete(0, tk.END)
         self.title_entry.insert(0, title)
         self.on_title_change()  # Update character counter
 
         # Load description
-        description = record.get('Popis', '')
+        description = record.get(COL_DESCRIPTION, '')
         self.desc_text.delete('1.0', tk.END)
         self.desc_text.insert('1.0', description)
         self.on_description_change()  # Update character counter
 
         # Load keywords into tags
-        keywords = record.get('Klíčová slova', '')
+        keywords = record.get(COL_KEYWORDS, '')
         self.keywords_list.clear()
         if keywords:
             for keyword in keywords.split(','):
@@ -198,9 +201,9 @@ class ViewerState:
         self.refresh_keywords_display()
 
         # Load editorial mode
-        editorial = record.get('Editorial', False)
+        editorial = record.get(COL_EDITORIAL, False)
         if isinstance(editorial, str):
-            editorial = editorial.lower() in ('true', '1', 'yes', 'ano')
+            editorial = editorial.lower() in ('true', '1', 'yes', ORIGINAL_YES)
         if self.editorial_var:
             self.editorial_var.set(bool(editorial))
 

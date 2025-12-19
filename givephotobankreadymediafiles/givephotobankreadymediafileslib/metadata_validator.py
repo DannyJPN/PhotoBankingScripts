@@ -7,7 +7,7 @@ and model capabilities, with provider caching optimization.
 
 import os
 import logging
-from typing import Dict
+from typing import Dict, Optional
 from tkinter import ttk
 
 
@@ -77,7 +77,7 @@ class MetadataValidator:
             'has_text': has_text
         }
 
-    def should_enable_generation_button(self, field_type: str, ai_provider=None) -> bool:
+    def should_enable_generation_button(self, field_type: str, ai_provider: Optional['AIProvider'] = None) -> bool:
         """
         Determine if a generation button should be enabled.
 
@@ -166,7 +166,7 @@ class MetadataValidator:
         )
         self.ui_components.generate_all_button.configure(state='normal' if any_enabled else 'disabled')
 
-    def update_button_state(self, field_type: str, button: ttk.Button, ai_provider=None) -> None:
+    def update_button_state(self, field_type: str, button: ttk.Button, ai_provider: Optional['AIProvider'] = None) -> None:
         """
         Update a single button's state.
 
@@ -177,10 +177,13 @@ class MetadataValidator:
         """
         # Don't update button state if generation is currently running for this field
         # Use thread-safe check instead of reading button text (prevents race condition)
-        if field_type in self.ai_coordinator.ai_threads:
-            thread = self.ai_coordinator.ai_threads[field_type]
-            if thread and thread.is_alive():
-                return
+        with self.ai_coordinator.generation_lock:
+            if field_type in self.ai_coordinator.ai_threads:
+                thread = self.ai_coordinator.ai_threads[field_type]
+                thread_alive = thread and thread.is_alive()
+
+        if thread_alive:
+            return
 
         should_enable = self.should_enable_generation_button(field_type, ai_provider)
         button.configure(state='normal' if should_enable else 'disabled')

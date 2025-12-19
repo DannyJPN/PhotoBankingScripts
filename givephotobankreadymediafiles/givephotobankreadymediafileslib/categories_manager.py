@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict, List, Optional
 
-from givephotobankreadymediafileslib.constants import get_category_column
+from givephotobankreadymediafileslib.constants import get_category_column, PHOTOBANK_CATEGORY_COUNTS
 
 
 class CategoriesManager:
@@ -43,20 +43,8 @@ class CategoriesManager:
                      text="No categories available").pack(pady=10)
             return
 
-        # Define number of categories per photobank based on verified 2025 research
-        categories_count = {
-            'shutterstock': 2,  # Up to 2 categories (verified from Shutterstock docs)
-            'adobestock': 1,    # 1 category (Adobe Sensei suggests one category)
-            'dreamstime': 3,    # Up to 3 categories (verified from Dreamstime blog)
-            'alamy': 2,         # Primary + optional Secondary category (verified from Alamy help)
-            # All other photobanks have NO categories
-            'depositphotos': 0,
-            'bigstockphoto': 0,
-            '123rf': 0,
-            'canstockphoto': 0,
-            'pond5': 0,
-            'gettyimages': 0
-        }
+        # Get category counts from constants
+        categories_count = PHOTOBANK_CATEGORY_COUNTS
 
         # Create UI for each photobank's categories in compact horizontal layout
         photobanks_with_categories = [(photobank, categories) for photobank, categories in self.categories.items()

@@ -11,7 +11,7 @@ import tkinter as tk
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
 from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_MEDIA_CSV_PATH
-from givephotobankreadymediafileslib.media_viewer import show_media_viewer
+from givephotobankreadymediafileslib.media_viewer_refactored import show_media_viewer
 from givephotobankreadymediafileslib.mediainfo_loader import load_categories, load_media_records
 
 

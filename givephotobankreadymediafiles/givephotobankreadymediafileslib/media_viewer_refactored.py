@@ -16,6 +16,7 @@ from tkinter import messagebox
 from typing import Optional, Callable, List, Dict
 import pygame
 
+from givephotobankreadymediafileslib.constants import STATUS_REJECTED
 from givephotobankreadymediafileslib.viewer_state import ViewerState
 from givephotobankreadymediafileslib.media_display import MediaDisplay
 from givephotobankreadymediafileslib.categories_manager import CategoriesManager
@@ -248,7 +249,7 @@ class MediaViewerRefactored:
         response = messagebox.askyesno(
             "Reject File",
             f"Are you sure you want to reject this file?\n\n{self.viewer_state.current_file_path}\n\n"
-            f"This will set status to 'zamítnuto' for all photobanks.",
+            f"This will set status to '{STATUS_REJECTED}' for all photobanks.",
             icon='warning'
         )
 
