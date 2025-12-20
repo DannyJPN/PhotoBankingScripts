@@ -152,9 +152,18 @@ class AICoordinator:
         # Check if title generation is already running
         if self.ai_threads['title'] and self.ai_threads['title'].is_alive():
             # Cancel current generation
-            self.ai_cancelled['title'] = True
+            with self.generation_lock:
+                self.ai_cancelled['title'] = True
+                # If Generate All is active, cancel it too
+                if self._generate_all_active:
+                    self._generate_all_active = False
+                    logging.debug("Individual title cancellation triggered Generate All cancellation")
+                    # Let finally blocks handle cleanup when Generate All is active
+                    return
+
+            # Not under Generate All - reset immediately
             self.ui_components.title_generate_button.configure(text="Generate", state="normal")
-            self.ai_threads['title'] = None  # Clear thread reference to allow restart
+            self.ai_threads['title'] = None
             return
 
         # Start generation in background thread
@@ -228,9 +237,15 @@ class AICoordinator:
                     self.viewer_state.title_entry.insert(0, title)
                     self.viewer_state.on_title_change()
         finally:
-            # Reset button only if no new thread is running
+            # Reset button only if no new thread is running AND not running under Generate All
+            with self.generation_lock:
+                is_generate_all_active = self._generate_all_active
+
             if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
-                self.ui_components.title_generate_button.configure(text="Generate", state="normal")
+                # If Generate All is NOT active, reset button to normal state
+                # If Generate All IS active, button will be reset by Generate All completion
+                if not is_generate_all_active:
+                    self.ui_components.title_generate_button.configure(text="Generate", state="normal")
 
     def generate_description(self):
         """Generate description using AI in background thread."""
@@ -246,9 +261,18 @@ class AICoordinator:
         # Check if description generation is already running
         if self.ai_threads['description'] and self.ai_threads['description'].is_alive():
             # Cancel current generation
-            self.ai_cancelled['description'] = True
+            with self.generation_lock:
+                self.ai_cancelled['description'] = True
+                # If Generate All is active, cancel it too
+                if self._generate_all_active:
+                    self._generate_all_active = False
+                    logging.debug("Individual description cancellation triggered Generate All cancellation")
+                    # Let finally blocks handle cleanup when Generate All is active
+                    return
+
+            # Not under Generate All - reset immediately
             self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
-            self.ai_threads['description'] = None  # Clear thread reference to allow restart
+            self.ai_threads['description'] = None
             return
 
         # Start generation in background thread
@@ -348,9 +372,15 @@ class AICoordinator:
                     self.viewer_state.desc_text.insert('1.0', description)
                     self.viewer_state.on_description_change()
         finally:
-            # Reset button only if no new thread is running
+            # Reset button only if no new thread is running AND not running under Generate All
+            with self.generation_lock:
+                is_generate_all_active = self._generate_all_active
+
             if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
-                self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
+                # If Generate All is NOT active, reset button to normal state
+                # If Generate All IS active, button will be reset by Generate All completion
+                if not is_generate_all_active:
+                    self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
 
     def _show_editorial_dialog_sync(self, missing_fields: Dict[str, bool], extracted_data: Dict[str, str]) -> Optional[Dict[str, str]]:
         """Show editorial dialog synchronously from worker thread."""
@@ -390,9 +420,18 @@ class AICoordinator:
         # Check if keywords generation is already running
         if self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive():
             # Cancel current generation
-            self.ai_cancelled['keywords'] = True
+            with self.generation_lock:
+                self.ai_cancelled['keywords'] = True
+                # If Generate All is active, cancel it too
+                if self._generate_all_active:
+                    self._generate_all_active = False
+                    logging.debug("Individual keywords cancellation triggered Generate All cancellation")
+                    # Let finally blocks handle cleanup when Generate All is active
+                    return
+
+            # Not under Generate All - reset immediately
             self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
-            self.ai_threads['keywords'] = None  # Clear thread reference to allow restart
+            self.ai_threads['keywords'] = None
             return
 
         # Start generation in background thread
@@ -480,9 +519,15 @@ class AICoordinator:
                     # Update UI
                     self.viewer_state.refresh_keywords_display()
         finally:
-            # Reset button only if no new thread is running
+            # Reset button only if no new thread is running AND not running under Generate All
+            with self.generation_lock:
+                is_generate_all_active = self._generate_all_active
+
             if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
-                self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
+                # If Generate All is NOT active, reset button to normal state
+                # If Generate All IS active, button will be reset by Generate All completion
+                if not is_generate_all_active:
+                    self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
 
     def generate_categories(self):
         """Generate categories using AI in background thread."""
@@ -502,9 +547,18 @@ class AICoordinator:
         # Check if categories generation is already running
         if self.ai_threads['categories'] and self.ai_threads['categories'].is_alive():
             # Cancel current generation
-            self.ai_cancelled['categories'] = True
+            with self.generation_lock:
+                self.ai_cancelled['categories'] = True
+                # If Generate All is active, cancel it too
+                if self._generate_all_active:
+                    self._generate_all_active = False
+                    logging.debug("Individual categories cancellation triggered Generate All cancellation")
+                    # Let finally blocks handle cleanup when Generate All is active
+                    return
+
+            # Not under Generate All - reset immediately
             self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
-            self.ai_threads['categories'] = None  # Clear thread reference to allow restart
+            self.ai_threads['categories'] = None
             return
 
         # Start generation in background thread
@@ -585,9 +639,15 @@ class AICoordinator:
                     # Update UI dropdowns with generated categories
                     self.categories_manager.update_categories(generated_categories)
         finally:
-            # Reset button only if no new thread is running
+            # Reset button only if no new thread is running AND not running under Generate All
+            with self.generation_lock:
+                is_generate_all_active = self._generate_all_active
+
             if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
-                self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
+                # If Generate All is NOT active, reset button to normal state
+                # If Generate All IS active, button will be reset by Generate All completion
+                if not is_generate_all_active:
+                    self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
 
     def generate_all_metadata(self):
         """Generate all metadata serially with proper dependencies."""
@@ -601,23 +661,31 @@ class AICoordinator:
             return
 
         # Check if Generate All is already active - if so, cancel
+        cancelled = False
         with self.generation_lock:
             if self._generate_all_active:
                 # Cancel inside lock (don't call _cancel_all_generation which tries to acquire lock again)
                 for gen_type in ['title', 'description', 'keywords', 'categories']:
                     self.ai_cancelled[gen_type] = True
                 self._generate_all_active = False
+                cancelled = True
 
-        # If we cancelled, reset UI and return
-        if not self._generate_all_active:
+        # If we cancelled, immediately reset ALL buttons and clear thread references
+        if cancelled:
+            # Clear all thread references immediately (let daemon threads die naturally via cancellation flags)
+            for gen_type in ['title', 'description', 'keywords', 'categories']:
+                self.ai_threads[gen_type] = None
+
+            # Reset ALL buttons immediately (both Generate All and individual buttons)
+            self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
             self.ui_components.title_generate_button.configure(text="Generate", state="normal")
             self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
             self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
             self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
-            self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+
             if hasattr(self, 'update_all_button_states_callback'):
                 self.update_all_button_states_callback()
-            logging.debug("All generations cancelled")
+            logging.debug("All generations cancelled - buttons reset immediately")
             return
 
         # Start serial generation in background thread
@@ -708,6 +776,12 @@ class AICoordinator:
         except Exception as e:
             logging.error(f"Generate All failed: {e}")
             self.root.after(0, self._complete_all_generation)
+
+        finally:
+            # Always ensure Generate All is marked inactive
+            with self.generation_lock:
+                self._generate_all_active = False
+            logging.debug("Generate All worker cleanup: _generate_all_active set to False")
 
     def _start_and_wait_for_generation(self, gen_type: str, selected_model: str):
         """Start a generation and wait for it to complete."""
