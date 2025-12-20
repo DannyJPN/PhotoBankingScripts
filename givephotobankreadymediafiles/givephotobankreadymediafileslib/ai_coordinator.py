@@ -150,28 +150,22 @@ class AICoordinator:
             return
 
         # Check if title generation is already running
-        with self.generation_lock:
-            if self.ai_threads['title'] and self.ai_threads['title'].is_alive():
-                # Cancel current generation
-                self.ai_cancelled['title'] = True
-                self.ui_components.title_generate_button.configure(text="Generate", state="normal")
-                self.ai_threads['title'] = None  # Clear thread reference to allow restart
-                return
+        if self.ai_threads['title'] and self.ai_threads['title'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['title'] = True
+            self.ui_components.title_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['title'] = None  # Clear thread reference to allow restart
+            return
 
-            # Start generation in background thread
-            self.ai_cancelled['title'] = False
-            thread = threading.Thread(
-                target=self._generate_title_worker,
-                args=(selected_model,),
-                daemon=True
-            )
-            self.ai_threads['title'] = thread
-
-        # Update UI for loading state
+        # Start generation in background thread
+        self.ai_cancelled['title'] = False
+        self.ai_threads['title'] = threading.Thread(
+            target=self._generate_title_worker,
+            args=(selected_model,),
+            daemon=True
+        )
         self.ui_components.title_generate_button.configure(text="Cancel")
-
-        # Start OUTSIDE lock
-        thread.start()
+        self.ai_threads['title'].start()
 
     def _generate_title_worker(self, selected_model: str):
         """Worker thread for title generation."""
@@ -235,13 +229,8 @@ class AICoordinator:
                     self.viewer_state.on_title_change()
         finally:
             # Reset button only if no new thread is running
-            with self.generation_lock:
-                thread_alive = (self.ai_threads['title'] and self.ai_threads['title'].is_alive())
-            if not thread_alive:
+            if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
                 self.ui_components.title_generate_button.configure(text="Generate", state="normal")
-            # Update all button states after title generation completes
-            if hasattr(self, 'update_all_button_states_callback'):
-                self.update_all_button_states_callback()
 
     def generate_description(self):
         """Generate description using AI in background thread."""
@@ -255,28 +244,22 @@ class AICoordinator:
             return
 
         # Check if description generation is already running
-        with self.generation_lock:
-            if self.ai_threads['description'] and self.ai_threads['description'].is_alive():
-                # Cancel current generation
-                self.ai_cancelled['description'] = True
-                self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
-                self.ai_threads['description'] = None  # Clear thread reference to allow restart
-                return
+        if self.ai_threads['description'] and self.ai_threads['description'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['description'] = True
+            self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['description'] = None  # Clear thread reference to allow restart
+            return
 
-            # Start generation in background thread
-            self.ai_cancelled['description'] = False
-            thread = threading.Thread(
-                target=self._generate_description_worker,
-                args=(selected_model,),
-                daemon=True
-            )
-            self.ai_threads['description'] = thread
-
-        # Update UI for loading state
+        # Start generation in background thread
+        self.ai_cancelled['description'] = False
+        self.ai_threads['description'] = threading.Thread(
+            target=self._generate_description_worker,
+            args=(selected_model,),
+            daemon=True
+        )
         self.ui_components.desc_generate_button.configure(text="Cancel")
-
-        # Start OUTSIDE lock
-        thread.start()
+        self.ai_threads['description'].start()
 
     def _generate_description_worker(self, selected_model: str):
         """Worker thread for description generation."""
@@ -366,13 +349,8 @@ class AICoordinator:
                     self.viewer_state.on_description_change()
         finally:
             # Reset button only if no new thread is running
-            with self.generation_lock:
-                thread_alive = (self.ai_threads['description'] and self.ai_threads['description'].is_alive())
-            if not thread_alive:
+            if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
                 self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
-            # Update all button states after description generation completes
-            if hasattr(self, 'update_all_button_states_callback'):
-                self.update_all_button_states_callback()
 
     def _show_editorial_dialog_sync(self, missing_fields: Dict[str, bool], extracted_data: Dict[str, str]) -> Optional[Dict[str, str]]:
         """Show editorial dialog synchronously from worker thread."""
@@ -410,28 +388,22 @@ class AICoordinator:
             return
 
         # Check if keywords generation is already running
-        with self.generation_lock:
-            if self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive():
-                # Cancel current generation
-                self.ai_cancelled['keywords'] = True
-                self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
-                self.ai_threads['keywords'] = None  # Clear thread reference to allow restart
-                return
+        if self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['keywords'] = True
+            self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['keywords'] = None  # Clear thread reference to allow restart
+            return
 
-            # Start generation in background thread
-            self.ai_cancelled['keywords'] = False
-            thread = threading.Thread(
-                target=self._generate_keywords_worker,
-                args=(selected_model,),
-                daemon=True
-            )
-            self.ai_threads['keywords'] = thread
-
-        # Update UI for loading state
+        # Start generation in background thread
+        self.ai_cancelled['keywords'] = False
+        self.ai_threads['keywords'] = threading.Thread(
+            target=self._generate_keywords_worker,
+            args=(selected_model,),
+            daemon=True
+        )
         self.ui_components.keywords_generate_button.configure(text="Cancel")
-
-        # Start OUTSIDE lock
-        thread.start()
+        self.ai_threads['keywords'].start()
 
     def _generate_keywords_worker(self, selected_model: str):
         """Worker thread for keywords generation."""
@@ -509,13 +481,8 @@ class AICoordinator:
                     self.viewer_state.refresh_keywords_display()
         finally:
             # Reset button only if no new thread is running
-            with self.generation_lock:
-                thread_alive = (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive())
-            if not thread_alive:
+            if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
                 self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
-            # Update all button states after keywords generation completes
-            if hasattr(self, 'update_all_button_states_callback'):
-                self.update_all_button_states_callback()
 
     def generate_categories(self):
         """Generate categories using AI in background thread."""
@@ -533,28 +500,22 @@ class AICoordinator:
             return
 
         # Check if categories generation is already running
-        with self.generation_lock:
-            if self.ai_threads['categories'] and self.ai_threads['categories'].is_alive():
-                # Cancel current generation
-                self.ai_cancelled['categories'] = True
-                self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
-                self.ai_threads['categories'] = None  # Clear thread reference to allow restart
-                return
+        if self.ai_threads['categories'] and self.ai_threads['categories'].is_alive():
+            # Cancel current generation
+            self.ai_cancelled['categories'] = True
+            self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
+            self.ai_threads['categories'] = None  # Clear thread reference to allow restart
+            return
 
-            # Start generation in background thread
-            self.ai_cancelled['categories'] = False
-            thread = threading.Thread(
-                target=self._generate_categories_worker,
-                args=(selected_model,),
-                daemon=True
-            )
-            self.ai_threads['categories'] = thread
-
-        # Update UI for loading state
+        # Start generation in background thread
+        self.ai_cancelled['categories'] = False
+        self.ai_threads['categories'] = threading.Thread(
+            target=self._generate_categories_worker,
+            args=(selected_model,),
+            daemon=True
+        )
         self.ui_components.categories_generate_button.configure(text="Cancel")
-
-        # Start OUTSIDE lock
-        thread.start()
+        self.ai_threads['categories'].start()
 
     def _generate_categories_worker(self, selected_model: str):
         """Worker thread for categories generation."""
@@ -625,13 +586,8 @@ class AICoordinator:
                     self.categories_manager.update_categories(generated_categories)
         finally:
             # Reset button only if no new thread is running
-            with self.generation_lock:
-                thread_alive = (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive())
-            if not thread_alive:
+            if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
                 self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
-            # Update all button states after categories generation completes
-            if hasattr(self, 'update_all_button_states_callback'):
-                self.update_all_button_states_callback()
 
     def generate_all_metadata(self):
         """Generate all metadata serially with proper dependencies."""
@@ -647,10 +603,25 @@ class AICoordinator:
         # Check if Generate All is already active - if so, cancel
         with self.generation_lock:
             if self._generate_all_active:
-                self._cancel_all_generation()
-                return
+                # Cancel inside lock (don't call _cancel_all_generation which tries to acquire lock again)
+                for gen_type in ['title', 'description', 'keywords', 'categories']:
+                    self.ai_cancelled[gen_type] = True
+                self._generate_all_active = False
 
-            # Start serial generation in background thread
+        # If we cancelled, reset UI and return
+        if not self._generate_all_active:
+            self.ui_components.title_generate_button.configure(text="Generate", state="normal")
+            self.ui_components.desc_generate_button.configure(text="Generate", state="normal")
+            self.ui_components.keywords_generate_button.configure(text="Generate", state="normal")
+            self.ui_components.categories_generate_button.configure(text="Generate", state="normal")
+            self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+            if hasattr(self, 'update_all_button_states_callback'):
+                self.update_all_button_states_callback()
+            logging.debug("All generations cancelled")
+            return
+
+        # Start serial generation in background thread
+        with self.generation_lock:
             self._generate_all_active = True
             thread = threading.Thread(
                 target=self._generate_all_worker,
