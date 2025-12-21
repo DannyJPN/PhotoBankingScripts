@@ -47,6 +47,21 @@ class AICoordinator:
             'keywords': False,
             'categories': False
         }
+
+        # Thread generation IDs - prevent stale threads from updating UI
+        self.generation_counter = {
+            'title': 0,
+            'description': 0,
+            'keywords': 0,
+            'categories': 0
+        }
+        self.current_generation_id = {
+            'title': 0,
+            'description': 0,
+            'keywords': 0,
+            'categories': 0
+        }
+
         self.generation_lock = threading.Lock()
 
         # Generate All state
@@ -166,17 +181,23 @@ class AICoordinator:
             self.ai_threads['title'] = None
             return
 
-        # Start generation in background thread
-        self.ai_cancelled['title'] = False
+        # Start generation in background thread with unique generation ID
+        with self.generation_lock:
+            self.ai_cancelled['title'] = False
+            self.generation_counter['title'] += 1
+            generation_id = self.generation_counter['title']
+            self.current_generation_id['title'] = generation_id
+
         self.ai_threads['title'] = threading.Thread(
             target=self._generate_title_worker,
-            args=(selected_model,),
+            args=(selected_model, generation_id),
             daemon=True
         )
         self.ui_components.title_generate_button.configure(text="Cancel")
         self.ai_threads['title'].start()
+        logging.debug(f"Started title generation with ID {generation_id}")
 
-    def _generate_title_worker(self, selected_model: str):
+    def _generate_title_worker(self, selected_model: str, generation_id: int):
         """Worker thread for title generation."""
         try:
             # Get AI provider from config
@@ -200,7 +221,7 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['title']
             if cancelled:
-                self.root.after(0, self._update_title_result, None, None)
+                self.root.after(0, self._update_title_result, None, None, generation_id)
                 return
 
             # Create generator and generate title (returns str for original only)
@@ -213,35 +234,45 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['title']
             if cancelled:
-                self.root.after(0, self._update_title_result, None, None)
+                self.root.after(0, self._update_title_result, None, None, generation_id)
                 return
 
             # Update UI in main thread with generated title
-            self.root.after(0, self._update_title_result, title, None)
+            self.root.after(0, self._update_title_result, title, None, generation_id)
 
         except Exception as e:
             logging.error(f"Title generation failed: {e}")
             # Update UI with error in main thread
-            self.root.after(0, self._update_title_result, None, str(e))
+            self.root.after(0, self._update_title_result, None, str(e), generation_id)
 
-    def _update_title_result(self, title: Optional[str], error: Optional[str]):
+    def _update_title_result(self, title: Optional[str], error: Optional[str], generation_id: int):
         """Update UI with title generation result (called in main thread)."""
         try:
+            # Check if this result is from the current generation
+            with self.generation_lock:
+                is_current = (generation_id == self.current_generation_id['title'])
+                cancelled = self.ai_cancelled['title']
+
+            if not is_current:
+                logging.debug(f"Title generation {generation_id} is stale (current: {self.current_generation_id['title']}) - ignoring result")
+                return
+
             if error:
                 messagebox.showerror("Generation Failed", f"Failed to generate title: {error}")
             else:
-                with self.generation_lock:
-                    cancelled = self.ai_cancelled['title']
                 if title and not cancelled:
                     self.viewer_state.title_entry.delete(0, 'end')
                     self.viewer_state.title_entry.insert(0, title)
                     self.viewer_state.on_title_change()
+                    logging.debug(f"Title generation {generation_id} completed successfully")
         finally:
             # Reset button only if no new thread is running AND not running under Generate All
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
+                is_current = (generation_id == self.current_generation_id['title'])
 
-            if not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
+            # Only reset button if this is still the current generation
+            if is_current and not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
                 # If Generate All is NOT active, reset button to normal state
                 # If Generate All IS active, button will be reset by Generate All completion
                 if not is_generate_all_active:
@@ -275,17 +306,23 @@ class AICoordinator:
             self.ai_threads['description'] = None
             return
 
-        # Start generation in background thread
-        self.ai_cancelled['description'] = False
+        # Start generation in background thread with unique generation ID
+        with self.generation_lock:
+            self.ai_cancelled['description'] = False
+            self.generation_counter['description'] += 1
+            generation_id = self.generation_counter['description']
+            self.current_generation_id['description'] = generation_id
+
         self.ai_threads['description'] = threading.Thread(
             target=self._generate_description_worker,
-            args=(selected_model,),
+            args=(selected_model, generation_id),
             daemon=True
         )
         self.ui_components.desc_generate_button.configure(text="Cancel")
         self.ai_threads['description'].start()
+        logging.debug(f"Started description generation with ID {generation_id}")
 
-    def _generate_description_worker(self, selected_model: str):
+    def _generate_description_worker(self, selected_model: str, generation_id: int):
         """Worker thread for description generation."""
         try:
             # Get AI provider from config
@@ -309,7 +346,7 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['description']
             if cancelled:
-                self.root.after(0, self._update_description_result, None, None)
+                self.root.after(0, self._update_description_result, None, None, generation_id)
                 return
 
             # Handle editorial metadata if needed
@@ -348,35 +385,45 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['description']
             if cancelled:
-                self.root.after(0, self._update_description_result, None, None)
+                self.root.after(0, self._update_description_result, None, None, generation_id)
                 return
 
             # Update UI in main thread with generated description
-            self.root.after(0, self._update_description_result, description, None)
+            self.root.after(0, self._update_description_result, description, None, generation_id)
 
         except Exception as e:
             logging.error(f"Description generation failed: {e}")
             # Update UI with error in main thread
-            self.root.after(0, self._update_description_result, None, str(e))
+            self.root.after(0, self._update_description_result, None, str(e), generation_id)
 
-    def _update_description_result(self, description: Optional[str], error: Optional[str]):
+    def _update_description_result(self, description: Optional[str], error: Optional[str], generation_id: int):
         """Update UI with description generation result (called in main thread)."""
         try:
+            # Check if this result is from the current generation
+            with self.generation_lock:
+                is_current = (generation_id == self.current_generation_id['description'])
+                cancelled = self.ai_cancelled['description']
+
+            if not is_current:
+                logging.debug(f"Description generation {generation_id} is stale (current: {self.current_generation_id['description']}) - ignoring result")
+                return
+
             if error:
                 messagebox.showerror("Generation Failed", f"Failed to generate description: {error}")
             else:
-                with self.generation_lock:
-                    cancelled = self.ai_cancelled['description']
                 if description and not cancelled:
                     self.viewer_state.desc_text.delete('1.0', 'end')
                     self.viewer_state.desc_text.insert('1.0', description)
                     self.viewer_state.on_description_change()
+                    logging.debug(f"Description generation {generation_id} completed successfully")
         finally:
             # Reset button only if no new thread is running AND not running under Generate All
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
+                is_current = (generation_id == self.current_generation_id['description'])
 
-            if not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
+            # Only reset button if this is still the current generation
+            if is_current and not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
                 # If Generate All is NOT active, reset button to normal state
                 # If Generate All IS active, button will be reset by Generate All completion
                 if not is_generate_all_active:
@@ -434,17 +481,23 @@ class AICoordinator:
             self.ai_threads['keywords'] = None
             return
 
-        # Start generation in background thread
-        self.ai_cancelled['keywords'] = False
+        # Start generation in background thread with unique generation ID
+        with self.generation_lock:
+            self.ai_cancelled['keywords'] = False
+            self.generation_counter['keywords'] += 1
+            generation_id = self.generation_counter['keywords']
+            self.current_generation_id['keywords'] = generation_id
+
         self.ai_threads['keywords'] = threading.Thread(
             target=self._generate_keywords_worker,
-            args=(selected_model,),
+            args=(selected_model, generation_id),
             daemon=True
         )
         self.ui_components.keywords_generate_button.configure(text="Cancel")
         self.ai_threads['keywords'].start()
+        logging.debug(f"Started keywords generation with ID {generation_id}")
 
-    def _generate_keywords_worker(self, selected_model: str):
+    def _generate_keywords_worker(self, selected_model: str, generation_id: int):
         """Worker thread for keywords generation."""
         try:
             # Get AI provider from config
@@ -468,7 +521,7 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['keywords']
             if cancelled:
-                self.root.after(0, self._update_keywords_result, None, None)
+                self.root.after(0, self._update_keywords_result, None, None, generation_id)
                 return
 
             # Create generator and generate keywords (returns List[str] for original only)
@@ -491,25 +544,32 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['keywords']
             if cancelled:
-                self.root.after(0, self._update_keywords_result, None, None)
+                self.root.after(0, self._update_keywords_result, None, None, generation_id)
                 return
 
             # Update UI in main thread with generated keywords
-            self.root.after(0, self._update_keywords_result, keywords, None)
+            self.root.after(0, self._update_keywords_result, keywords, None, generation_id)
 
         except Exception as e:
             logging.error(f"Keywords generation failed: {e}")
             # Update UI with error in main thread
-            self.root.after(0, self._update_keywords_result, None, str(e))
+            self.root.after(0, self._update_keywords_result, None, str(e), generation_id)
 
-    def _update_keywords_result(self, keywords: Optional[List[str]], error: Optional[str]):
+    def _update_keywords_result(self, keywords: Optional[List[str]], error: Optional[str], generation_id: int):
         """Update UI with keywords generation result (called in main thread)."""
         try:
+            # Check if this result is from the current generation
+            with self.generation_lock:
+                is_current = (generation_id == self.current_generation_id['keywords'])
+                cancelled = self.ai_cancelled['keywords']
+
+            if not is_current:
+                logging.debug(f"Keywords generation {generation_id} is stale (current: {self.current_generation_id['keywords']}) - ignoring result")
+                return
+
             if error:
                 messagebox.showerror("Generation Failed", f"Failed to generate keywords: {error}")
             else:
-                with self.generation_lock:
-                    cancelled = self.ai_cancelled['keywords']
                 if keywords and not cancelled:
                     # Add keywords to existing list (avoiding duplicates)
                     for keyword in keywords:
@@ -518,12 +578,15 @@ class AICoordinator:
 
                     # Update UI
                     self.viewer_state.refresh_keywords_display()
+                    logging.debug(f"Keywords generation {generation_id} completed successfully")
         finally:
             # Reset button only if no new thread is running AND not running under Generate All
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
+                is_current = (generation_id == self.current_generation_id['keywords'])
 
-            if not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
+            # Only reset button if this is still the current generation
+            if is_current and not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
                 # If Generate All is NOT active, reset button to normal state
                 # If Generate All IS active, button will be reset by Generate All completion
                 if not is_generate_all_active:
@@ -561,17 +624,23 @@ class AICoordinator:
             self.ai_threads['categories'] = None
             return
 
-        # Start generation in background thread
-        self.ai_cancelled['categories'] = False
+        # Start generation in background thread with unique generation ID
+        with self.generation_lock:
+            self.ai_cancelled['categories'] = False
+            self.generation_counter['categories'] += 1
+            generation_id = self.generation_counter['categories']
+            self.current_generation_id['categories'] = generation_id
+
         self.ai_threads['categories'] = threading.Thread(
             target=self._generate_categories_worker,
-            args=(selected_model,),
+            args=(selected_model, generation_id),
             daemon=True
         )
         self.ui_components.categories_generate_button.configure(text="Cancel")
         self.ai_threads['categories'].start()
+        logging.debug(f"Started categories generation with ID {generation_id}")
 
-    def _generate_categories_worker(self, selected_model: str):
+    def _generate_categories_worker(self, selected_model: str, generation_id: int):
         """Worker thread for categories generation."""
         try:
             # Get AI provider from config
@@ -595,7 +664,7 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['categories']
             if cancelled:
-                self.root.after(0, self._update_categories_result, None, None)
+                self.root.after(0, self._update_categories_result, None, None, generation_id)
                 return
 
             # Create generator and set categories
@@ -616,34 +685,44 @@ class AICoordinator:
             with self.generation_lock:
                 cancelled = self.ai_cancelled['categories']
             if cancelled:
-                self.root.after(0, self._update_categories_result, None, None)
+                self.root.after(0, self._update_categories_result, None, None, generation_id)
                 return
 
             # Update UI in main thread
-            self.root.after(0, self._update_categories_result, generated_categories, None)
+            self.root.after(0, self._update_categories_result, generated_categories, None, generation_id)
 
         except Exception as e:
             logging.error(f"Categories generation failed: {e}")
             # Update UI with error in main thread
-            self.root.after(0, self._update_categories_result, None, str(e))
+            self.root.after(0, self._update_categories_result, None, str(e), generation_id)
 
-    def _update_categories_result(self, generated_categories: Optional[Dict], error: Optional[str]):
+    def _update_categories_result(self, generated_categories: Optional[Dict], error: Optional[str], generation_id: int):
         """Update UI with categories generation result (called in main thread)."""
         try:
+            # Check if this result is from the current generation
+            with self.generation_lock:
+                is_current = (generation_id == self.current_generation_id['categories'])
+                cancelled = self.ai_cancelled['categories']
+
+            if not is_current:
+                logging.debug(f"Categories generation {generation_id} is stale (current: {self.current_generation_id['categories']}) - ignoring result")
+                return
+
             if error:
                 messagebox.showerror("Generation Failed", f"Failed to generate categories: {error}")
             else:
-                with self.generation_lock:
-                    cancelled = self.ai_cancelled['categories']
                 if generated_categories and not cancelled:
                     # Update UI dropdowns with generated categories
                     self.categories_manager.update_categories(generated_categories)
+                    logging.debug(f"Categories generation {generation_id} completed successfully")
         finally:
             # Reset button only if no new thread is running AND not running under Generate All
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
+                is_current = (generation_id == self.current_generation_id['categories'])
 
-            if not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
+            # Only reset button if this is still the current generation
+            if is_current and not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
                 # If Generate All is NOT active, reset button to normal state
                 # If Generate All IS active, button will be reset by Generate All completion
                 if not is_generate_all_active:
@@ -795,12 +874,20 @@ class AICoordinator:
         elif gen_type == 'categories':
             self.root.after(0, lambda: self.ui_components.categories_generate_button.configure(text="Cancel"))
 
-        # Start the worker thread directly
+        # Generate unique generation ID for this type
+        with self.generation_lock:
+            self.generation_counter[gen_type] += 1
+            generation_id = self.generation_counter[gen_type]
+            self.current_generation_id[gen_type] = generation_id
+
+        logging.debug(f"Generate All: Starting {gen_type} generation with ID {generation_id}")
+
+        # Start the worker thread directly with generation ID
         if gen_type == 'title':
             with self.generation_lock:
                 thread = threading.Thread(
                     target=self._generate_title_worker,
-                    args=(selected_model,),
+                    args=(selected_model, generation_id),
                     daemon=True
                 )
                 self.ai_threads['title'] = thread
@@ -810,7 +897,7 @@ class AICoordinator:
             with self.generation_lock:
                 thread = threading.Thread(
                     target=self._generate_description_worker,
-                    args=(selected_model,),
+                    args=(selected_model, generation_id),
                     daemon=True
                 )
                 self.ai_threads['description'] = thread
@@ -820,7 +907,7 @@ class AICoordinator:
             with self.generation_lock:
                 thread = threading.Thread(
                     target=self._generate_keywords_worker,
-                    args=(selected_model,),
+                    args=(selected_model, generation_id),
                     daemon=True
                 )
                 self.ai_threads['keywords'] = thread
@@ -830,7 +917,7 @@ class AICoordinator:
             with self.generation_lock:
                 thread = threading.Thread(
                     target=self._generate_categories_worker,
-                    args=(selected_model,),
+                    args=(selected_model, generation_id),
                     daemon=True
                 )
                 self.ai_threads['categories'] = thread
