@@ -40,7 +40,7 @@ class ViewerState:
         # Character counter labels
         self.title_char_label: Optional[tk.Label] = None
         self.desc_char_label: Optional[tk.Label] = None
-        self.keywords_count_label: Optional[tk.Label] = None
+        # Note: keywords_count_label removed - TagEntry has built-in counter
 
         # Keywords storage for compatibility
         self.keywords_list: List[str] = []
@@ -126,7 +126,7 @@ class ViewerState:
 
         # Update keywords list for compatibility with existing code
         self.keywords_list = self.keywords_tag_entry.get_tags()
-        self.update_keywords_counter()
+        # Note: TagEntry widget has built-in counter, no external update needed
         # Note: Button state update happens on focus loss, not on change
 
     def on_keywords_focus_out(self, event=None) -> None:
@@ -144,22 +144,8 @@ class ViewerState:
             return
 
         # Set tags in the new TagEntry widget
+        # TagEntry widget has built-in counter that updates automatically
         self.keywords_tag_entry.set_tags(self.keywords_list)
-
-        # Update counter
-        self.update_keywords_counter()
-
-    def update_keywords_counter(self):
-        """Update keywords counter."""
-        if not self.keywords_count_label:
-            return
-
-        current_count = len(self.keywords_list)
-        self.keywords_count_label.configure(text=f"{current_count}/50")
-        if current_count >= 50:
-            self.keywords_count_label.configure(foreground='red')
-        else:
-            self.keywords_count_label.configure(foreground='black')
 
     def handle_title_input(self, event):
         """Handle title input Enter key."""

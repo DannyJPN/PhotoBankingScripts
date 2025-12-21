@@ -148,7 +148,7 @@ class MediaViewerRefactored:
         self.viewer_state.editorial_var = self.ui_components.editorial_var
         self.viewer_state.title_char_label = self.ui_components.title_char_label
         self.viewer_state.desc_char_label = self.ui_components.desc_char_label
-        self.viewer_state.keywords_count_label = self.ui_components.keywords_count_label
+        # Note: keywords_count_label removed - TagEntry has built-in counter
 
         # MediaDisplay widgets
         self.media_display.media_label = self.ui_components.media_label

@@ -47,7 +47,7 @@ class UIComponents:
         self.desc_char_label: Optional[ttk.Label] = None
         self.desc_generate_button: Optional[ttk.Button] = None
         self.keywords_tag_entry: Optional[TagEntry] = None
-        self.keywords_count_label: Optional[ttk.Label] = None
+        # Note: keywords_count_label removed - TagEntry has built-in counter
         self.keywords_generate_button: Optional[ttk.Button] = None
         self.editorial_var: Optional[tk.BooleanVar] = None
         self.editorial_checkbox: Optional[ttk.Checkbutton] = None
@@ -224,8 +224,7 @@ class UIComponents:
         keywords_controls_frame = ttk.Frame(keywords_frame)
         keywords_controls_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
 
-        self.keywords_count_label = ttk.Label(keywords_controls_frame, text="0/50")
-        self.keywords_count_label.pack(side=tk.LEFT)
+        # Note: TagEntry widget has built-in counter, no need for external label
 
         self.keywords_generate_button = ttk.Button(keywords_controls_frame, text="Generate",
                                                   command=callbacks.get('generate_keywords'))
