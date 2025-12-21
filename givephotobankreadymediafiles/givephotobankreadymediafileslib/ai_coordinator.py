@@ -362,7 +362,8 @@ class AICoordinator:
                     # Show dialog synchronously and wait for result
                     editorial_data = self._show_editorial_dialog_sync(missing_fields, extracted_data)
                     if editorial_data is None:
-                        # User cancelled - stop generation
+                        # User cancelled - stop generation and reset button
+                        self.root.after(0, self._update_description_result, None, None, generation_id)
                         return
                     # Merge with extracted data
                     editorial_data = {**extracted_data, **editorial_data}
@@ -812,6 +813,7 @@ class AICoordinator:
                 with self.generation_lock:
                     should_continue = self._generate_all_active and not self.ai_cancelled['title']
                 if not should_continue:
+                    self.root.after(0, self._complete_all_generation)
                     return
             else:
                 logging.debug("Generate All: Skipping title generation (button disabled)")
@@ -823,6 +825,7 @@ class AICoordinator:
                 with self.generation_lock:
                     should_continue = self._generate_all_active and not self.ai_cancelled['description']
                 if not should_continue:
+                    self.root.after(0, self._complete_all_generation)
                     return
             else:
                 logging.debug("Generate All: Skipping description generation (button disabled)")
@@ -834,6 +837,7 @@ class AICoordinator:
                 with self.generation_lock:
                     should_continue = self._generate_all_active and not self.ai_cancelled['keywords']
                 if not should_continue:
+                    self.root.after(0, self._complete_all_generation)
                     return
             else:
                 logging.debug("Generate All: Skipping keywords generation (button disabled)")
@@ -845,6 +849,7 @@ class AICoordinator:
                 with self.generation_lock:
                     should_continue = self._generate_all_active and not self.ai_cancelled['categories']
                 if not should_continue:
+                    self.root.after(0, self._complete_all_generation)
                     return
             else:
                 logging.debug("Generate All: Skipping categories generation (button disabled)")
