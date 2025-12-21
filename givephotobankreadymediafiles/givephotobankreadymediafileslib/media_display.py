@@ -57,9 +57,9 @@ class MediaDisplay:
             # Store file path
             self.current_file_path = file_path
 
-            # Load original image
-            image = Image.open(file_path)
-            self.original_image_size = image.size
+            # Load original image to get size (use context manager to ensure file is closed)
+            with Image.open(file_path) as image:
+                self.original_image_size = image.size
 
             # Resize for current display area
             self.resize_image()
@@ -80,23 +80,22 @@ class MediaDisplay:
             display_width = max(self.media_label.winfo_width() - 20, 300)
             display_height = max(self.media_label.winfo_height() - 20, 200)
 
-            # Load image again
-            image = Image.open(self.current_file_path)
+            # Load image again (use context manager to ensure file is closed)
+            with Image.open(self.current_file_path) as image:
+                # Calculate scaling to fit area while maintaining aspect ratio
+                # Never scale above 100% of original size
+                scale_x = min(display_width / image.width, 1.0)
+                scale_y = min(display_height / image.height, 1.0)
+                scale = min(scale_x, scale_y)
 
-            # Calculate scaling to fit area while maintaining aspect ratio
-            # Never scale above 100% of original size
-            scale_x = min(display_width / image.width, 1.0)
-            scale_y = min(display_height / image.height, 1.0)
-            scale = min(scale_x, scale_y)
+                new_width = int(image.width * scale)
+                new_height = int(image.height * scale)
 
-            new_width = int(image.width * scale)
-            new_height = int(image.height * scale)
+                # Resize image
+                resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-            # Resize image
-            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-            # Convert to PhotoImage
-            self.current_image = ImageTk.PhotoImage(image)
+                # Convert to PhotoImage
+                self.current_image = ImageTk.PhotoImage(resized)
 
             # Display image
             self.media_label.configure(image=self.current_image, text="")
