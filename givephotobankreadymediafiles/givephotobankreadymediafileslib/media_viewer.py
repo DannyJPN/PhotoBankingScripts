@@ -369,11 +369,11 @@ class MediaViewer:
         try:
             # Hide video controls
             self.controls_frame.pack_forget()
-            
-            # Load original image
-            image = Image.open(file_path)
-            self.original_image_size = image.size
-            
+
+            # Load original image to get size (use context manager to ensure file is closed)
+            with Image.open(file_path) as image:
+                self.original_image_size = image.size
+
             # Resize for current display area
             self.resize_image()
             
@@ -392,24 +392,23 @@ class MediaViewer:
             display_width = max(self.media_label.winfo_width() - 20, 300)
             display_height = max(self.media_label.winfo_height() - 20, 200)
             
-            # Load image again
-            image = Image.open(self.current_file_path)
-            
-            # Calculate scaling to fit area while maintaining aspect ratio
-            # Never scale above 100% of original size
-            scale_x = min(display_width / image.width, 1.0)
-            scale_y = min(display_height / image.height, 1.0) 
-            scale = min(scale_x, scale_y)
-            
-            new_width = int(image.width * scale)
-            new_height = int(image.height * scale)
-            
-            # Resize image
-            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            # Convert to PhotoImage
-            self.current_image = ImageTk.PhotoImage(image)
-            
+            # Load image again (use context manager to ensure file is closed)
+            with Image.open(self.current_file_path) as image:
+                # Calculate scaling to fit area while maintaining aspect ratio
+                # Never scale above 100% of original size
+                scale_x = min(display_width / image.width, 1.0)
+                scale_y = min(display_height / image.height, 1.0)
+                scale = min(scale_x, scale_y)
+
+                new_width = int(image.width * scale)
+                new_height = int(image.height * scale)
+
+                # Resize image
+                resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+                # Convert to PhotoImage
+                self.current_image = ImageTk.PhotoImage(resized)
+
             # Display image
             self.media_label.configure(image=self.current_image, text="")
             
@@ -534,6 +533,8 @@ class MediaViewer:
                 return None
 
             from shared.config import get_config
+            from shared.ai_factory import create_from_model_key
+
             config = get_config()
             available_models = config.get_available_ai_models()
 
@@ -548,8 +549,8 @@ class MediaViewer:
                 logging.debug(f"get_current_ai_provider: Model key not found for '{selected_model}'")
                 return None
 
-            # Get provider
-            provider = config.get_ai_provider(model_key)
+            # Create provider from model key
+            provider = create_from_model_key(model_key)
             logging.debug(f"get_current_ai_provider: Got provider for '{selected_model}' (key: {model_key})")
             return provider
 
@@ -637,7 +638,17 @@ class MediaViewer:
 
         if not ai_provider:
             # Cannot determine model capabilities - disable button to prevent errors
-            logging.warning(f"Button {field_type}: Disabled - AI provider unavailable (check model selection)")
+            # Distinguish between initialization (expected) and runtime error (unexpected)
+            from shared.config import get_config
+            config = get_config()
+            has_default = bool(config.get_default_ai_model())
+
+            if has_default and not self.model_combo.get():
+                # Initialization phase - default model not loaded yet
+                logging.debug(f"Button {field_type}: Disabled - AI provider unavailable (initialization in progress)")
+            else:
+                # Runtime error - model should be available but isn't
+                logging.warning(f"Button {field_type}: Disabled - AI provider unavailable (check model selection)")
             return False
 
         # Check if model can generate with available inputs

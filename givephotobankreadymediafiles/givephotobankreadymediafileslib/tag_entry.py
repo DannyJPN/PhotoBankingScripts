@@ -134,11 +134,12 @@ class TagEntry(tk.Frame):
         self.entry.bind('<Return>', self.on_entry_return)
         self.entry.bind('<KeyPress>', self.on_entry_key)
         self.entry.bind('<Escape>', self.cancel_entry_mode)
+        self.entry.bind('<FocusOut>', self.on_entry_focus_out)  # Auto-commit on focus loss
         self.listbox.bind('<Delete>', self.on_delete_key)
         self.listbox.bind('<BackSpace>', self.on_delete_key)
         self.listbox.bind('<Double-Button-1>', self.on_listbox_double_click)
         self.listbox.bind('<<ListboxSelect>>', self.on_selection_change)  # Selection change
-        
+
         # Simplified click handling - no drag functionality
         self.listbox.bind('<Button-1>', self.on_click)
         
@@ -202,7 +203,23 @@ class TagEntry(tk.Frame):
         else:
             self.confirm_add()
         return 'break'
-        
+
+    def on_entry_focus_out(self, event):
+        """Handle FocusOut event - auto-commit typed text."""
+        # Only commit if entry is active (in add/edit mode)
+        if self.entry['state'] == 'disabled':
+            return
+
+        # Get text before committing
+        text = self.entry.get().strip()
+
+        # Only commit if there's non-empty text
+        if text:
+            if self._edit_mode:
+                self.confirm_edit()
+            else:
+                self.confirm_add()
+
     def on_entry_key(self, event):
         """Handle key presses in entry field."""
         # Handle separators - add tag immediately

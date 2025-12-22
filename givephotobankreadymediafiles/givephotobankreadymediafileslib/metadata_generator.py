@@ -775,10 +775,9 @@ class MetadataGenerator:
         # Trim
         keyword = keyword.strip()
 
-        # ENFORCE SINGLE-WORD ONLY: Reject multi-word keywords
+        # Allow multi-word keywords (they will be filtered by _remove_duplicate_keywords if redundant)
         if ' ' in keyword:
-            logging.warning("Rejected multi-word keyword: '%s' (only single-word keywords allowed)", keyword)
-            return ''
+            logging.debug(f"Multi-word keyword accepted: '{keyword}' (will be filtered if redundant)")
 
         return keyword
 

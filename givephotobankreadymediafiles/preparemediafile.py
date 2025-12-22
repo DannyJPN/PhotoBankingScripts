@@ -11,7 +11,7 @@ import tkinter as tk
 from shared.logging_config import setup_logging
 from shared.file_operations import ensure_directory
 from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_MEDIA_CSV_PATH
-from givephotobankreadymediafileslib.media_viewer import show_media_viewer
+from givephotobankreadymediafileslib.media_viewer_refactored import show_media_viewer
 from givephotobankreadymediafileslib.mediainfo_loader import load_categories, load_media_records
 
 
@@ -105,16 +105,18 @@ def main():
             from shared.file_operations import load_csv, save_csv_with_backup
             from givephotobankreadymediafileslib.constants import (
                 COL_FILE, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS, COL_PREP_DATE,
-                COL_STATUS_SUFFIX, get_category_column,
+                COL_STATUS_SUFFIX, COL_PATH, COL_EDITORIAL, COL_ORIGINAL,
+                get_category_column,
                 STATUS_UNPROCESSED, STATUS_PREPARED, STATUS_REJECTED,
-                MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH
+                MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH,
+                PHOTOBANK_CATEGORY_COUNTS
             )
             from datetime import datetime
 
             # Save original metadata to CSV immediately (before GUI closes)
             if not args.media_csv or not os.path.exists(args.media_csv):
-                logging.warning("No CSV file specified or doesn't exist")
-                return
+                logging.error("No CSV file specified or doesn't exist")
+                return False
 
             try:
                 records = load_csv(args.media_csv)
@@ -122,52 +124,91 @@ def main():
 
                 file_basename = os.path.basename(args.file)
 
-                for record in records:
+                # Find existing record (create-or-update pattern)
+                existing_record = None
+                record_index = None
+
+                for idx, record in enumerate(records):
                     if record.get(COL_FILE, '') == file_basename:
-                        # Check if rejected
-                        is_rejected = metadata.get('rejected', False)
-
-                        if is_rejected:
-                            # Handle rejection
-                            logging.info(f"Rejecting file: {file_basename}")
-                            record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
-
-                            for field_name, field_value in record.items():
-                                if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
-                                    photobank = field_name.replace(COL_STATUS_SUFFIX, '')
-                                    record[field_name] = STATUS_REJECTED
-                                    logging.debug(f"Rejected status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_REJECTED}")
-                        else:
-                            # Handle normal save
-                            record[COL_TITLE] = metadata['title'][:MAX_TITLE_LENGTH]
-                            record[COL_DESCRIPTION] = metadata['description'][:MAX_DESCRIPTION_LENGTH]
-                            record[COL_KEYWORDS] = metadata['keywords']
-                            record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
-
-                            # Update categories
-                            categories_data = metadata.get('categories', {})
-                            for photobank, selected_categories in categories_data.items():
-                                if selected_categories:
-                                    category_column = get_category_column(photobank)
-                                    record[category_column] = ', '.join(selected_categories)
-                                    logging.debug(f"Set categories for {photobank}: {record[category_column]}")
-
-                            # Update status
-                            for field_name, field_value in record.items():
-                                if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
-                                    photobank = field_name.replace(COL_STATUS_SUFFIX, '')
-                                    record[field_name] = STATUS_PREPARED
-                                    logging.debug(f"Updated status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_PREPARED}")
-
-                        logging.debug(f"Updated record for {file_basename}")
+                        existing_record = record
+                        record_index = idx
                         break
+
+                # Create new record if not found
+                if existing_record is None:
+                    logging.info(f"Creating new CSV record for {file_basename}")
+                    existing_record = {
+                        COL_FILE: file_basename,
+                        COL_PATH: args.file,
+                        COL_TITLE: '',
+                        COL_DESCRIPTION: '',
+                        COL_KEYWORDS: '',
+                        COL_PREP_DATE: '',
+                        COL_EDITORIAL: 'ne',
+                        COL_ORIGINAL: 'ano',
+                    }
+
+                    # Initialize status columns for all photobanks
+                    for photobank in PHOTOBANK_CATEGORY_COUNTS.keys():
+                        status_col = f"{photobank}{COL_STATUS_SUFFIX}"
+                        existing_record[status_col] = STATUS_UNPROCESSED
+
+                        category_col = get_category_column(photobank)
+                        existing_record[category_col] = ''
+
+                    # Append to records list
+                    records.append(existing_record)
+                    record_index = len(records) - 1
+                    logging.debug(f"New record created at index {record_index}")
+
+                # Now update the record (whether existing or new)
+                record = existing_record
+
+                # Check if rejected
+                is_rejected = metadata.get('rejected', False)
+
+                if is_rejected:
+                    # Handle rejection
+                    logging.info(f"Rejecting file: {file_basename}")
+                    record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
+
+                    for field_name, field_value in record.items():
+                        if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
+                            photobank = field_name.replace(COL_STATUS_SUFFIX, '')
+                            record[field_name] = STATUS_REJECTED
+                            logging.debug(f"Rejected status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_REJECTED}")
+                else:
+                    # Handle normal save
+                    record[COL_TITLE] = metadata['title'][:MAX_TITLE_LENGTH]
+                    record[COL_DESCRIPTION] = metadata['description'][:MAX_DESCRIPTION_LENGTH]
+                    record[COL_KEYWORDS] = metadata['keywords']
+                    record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
+
+                    # Update categories
+                    categories_data = metadata.get('categories', {})
+                    for photobank, selected_categories in categories_data.items():
+                        if selected_categories:
+                            category_column = get_category_column(photobank)
+                            record[category_column] = ', '.join(selected_categories)
+                            logging.debug(f"Set categories for {photobank}: {record[category_column]}")
+
+                    # Update status
+                    for field_name, field_value in record.items():
+                        if field_name.endswith(COL_STATUS_SUFFIX) and field_value.lower() == STATUS_UNPROCESSED.lower():
+                            photobank = field_name.replace(COL_STATUS_SUFFIX, '')
+                            record[field_name] = STATUS_PREPARED
+                            logging.debug(f"Updated status for {photobank}: {STATUS_UNPROCESSED} -> {STATUS_PREPARED}")
+
+                logging.debug(f"{'Updated' if record_index < len(records) - 1 else 'Created'} record for {file_basename}")
 
                 # Save original metadata to CSV immediately
                 save_csv_with_backup(records, args.media_csv)
                 logging.info(f"Saved metadata for {file_basename}")
+                return True
 
             except Exception as e:
                 logging.error(f"Failed to save original metadata to CSV: {e}")
+                return False
 
         # Show GUI with categories - blocks until window closes
         show_media_viewer(args.file, record, metadata_callback, categories)
