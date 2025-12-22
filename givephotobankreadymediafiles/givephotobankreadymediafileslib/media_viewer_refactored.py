@@ -296,6 +296,9 @@ class MediaViewerRefactored:
         if not self.viewer_state.current_file_path:
             messagebox.showwarning("No File", "No file is currently loaded.")
             return
+        if not os.path.exists(self.viewer_state.current_file_path):
+            messagebox.showerror("Error", "File no longer exists on disk.")
+            return
 
         try:
             if platform.system() == "Windows":
@@ -321,6 +324,16 @@ class MediaViewerRefactored:
     def on_window_close(self):
         """Handle window close event - equivalent to Ctrl+C."""
         logging.debug("Window closed by user - terminating script")
+        try:
+            self.media_display.stop_video()
+        except Exception as e:
+            logging.debug(f"Failed to stop video during shutdown: {e}")
+
+        try:
+            pygame.quit()
+        except Exception as e:
+            logging.debug(f"Failed to quit pygame during shutdown: {e}")
+
         self.root.destroy()
 
         # Exit the entire script (equivalent to Ctrl+C)

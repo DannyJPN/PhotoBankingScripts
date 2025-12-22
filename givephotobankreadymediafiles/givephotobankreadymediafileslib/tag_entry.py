@@ -483,6 +483,24 @@ class TagEntry(tk.Frame):
             self.on_change()
             
         self.cancel_entry_mode()
+
+    def commit_pending_entry(self) -> None:
+        """
+        Commit any pending entry text before external save actions.
+
+        This lets callers include unconfirmed text (e.g., on Save) without forcing UI interaction.
+        """
+        if self.entry['state'] == 'disabled':
+            return
+
+        text = self.entry.get().strip()
+        if not text:
+            return
+
+        if self._edit_mode:
+            self.confirm_edit()
+        else:
+            self.confirm_add()
     
     def edit_selected_tag(self):
         """Edit the selected tag - same as double-click."""

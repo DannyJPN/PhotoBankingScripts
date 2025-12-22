@@ -14,6 +14,9 @@ from givephotobankreadymediafileslib.editorial_dialog import (
     get_editorial_metadata, extract_editorial_metadata_from_exif
 )
 
+EDITORIAL_DIALOG_TIMEOUT_SECONDS = 120
+GENERATE_ALL_JOIN_TIMEOUT_SECONDS = 300
+
 
 class AICoordinator:
     """Manages AI model selection and metadata generation in background threads."""
@@ -66,6 +69,12 @@ class AICoordinator:
 
         # Generate All state
         self._generate_all_active = False
+        self._generate_all_spawned = {
+            'title': False,
+            'description': False,
+            'keywords': False,
+            'categories': False
+        }
 
         # Photobank categories (set externally)
         self.photobank_categories: Dict[str, List[str]] = {}
@@ -170,9 +179,17 @@ class AICoordinator:
             with self.generation_lock:
                 self.ai_cancelled['title'] = True
                 # If Generate All is active, cancel it too
-                if self._generate_all_active:
+                if self._generate_all_active and self._generate_all_spawned.get('title', False):
                     self._generate_all_active = False
                     logging.debug("Individual title cancellation triggered Generate All cancellation")
+                    other_running = any(
+                        key != 'title' and self.ai_threads.get(key) and self.ai_threads[key].is_alive()
+                        for key in ['title', 'description', 'keywords', 'categories']
+                    )
+                    if not other_running:
+                        self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+                        if hasattr(self, 'update_all_button_states_callback'):
+                            self.update_all_button_states_callback()
                     # Let finally blocks handle cleanup when Generate All is active
                     return
 
@@ -270,6 +287,7 @@ class AICoordinator:
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
                 is_current = (generation_id == self.current_generation_id['title'])
+                self._generate_all_spawned['title'] = False
 
             # Only reset button if this is still the current generation
             if is_current and not (self.ai_threads['title'] and self.ai_threads['title'].is_alive()):
@@ -295,9 +313,17 @@ class AICoordinator:
             with self.generation_lock:
                 self.ai_cancelled['description'] = True
                 # If Generate All is active, cancel it too
-                if self._generate_all_active:
+                if self._generate_all_active and self._generate_all_spawned.get('description', False):
                     self._generate_all_active = False
                     logging.debug("Individual description cancellation triggered Generate All cancellation")
+                    other_running = any(
+                        key != 'description' and self.ai_threads.get(key) and self.ai_threads[key].is_alive()
+                        for key in ['title', 'description', 'keywords', 'categories']
+                    )
+                    if not other_running:
+                        self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+                        if hasattr(self, 'update_all_button_states_callback'):
+                            self.update_all_button_states_callback()
                     # Let finally blocks handle cleanup when Generate All is active
                     return
 
@@ -422,6 +448,7 @@ class AICoordinator:
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
                 is_current = (generation_id == self.current_generation_id['description'])
+                self._generate_all_spawned['description'] = False
 
             # Only reset button if this is still the current generation
             if is_current and not (self.ai_threads['description'] and self.ai_threads['description'].is_alive()):
@@ -450,7 +477,14 @@ class AICoordinator:
         self.root.after(0, show_dialog_in_main_thread)
 
         # Wait for dialog completion (blocks worker thread)
-        dialog_completed.wait()
+        completed = dialog_completed.wait(timeout=EDITORIAL_DIALOG_TIMEOUT_SECONDS)
+        if not completed:
+            logging.error("Editorial dialog timed out - aborting generation")
+            self.root.after(0, lambda: messagebox.showerror(
+                "Editorial Metadata",
+                "Editorial metadata dialog timed out. Please try again."
+            ))
+            return None
 
         return result_container['result']
 
@@ -471,9 +505,17 @@ class AICoordinator:
             with self.generation_lock:
                 self.ai_cancelled['keywords'] = True
                 # If Generate All is active, cancel it too
-                if self._generate_all_active:
+                if self._generate_all_active and self._generate_all_spawned.get('keywords', False):
                     self._generate_all_active = False
                     logging.debug("Individual keywords cancellation triggered Generate All cancellation")
+                    other_running = any(
+                        key != 'keywords' and self.ai_threads.get(key) and self.ai_threads[key].is_alive()
+                        for key in ['title', 'description', 'keywords', 'categories']
+                    )
+                    if not other_running:
+                        self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+                        if hasattr(self, 'update_all_button_states_callback'):
+                            self.update_all_button_states_callback()
                     # Let finally blocks handle cleanup when Generate All is active
                     return
 
@@ -585,6 +627,7 @@ class AICoordinator:
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
                 is_current = (generation_id == self.current_generation_id['keywords'])
+                self._generate_all_spawned['keywords'] = False
 
             # Only reset button if this is still the current generation
             if is_current and not (self.ai_threads['keywords'] and self.ai_threads['keywords'].is_alive()):
@@ -614,9 +657,17 @@ class AICoordinator:
             with self.generation_lock:
                 self.ai_cancelled['categories'] = True
                 # If Generate All is active, cancel it too
-                if self._generate_all_active:
+                if self._generate_all_active and self._generate_all_spawned.get('categories', False):
                     self._generate_all_active = False
                     logging.debug("Individual categories cancellation triggered Generate All cancellation")
+                    other_running = any(
+                        key != 'categories' and self.ai_threads.get(key) and self.ai_threads[key].is_alive()
+                        for key in ['title', 'description', 'keywords', 'categories']
+                    )
+                    if not other_running:
+                        self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
+                        if hasattr(self, 'update_all_button_states_callback'):
+                            self.update_all_button_states_callback()
                     # Let finally blocks handle cleanup when Generate All is active
                     return
 
@@ -721,6 +772,7 @@ class AICoordinator:
             with self.generation_lock:
                 is_generate_all_active = self._generate_all_active
                 is_current = (generation_id == self.current_generation_id['categories'])
+                self._generate_all_spawned['categories'] = False
 
             # Only reset button if this is still the current generation
             if is_current and not (self.ai_threads['categories'] and self.ai_threads['categories'].is_alive()):
@@ -805,6 +857,7 @@ class AICoordinator:
             with self.generation_lock:
                 for gen_type in ['title', 'description', 'keywords', 'categories']:
                     self.ai_cancelled[gen_type] = False
+                    self._generate_all_spawned[gen_type] = False
 
             # Generate title and wait for completion (if button is enabled)
             if self._should_run_generation('title'):
@@ -884,6 +937,7 @@ class AICoordinator:
             self.generation_counter[gen_type] += 1
             generation_id = self.generation_counter[gen_type]
             self.current_generation_id[gen_type] = generation_id
+            self._generate_all_spawned[gen_type] = True
 
         logging.debug(f"Generate All: Starting {gen_type} generation with ID {generation_id}")
 
@@ -897,7 +951,13 @@ class AICoordinator:
                 )
                 self.ai_threads['title'] = thread
             thread.start()
-            thread.join()
+            thread.join(timeout=GENERATE_ALL_JOIN_TIMEOUT_SECONDS)
+            if thread.is_alive():
+                logging.warning("Generate All: Title generation timed out")
+                with self.generation_lock:
+                    self.ai_cancelled['title'] = True
+                    self._generate_all_active = False
+                return
         elif gen_type == 'description':
             with self.generation_lock:
                 thread = threading.Thread(
@@ -907,7 +967,13 @@ class AICoordinator:
                 )
                 self.ai_threads['description'] = thread
             thread.start()
-            thread.join()
+            thread.join(timeout=GENERATE_ALL_JOIN_TIMEOUT_SECONDS)
+            if thread.is_alive():
+                logging.warning("Generate All: Description generation timed out")
+                with self.generation_lock:
+                    self.ai_cancelled['description'] = True
+                    self._generate_all_active = False
+                return
         elif gen_type == 'keywords':
             with self.generation_lock:
                 thread = threading.Thread(
@@ -917,7 +983,13 @@ class AICoordinator:
                 )
                 self.ai_threads['keywords'] = thread
             thread.start()
-            thread.join()
+            thread.join(timeout=GENERATE_ALL_JOIN_TIMEOUT_SECONDS)
+            if thread.is_alive():
+                logging.warning("Generate All: Keywords generation timed out")
+                with self.generation_lock:
+                    self.ai_cancelled['keywords'] = True
+                    self._generate_all_active = False
+                return
         elif gen_type == 'categories':
             with self.generation_lock:
                 thread = threading.Thread(
@@ -927,7 +999,13 @@ class AICoordinator:
                 )
                 self.ai_threads['categories'] = thread
             thread.start()
-            thread.join()
+            thread.join(timeout=GENERATE_ALL_JOIN_TIMEOUT_SECONDS)
+            if thread.is_alive():
+                logging.warning("Generate All: Categories generation timed out")
+                with self.generation_lock:
+                    self.ai_cancelled['categories'] = True
+                    self._generate_all_active = False
+                return
 
     def _cancel_all_generation(self):
         """Cancel all running generations and reset all buttons."""
@@ -935,6 +1013,7 @@ class AICoordinator:
         with self.generation_lock:
             for gen_type in ['title', 'description', 'keywords', 'categories']:
                 self.ai_cancelled[gen_type] = True
+                self._generate_all_spawned[gen_type] = False
             # Reset Generate All state
             self._generate_all_active = False
 
@@ -957,6 +1036,8 @@ class AICoordinator:
         """Complete the generate all process."""
         with self.generation_lock:
             self._generate_all_active = False
+            for gen_type in ['title', 'description', 'keywords', 'categories']:
+                self._generate_all_spawned[gen_type] = False
         self.ui_components.generate_all_button.configure(text="Generate All", state="normal")
         # Update button states to reflect actual availability
         if hasattr(self, 'update_all_button_states_callback'):

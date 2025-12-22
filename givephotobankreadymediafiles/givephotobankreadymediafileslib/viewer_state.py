@@ -72,7 +72,8 @@ class ViewerState:
             self.title_char_label.configure(foreground='red')
         else:
             self.title_char_label.configure(foreground='black')
-        # Note: Button state update happens on focus loss, not on keystroke
+        if self.update_button_states_callback:
+            self.update_button_states_callback()
 
     def on_title_focus_out(self, event=None) -> None:
         """
@@ -108,7 +109,8 @@ class ViewerState:
             self.desc_char_label.configure(foreground='red')
         else:
             self.desc_char_label.configure(foreground='black')
-        # Note: Button state update happens on focus loss, not on keystroke
+        if self.update_button_states_callback:
+            self.update_button_states_callback()
 
     def on_description_focus_out(self, event=None) -> None:
         """
@@ -127,7 +129,8 @@ class ViewerState:
         # Update keywords list for compatibility with existing code
         self.keywords_list = self.keywords_tag_entry.get_tags()
         # Note: TagEntry widget has built-in counter, no external update needed
-        # Note: Button state update happens on focus loss, not on change
+        if self.update_button_states_callback:
+            self.update_button_states_callback()
 
     def on_keywords_focus_out(self, event=None) -> None:
         """
@@ -203,6 +206,10 @@ class ViewerState:
         if not self.title_entry or not self.desc_text:
             logging.warning("Cannot collect metadata - UI widgets not initialized")
             return {}
+
+        if self.keywords_tag_entry and hasattr(self.keywords_tag_entry, 'commit_pending_entry'):
+            self.keywords_tag_entry.commit_pending_entry()
+            self.keywords_list = self.keywords_tag_entry.get_tags()
 
         title = self.title_entry.get().strip()
         description = self.desc_text.get("1.0", tk.END).strip()
