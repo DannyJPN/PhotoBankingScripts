@@ -109,7 +109,7 @@ def main():
                 get_category_column,
                 STATUS_UNPROCESSED, STATUS_PREPARED, STATUS_REJECTED,
                 MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH,
-                PHOTOBANKS
+                PHOTOBANK_CATEGORY_COUNTS
             )
             from datetime import datetime
 
@@ -149,7 +149,7 @@ def main():
                     }
 
                     # Initialize status columns for all photobanks
-                    for photobank in PHOTOBANKS:
+                    for photobank in PHOTOBANK_CATEGORY_COUNTS.keys():
                         status_col = f"{photobank}{COL_STATUS_SUFFIX}"
                         existing_record[status_col] = STATUS_UNPROCESSED
 
