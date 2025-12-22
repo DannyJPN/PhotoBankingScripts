@@ -205,7 +205,8 @@ class MediaViewerRefactored:
 
     def save_metadata(self):
         """Save metadata and close window."""
-        if not hasattr(self.viewer_state, 'current_record'):
+        # Improved validation - check both attribute existence and value
+        if not hasattr(self.viewer_state, 'current_record') or self.viewer_state.current_record is None:
             messagebox.showwarning("No File", "No file is currently loaded.")
             return
 
@@ -233,11 +234,29 @@ class MediaViewerRefactored:
             'ai_model': selected_model  # Pass selected model for alternative generation
         }
 
-        # Call completion callback with metadata
+        # Call completion callback with metadata and check return value
+        save_success = True
         if self.viewer_state.completion_callback:
-            self.viewer_state.completion_callback(complete_metadata)
+            save_success = self.viewer_state.completion_callback(complete_metadata)
 
-        self.root.destroy()
+            # If callback returns None (old behavior), assume success
+            if save_success is None:
+                save_success = True
+
+        # Only close window if save succeeded
+        if save_success:
+            self.root.destroy()
+        else:
+            messagebox.showerror(
+                "Save Failed",
+                "Failed to save metadata to CSV file.\n\n"
+                "Please check:\n"
+                "• CSV file exists and is not locked\n"
+                "• You have write permissions\n"
+                "• Dropbox is not syncing the file\n\n"
+                "Check logs for details."
+            )
+            logging.error("Save failed - window remains open for retry")
 
     def reject_metadata(self):
         """Reject this file and set status to rejected for all photobanks."""
