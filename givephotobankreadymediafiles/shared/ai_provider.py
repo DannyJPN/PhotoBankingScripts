@@ -59,8 +59,8 @@ class ContentBlock:
     @classmethod
     def image_file(cls, file_path: str, detail: str = "auto") -> 'ContentBlock':
         """Create an image content block from file."""
-        with open(file_path, 'rb') as f:
-            image_data = f.read()
+        from shared.file_operations import read_binary
+        image_data = read_binary(file_path)
         
         # Determine MIME type from file extension
         if file_path.lower().endswith('.png'):
