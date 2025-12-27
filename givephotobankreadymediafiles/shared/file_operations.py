@@ -4,9 +4,15 @@ import re
 import shutil
 import logging
 import csv
-from typing import List, Dict
+import json
+import tempfile
+from typing import IO
+from typing import List, Dict, Any, Union
 from collections import defaultdict
 from tqdm import tqdm
+
+# Type alias for JSON-serializable data
+JsonData = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 
 from shared.hash_utils import compute_file_hash
 from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
@@ -310,3 +316,233 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
     except Exception as e:
         logging.error("Failed to save CSV file %s: %s", path, e)
         raise
+
+
+def read_json(path: str, default: JsonData = None) -> JsonData:
+    """
+    Read JSON file and return parsed data.
+
+    Args:
+        path: Path to JSON file
+        default: Value to return if file does not exist or is empty
+
+    Returns:
+        Parsed JSON data or default
+    """
+    logging.debug("Reading JSON file: %s", path)
+
+    if not os.path.exists(path):
+        logging.debug("JSON file not found, returning default: %s", path)
+        return {} if default is None else default
+
+    # Check for empty file
+    if os.path.getsize(path) == 0:
+        logging.warning("JSON file is empty: %s, returning default", path)
+        return {} if default is None else default
+
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        logging.error("Invalid JSON in file %s: %s", path, e)
+        raise
+    except IOError as e:
+        logging.error("Failed to read JSON file %s: %s", path, e)
+        raise
+
+
+def read_binary(path: str) -> bytes:
+    """
+    Read file contents as bytes.
+
+    Args:
+        path: Path to file
+
+    Returns:
+        File contents as bytes
+    """
+    logging.debug("Reading binary file: %s", path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    try:
+        with open(path, 'rb') as f:
+            return f.read()
+    except IOError as e:
+        logging.error("Failed to read binary file %s: %s", path, e)
+        raise
+
+
+def read_text(path: str, encoding: str = 'utf-8') -> str:
+    """
+    Read file contents as text.
+
+    Args:
+        path: Path to file
+        encoding: Text encoding
+
+    Returns:
+        File contents as string
+    """
+    logging.debug("Reading text file: %s", path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    try:
+        with open(path, 'r', encoding=encoding) as f:
+            return f.read()
+    except IOError as e:
+        logging.error("Failed to read text file %s: %s", path, e)
+        raise
+
+
+def write_text(path: str, data: str, encoding: str = 'utf-8') -> None:
+    """
+    Write text file contents.
+
+    Args:
+        path: Path to file
+        data: Text contents
+        encoding: Text encoding
+    """
+    logging.debug("Writing text file: %s", path)
+    dir_path = os.path.dirname(path)
+    if dir_path:
+        ensure_directory(dir_path)
+    try:
+        with open(path, 'w', encoding=encoding, newline='') as f:
+            f.write(data)
+    except IOError as e:
+        logging.error("Failed to write text file %s: %s", path, e)
+        raise
+
+
+def open_file_handle(path: str, mode: str, encoding: str | None = None) -> IO:
+    """
+    Open a file handle using shared file operations.
+
+    Args:
+        path: Path to file
+        mode: Open mode (e.g. 'rb', 'a+')
+        encoding: Optional text encoding for text modes
+
+    Returns:
+        Open file handle
+    """
+    logging.debug("Opening file handle: %s (mode=%s)", path, mode)
+    if any(flag in mode for flag in ('w', 'a', 'x', '+')):
+        dir_path = os.path.dirname(path)
+        if dir_path:
+            ensure_directory(dir_path)
+    try:
+        return open(path, mode, encoding=encoding)
+    except IOError as e:
+        logging.error("Failed to open file %s: %s", path, e)
+        raise
+
+
+def delete_file(path: str) -> None:
+    """
+    Delete a file from disk.
+
+    Args:
+        path: Path to file
+    """
+    logging.debug("Deleting file: %s", path)
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        logging.debug("File not found, skipping delete: %s", path)
+    except Exception as e:
+        logging.error("Failed to delete file %s: %s", path, e)
+        raise
+
+
+def create_temp_file(suffix: str = "", prefix: str = "tmp_", dir_path: str | None = None) -> str:
+    """
+    Create a temporary file and return its path.
+
+    Args:
+        suffix: Filename suffix
+        prefix: Filename prefix
+        dir_path: Directory for the temp file
+
+    Returns:
+        Path to the created temp file
+    """
+    logging.debug("Creating temp file (suffix=%s, prefix=%s, dir=%s)", suffix, prefix, dir_path)
+    temp_fd, temp_path = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=dir_path)
+    try:
+        os.close(temp_fd)
+    except Exception:
+        pass
+    return temp_path
+
+
+def write_json(path: str, data: JsonData, indent: int = 2) -> None:
+    """
+    Write JSON file atomically (write to temp → rename).
+
+    Args:
+        path: Path to JSON file
+        data: JSON-serializable data
+        indent: Indent level for pretty printing
+    """
+    logging.debug("Writing JSON file: %s", path)
+    ensure_directory(os.path.dirname(path))
+
+    temp_path = None
+    try:
+        # Write to temporary file first (in same directory for atomic rename)
+        dir_path = os.path.dirname(path) or '.'
+        temp_fd, temp_path = tempfile.mkstemp(
+            dir=dir_path,
+            prefix='.tmp_',
+            suffix='.json'
+        )
+
+        with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+
+        # Atomic rename (overwrites destination on all platforms)
+        os.replace(temp_path, path)
+        temp_path = None  # Successfully moved, don't cleanup
+
+    except (TypeError, ValueError) as e:
+        logging.error("Data not JSON-serializable in %s: %s", path, e)
+        raise
+    except IOError as e:
+        logging.error("Failed to write JSON file %s: %s", path, e)
+        raise
+    finally:
+        # Cleanup temp file if rename failed
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+
+
+def save_json_with_backup(data: JsonData, path: str, indent: int = 2) -> None:
+    """
+    Save JSON file with automatic backup.
+
+    Creates backup: <filename>.backup.json before writing new data.
+    Uses atomic write for data integrity.
+
+    Args:
+        data: JSON-serializable data
+        path: Path to JSON file
+        indent: Indent level for pretty printing
+    """
+    if os.path.exists(path):
+        backup_path = path.replace('.json', '.backup.json')
+        if not backup_path.endswith('.backup.json'):
+            # Fallback if path doesn't end with .json
+            backup_path = path + '.backup.json'
+
+        try:
+            shutil.copy2(path, backup_path)
+            logging.debug("Created backup: %s", backup_path)
+        except Exception as e:
+            logging.warning("Failed to create backup %s: %s", backup_path, e)
+
+    write_json(path, data, indent)

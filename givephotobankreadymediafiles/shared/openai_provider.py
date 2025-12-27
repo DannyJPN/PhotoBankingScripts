@@ -7,11 +7,13 @@ Handles text, image, and multimodal inputs with batch processing.
 
 import json
 import logging
+import tempfile
 from typing import List, Dict, Any, Optional, Iterator
 from datetime import datetime
 
 from .cloud_ai import CloudAIProvider
 from .ai_provider import Message, AIResponse, BatchJob, ContentBlock, ContentType, MessageRole
+from shared.file_operations import write_text, open_file_handle, delete_file
 
 
 class OpenAIProvider(CloudAIProvider):
@@ -268,17 +270,17 @@ class OpenAIProvider(CloudAIProvider):
             batch_requests.append(request)
         
         # Create batch file
-        import tempfile
-        import os
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
-            for request in batch_requests:
-                f.write(json.dumps(request) + '\n')
-            batch_file_path = f.name
+        temp_fd, batch_file_path = tempfile.mkstemp(suffix='.jsonl')
+        try:
+            import os
+            os.close(temp_fd)
+        except Exception:
+            pass
+        write_text(batch_file_path, "\n".join(json.dumps(r) for r in batch_requests) + "\n")
         
         try:
             # Upload batch file
-            with open(batch_file_path, 'rb') as batch_file:
+            with open_file_handle(batch_file_path, 'rb') as batch_file:
                 file_response = client.files.create(
                     file=batch_file,
                     purpose="batch"
@@ -306,7 +308,7 @@ class OpenAIProvider(CloudAIProvider):
             
         finally:
             # Clean up temporary file
-            os.unlink(batch_file_path)
+            delete_file(batch_file_path)
     
     def get_batch_job(self, job_id: str) -> BatchJob:
         """Get batch job status and results."""
@@ -319,20 +321,29 @@ class OpenAIProvider(CloudAIProvider):
             if batch_response.status == 'completed' and batch_response.output_file_id:
                 # Download and parse results
                 file_content = client.files.content(batch_response.output_file_id)
-                
-                for line in file_content.text.strip().split('\n'):
-                    if line:
-                        result = json.loads(line)
-                        if result.get('response'):
-                            choice = result['response']['body']['choices'][0]
-                            response = AIResponse(
-                                content=choice['message']['content'],
-                                model=result['response']['body']['model'],
-                                usage=result['response']['body'].get('usage', {}),
-                                finish_reason=choice.get('finish_reason'),
-                                metadata={'custom_id': result.get('custom_id')}
-                            )
-                            results.append(response)
+
+                if hasattr(file_content, "iter_lines"):
+                    lines_iter = file_content.iter_lines()
+                else:
+                    text = getattr(file_content, "text", "")
+                    lines_iter = (line for line in text.splitlines())
+
+                for line in lines_iter:
+                    if not line:
+                        continue
+                    if isinstance(line, bytes):
+                        line = line.decode('utf-8', errors='ignore')
+                    result = json.loads(line)
+                    if result.get('response'):
+                        choice = result['response']['body']['choices'][0]
+                        response = AIResponse(
+                            content=choice['message']['content'],
+                            model=result['response']['body']['model'],
+                            usage=result['response']['body'].get('usage', {}),
+                            finish_reason=choice.get('finish_reason'),
+                            metadata={'custom_id': result.get('custom_id')}
+                        )
+                        results.append(response)
             
             return BatchJob(
                 job_id=job_id,
