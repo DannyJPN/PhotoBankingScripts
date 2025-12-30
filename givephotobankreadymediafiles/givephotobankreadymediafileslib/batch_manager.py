@@ -689,6 +689,15 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
     originals_limit = DEFAULT_BATCH_VISION_SIZE
     if collecting_batches:
         batch_id = next(iter(collecting_batches.keys()))
+        batch_info = registry.get_active_batches().get(batch_id, {})
+        # Use the batch's stored limit, not the current constant
+        stored_limit = batch_info.get("batch_size_limit", originals_limit)
+        if stored_limit != originals_limit:
+            logging.warning(
+                "Batch %s has stored limit %d but DEFAULT_BATCH_VISION_SIZE is %d. Using stored limit.",
+                batch_id, stored_limit, originals_limit
+            )
+        originals_limit = stored_limit
     else:
         batch_id = registry.create_batch("originals", originals_limit)
 
