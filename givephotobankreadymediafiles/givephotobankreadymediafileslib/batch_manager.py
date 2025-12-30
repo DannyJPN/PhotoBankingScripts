@@ -695,15 +695,34 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
 
     candidates = candidates[:total_limit]
     total = len(candidates)
-    for index, record in enumerate(tqdm(candidates, desc="Collecting descriptions", unit="file"), start=1):
+
+    # Calculate starting index based on already-processed files in current batch
+    # This ensures correct progress display when resuming after crash/restart
+    already_processed = len(batch_state.list_by_status("description_saved"))
+    start_index = already_processed + 1
+
+    # Track saved files count to pass to dialog (incremented only on save action)
+    saved_count = already_processed
+
+    # Configure tqdm to show progress through candidates only
+    for index, record in enumerate(
+        tqdm(candidates, desc="Collecting descriptions", unit="file"),
+        start=start_index
+    ):
         file_path = record.get(COL_PATH, "")
         normalized = _normalize_path(file_path) if file_path else ""
 
         estimate = _estimate_batch_cost(provider, batch_state.list_by_status("description_saved"))
         cost = estimate.get("estimated_cost")
         cost_text = f"${cost:.2f}" if isinstance(cost, (int, float)) else "N/A"
-        progress_text = f"Progress: {index}/{total} | Est: {cost_text}"
-        response = collect_batch_description(file_path, DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH, progress_text=progress_text)
+        progress_text = f"Viewing: {index}/{total} | Est: {cost_text}"
+        response = collect_batch_description(
+            file_path,
+            DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH,
+            progress_text=progress_text,
+            saved_count=saved_count,
+            batch_limit=originals_limit
+        )
         action = response.get("action")
 
         if action == "skip":
@@ -731,11 +750,16 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
         active_files.add(normalized)
         registry.increment_batch_file_count(batch_id)
 
+        # Increment saved count for next dialog display
+        saved_count += 1
+
         batch_info = registry.get_active_batches().get(batch_id, {})
         if batch_info.get("file_count", 0) >= originals_limit:
             registry.set_batch_status(batch_id, "ready")
             batch_id = registry.create_batch("originals", originals_limit)
             batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
+            # Reset saved_count for new batch
+            saved_count = 0
 
 
 def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str) -> None:
@@ -753,6 +777,10 @@ def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str)
         str(item[1].get("created_at", "")),
         item[0]
     ))
+
+    if not ready_batches:
+        return
+
     date_key = datetime.utcnow().strftime("%Y-%m-%d")
     daily_count = _get_openai_daily_count(provider, date_key)
     if daily_count is None:
@@ -897,6 +925,10 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
                                 model_key: str) -> None:
     provider = _create_batch_provider(model_key)
     sent_batches = list(registry.get_active_batches(status="sent").items())
+
+    if not sent_batches:
+        return
+
     sent_batches.sort(key=lambda item: (
         1 if str(item[1].get("batch_type", "")).startswith("alternatives") else 0,
         str(item[1].get("created_at", "")),
@@ -912,6 +944,9 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
                 if not openai_batch_id:
                     continue
                 future_map[executor.submit(provider.get_batch_job, openai_batch_id)] = (batch_id, openai_batch_id)
+
+            if not future_map:
+                return
 
             for future in tqdm(as_completed(future_map), desc="Retrieving batches", unit="batch", total=len(future_map)):
                 batch_id, _ = future_map[future]
@@ -952,9 +987,11 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
             failed_custom_ids.extend([cid for cid in missing if cid])
             if failed_custom_ids:
                 _sync_retry_failed_items(provider, batch_state, failed_custom_ids, media_csv, registry=registry)
-                _queue_alternatives_from_batch(batch_state, registry, media_csv)
-                _finalize_alternative_batches(registry)
-                registry.complete_batch(batch_id)
+
+            # Always queue alternatives and complete batch, regardless of failures
+            _queue_alternatives_from_batch(batch_state, registry, media_csv)
+            _finalize_alternative_batches(registry)
+            registry.complete_batch(batch_id)
 
     originals = [item for item in sent_batches if not str(item[1].get("batch_type", "")).startswith("alternatives")]
     alternatives = [item for item in sent_batches if str(item[1].get("batch_type", "")).startswith("alternatives")]
