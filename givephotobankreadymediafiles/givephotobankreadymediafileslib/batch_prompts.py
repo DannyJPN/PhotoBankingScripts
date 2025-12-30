@@ -6,13 +6,15 @@ from __future__ import annotations
 from typing import Optional, Dict, List
 
 
-def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str, str]] = None) -> str:
+def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str, str]] = None,
+                       categories: Optional[Dict[str, List[str]]] = None) -> str:
     """
-    Build the batch prompt with optional editorial requirements.
+    Build the batch prompt with optional editorial requirements and categories.
 
     Args:
         user_description: Free-form description provided by the user
         editorial_data: Optional dict with city, country, date (DD MM YYYY)
+        categories: Optional dict mapping photobank names to lists of valid categories
     """
     editorial_block = ""
     if editorial_data:
@@ -26,6 +28,46 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
                 f"- The description MUST start with: {city.upper()}, {country.upper()} - {date_str}: \n"
                 "\n"
             )
+
+    # Build categories block with valid categories if provided
+    categories_block = ""
+    if categories:
+        categories_block = "===== CATEGORIES REQUIREMENTS =====\n"
+        categories_block += "Select appropriate categories for each photobank from the lists below.\n"
+        categories_block += "Choose ONLY from the categories listed - do not invent new ones.\n\n"
+
+        # ShutterStock
+        shutterstock_cats = categories.get("ShutterStock", [])
+        if shutterstock_cats:
+            categories_block += "SHUTTERSTOCK (select UP TO 2):\n"
+            categories_block += ", ".join(shutterstock_cats) + "\n\n"
+
+        # AdobeStock
+        adobestock_cats = categories.get("AdobeStock", [])
+        if adobestock_cats:
+            categories_block += "ADOBESTOCK (select UP TO 1):\n"
+            categories_block += ", ".join(adobestock_cats) + "\n\n"
+
+        # Dreamstime (lots of categories, so abbreviate)
+        dreamstime_cats = categories.get("Dreamstime", [])
+        if dreamstime_cats:
+            categories_block += "DREAMSTIME (select UP TO 3):\n"
+            # Show all categories, but they will be long
+            categories_block += ", ".join(dreamstime_cats) + "\n\n"
+
+        categories_block += "IMPORTANT:\n"
+        categories_block += "- Choose categories that best match the image content and theme\n"
+        categories_block += "- You don't have to select the maximum number if fewer categories are more appropriate\n\n"
+    else:
+        # Fallback if no categories provided
+        categories_block = (
+            "===== CATEGORIES REQUIREMENTS =====\n"
+            "- shutterstock: Select UP TO 2 most appropriate categories\n"
+            "- adobestock: Select UP TO 1 most appropriate category\n"
+            "- dreamstime: Select UP TO 3 most appropriate categories\n"
+            "- Choose categories that best match the image content and theme\n"
+            "- You don't have to select the maximum if fewer categories are more appropriate\n\n"
+        )
 
     return (
         "You are a professional stock photography metadata generator.\n"
@@ -84,13 +126,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         "5. Technical: Photo type, season, time of day\n"
         "6. Broader categories: General terms\n"
         "\n"
-        "===== CATEGORIES REQUIREMENTS =====\n"
-        "- shutterstock: Select UP TO 2 most appropriate categories\n"
-        "- adobestock: Select UP TO 1 most appropriate category\n"
-        "- dreamstime: Select UP TO 3 most appropriate categories\n"
-        "- Choose categories that best match the image content and theme\n"
-        "- You don't have to select the maximum if fewer categories are more appropriate\n"
-        "\n"
+        f"{categories_block}"
         "===== OUTPUT FORMAT =====\n"
         "Return ONLY valid JSON with this exact structure:\n"
         "{\n"

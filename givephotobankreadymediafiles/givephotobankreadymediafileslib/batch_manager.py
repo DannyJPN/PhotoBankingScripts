@@ -28,10 +28,10 @@ from givephotobankreadymediafileslib.constants import (
     DEFAULT_ALTERNATIVE_BATCH_SIZE, DEFAULT_ALTERNATIVE_EFFECTS,
     EFFECT_NAME_MAPPING, ORIGINAL_NO, CSV_ALLOWED_EXTENSIONS,
     DEFAULT_DAILY_BATCH_LIMIT, BATCH_COST_LOG, BATCH_IMAGE_MAX_BASE64_BYTES,
-    DEFAULT_BATCH_VISION_SIZE
+    DEFAULT_BATCH_VISION_SIZE, DEFAULT_CATEGORIES_CSV_PATH
 )
 from givephotobankreadymediafileslib.media_processor import find_unprocessed_records
-from givephotobankreadymediafileslib.mediainfo_loader import load_media_records
+from givephotobankreadymediafileslib.mediainfo_loader import load_media_records, load_categories
 from givephotobankreadymediafileslib.media_helper import is_image_file
 from givephotobankreadymediafileslib.batch_state import BatchRegistry, BatchState
 from givephotobankreadymediafileslib.batch_prompts import build_batch_prompt, build_alternative_prompt
@@ -311,14 +311,15 @@ def _get_openai_daily_count(provider, date_key: str) -> Optional[int]:
 
 
 def _build_messages(file_path: str, user_description: str,
-                    editorial_data: Optional[Dict[str, str]]) -> Optional[List[Message]]:
+                    editorial_data: Optional[Dict[str, str]],
+                    categories: Optional[Dict[str, List[str]]] = None) -> Optional[List[Message]]:
     if not os.path.exists(file_path):
         logging.error("File missing for batch message build: %s", file_path)
         return None
     content_block = _image_to_content_block(file_path)
     if not content_block:
         return None
-    prompt = build_batch_prompt(_sanitize_text(user_description), editorial_data)
+    prompt = build_batch_prompt(_sanitize_text(user_description), editorial_data, categories)
     return [Message.user([ContentBlock.text(prompt), content_block])]
 
 
@@ -387,12 +388,21 @@ def _update_record_with_metadata(record: Dict[str, str], metadata: Dict[str, obj
         for photobank, selected in categories.items():
             if not selected:
                 continue
-            column_name = f"{photobank}{COL_CATEGORY_SUFFIX}"
-            if column_name in record:
+            # Generate expected column name
+            expected_column = f"{photobank}{COL_CATEGORY_SUFFIX}"
+
+            # Find actual column name (case-insensitive)
+            actual_column = None
+            for col_name in record.keys():
+                if col_name.lower() == expected_column.lower():
+                    actual_column = col_name
+                    break
+
+            if actual_column:
                 if isinstance(selected, list):
-                    record[column_name] = ", ".join(selected)
+                    record[actual_column] = ", ".join(selected)
                 else:
-                    record[column_name] = str(selected)
+                    record[actual_column] = str(selected)
 
     for key, value in record.items():
         if key.endswith(COL_STATUS_SUFFIX) and value == STATUS_UNPROCESSED:
@@ -781,6 +791,9 @@ def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str)
     if not ready_batches:
         return
 
+    # Get categories from registry
+    categories = registry.data.get("_categories")
+
     date_key = datetime.utcnow().strftime("%Y-%m-%d")
     daily_count = _get_openai_daily_count(provider, date_key)
     if daily_count is None:
@@ -824,7 +837,8 @@ def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str)
                     registry.unregister_file(item["file_path"])
                     continue
                 prompt = build_batch_prompt(_sanitize_text(item.get("user_description", "")),
-                                            item.get("editorial_data"))
+                                            item.get("editorial_data"),
+                                            categories)
                 messages = [Message.user([ContentBlock.text(prompt), content_block])]
             if not messages:
                 batch_state.update_file(item["file_path"], status=STATUS_ERROR, error="Unsupported file type")
@@ -1014,6 +1028,18 @@ def run_batch_mode(media_csv: str, batch_size: int, wait_timeout: int,
     registry.cleanup_completed()
 
     model_key = _get_default_model_key()
+
+    # Load valid categories for prompts
+    categories = {}
+    try:
+        categories = load_categories(DEFAULT_CATEGORIES_CSV_PATH)
+        logging.info("Loaded categories for %d photobanks", len(categories))
+    except Exception as e:
+        logging.warning("Failed to load categories: %s. Prompts will use fallback.", e)
+
+    # Store categories in registry for access by functions
+    registry.data["_categories"] = categories
+
     logging.info("=== BATCH MODE STARTED ===")
     logging.info("Batch mode using model: %s", model_key)
     active = registry.get_active_batches()
