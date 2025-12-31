@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import math
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from datetime import datetime
@@ -685,20 +686,19 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
     active_files = set(registry.data.get("file_registry", {}).keys())
 
     collecting_batches = registry.get_active_batches(status="collecting")
-    total_limit = max(1, int(batch_size))
-    originals_limit = DEFAULT_BATCH_VISION_SIZE
+
     if collecting_batches:
+        # RESUMING existing batch - use its stored limit for everything
         batch_id = next(iter(collecting_batches.keys()))
         batch_info = registry.get_active_batches().get(batch_id, {})
-        # Use the batch's stored limit, not the current constant
-        stored_limit = batch_info.get("batch_size_limit", originals_limit)
-        if stored_limit != originals_limit:
-            logging.warning(
-                "Batch %s has stored limit %d but DEFAULT_BATCH_VISION_SIZE is %d. Using stored limit.",
-                batch_id, stored_limit, originals_limit
-            )
+        stored_limit = batch_info.get("batch_size_limit", DEFAULT_BATCH_VISION_SIZE)
         originals_limit = stored_limit
+        total_limit = stored_limit  # Use stored limit, not parameter!
+        logging.info("Resuming batch %s with stored limit %d", batch_id, stored_limit)
     else:
+        # NEW batch - use parameter if provided, else constant
+        originals_limit = max(1, int(batch_size)) if batch_size > 0 else DEFAULT_BATCH_VISION_SIZE
+        total_limit = originals_limit
         batch_id = registry.create_batch("originals", originals_limit)
 
     batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
@@ -712,29 +712,38 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
             continue
         candidates.append(record)
 
-    candidates = candidates[:total_limit]
-    total = len(candidates)
-
     # Calculate starting index based on already-processed files in current batch
     # This ensures correct progress display when resuming after crash/restart
     already_processed = len(batch_state.list_by_status("description_saved"))
     start_index = already_processed + 1
 
+    # When resuming, slice candidates to remaining slots and use batch limit as total
+    # When creating new, slice to limit and use actual candidate count as total
+    if collecting_batches:
+        # Resuming: show progress against batch limit
+        remaining_slots = max(0, originals_limit - already_processed)
+        candidates = candidates[:remaining_slots]
+        total = originals_limit  # Use batch limit for display
+    else:
+        # New batch: show progress against available candidates
+        candidates = candidates[:total_limit]
+        total = len(candidates)
+
     # Track saved files count to pass to dialog (incremented only on save action)
     saved_count = already_processed
 
     # Configure tqdm to show progress through candidates only
-    for index, record in enumerate(
-        tqdm(candidates, desc="Collecting descriptions", unit="file"),
-        start=start_index
-    ):
+    for record in tqdm(candidates, desc="Collecting descriptions", unit="file"):
         file_path = record.get(COL_PATH, "")
         normalized = _normalize_path(file_path) if file_path else ""
 
+        # Index represents next slot in batch (saved_count + 1), not enumerate position
+        # This ensures Reject/Skip don't increment the displayed position
+        viewing_index = saved_count + 1
         estimate = _estimate_batch_cost(provider, batch_state.list_by_status("description_saved"))
         cost = estimate.get("estimated_cost")
         cost_text = f"${cost:.2f}" if isinstance(cost, (int, float)) else "N/A"
-        progress_text = f"Viewing: {index}/{total} | Est: {cost_text}"
+        progress_text = f"Viewing: {viewing_index}/{total} | Est: {cost_text}"
         response = collect_batch_description(
             file_path,
             DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH,
@@ -774,11 +783,65 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
 
         batch_info = registry.get_active_batches().get(batch_id, {})
         if batch_info.get("file_count", 0) >= originals_limit:
-            registry.set_batch_status(batch_id, "ready")
-            batch_id = registry.create_batch("originals", originals_limit)
-            batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
-            # Reset saved_count for new batch
-            saved_count = 0
+            completed_batch_id = batch_id
+            registry.set_batch_status(completed_batch_id, "ready")
+            logging.info("Batch %s completed with %d files. Processing...",
+                        completed_batch_id, batch_info.get("file_count", 0))
+
+            # 1. Send all ready batches (including the current one)
+            logging.info("Sending all ready batches...")
+            _send_ready_batches(registry, media_csv, model_key)
+
+            # 2. Check and retrieve any completed sent batches
+            logging.info("Checking for completed batches...")
+            _retrieve_completed_batches(registry, media_csv, model_key)
+
+            # 3. NOW check if current batch was successfully sent
+            completed_batch_info = registry.get_active_batches().get(completed_batch_id)
+            if completed_batch_info and completed_batch_info.get("status") == "sent":
+                logging.info("Batch %s successfully sent to API", completed_batch_id)
+            else:
+                logging.warning("Batch %s send failed or was deferred (status: %s)",
+                              completed_batch_id,
+                              completed_batch_info.get("status") if completed_batch_info else "unknown")
+
+            # 4. Prompt user: wait for responses or continue to next batch
+            print("\n" + "=" * 60)
+            print(f"Batch {completed_batch_id} has been processed.")
+            print("=" * 60)
+            user_choice = input("Wait for API responses [W] or Continue to next batch [C]? ").strip().upper()
+
+            if user_choice == "W":
+                # User wants to wait - show progressbar with elapsed time
+                logging.info("Starting wait for batch responses...")
+                poll_interval = DEFAULT_BATCH_POLL_INTERVAL
+                start_time = time.time()
+
+                # Create progressbar for waiting (will run indefinitely until completed or user interrupts)
+                with tqdm(desc="Waiting for batch responses", unit="s", total=None, bar_format='{desc}: {elapsed}') as pbar:
+                    while True:
+                        # Check if there are any "sent" batches remaining
+                        sent_batches = registry.get_active_batches(status="sent")
+                        if not sent_batches:
+                            logging.info("All sent batches have been retrieved")
+                            break
+
+                        # Retrieve any completed batches
+                        _retrieve_completed_batches(registry, media_csv, model_key)
+
+                        # Sleep and update progressbar
+                        time.sleep(poll_interval)
+                        pbar.update(poll_interval)
+
+                logging.info("Batch wait completed. Exiting collection mode.")
+                return  # Exit the function after waiting completes
+            else:
+                # User wants to continue - create new batch and continue collecting
+                logging.info("Continuing to next batch...")
+                batch_id = registry.create_batch("originals", originals_limit)
+                batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
+                # Reset saved_count for new batch
+                saved_count = 0
 
 
 def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str) -> None:
