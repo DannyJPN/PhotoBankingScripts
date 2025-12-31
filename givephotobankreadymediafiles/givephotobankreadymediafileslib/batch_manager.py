@@ -685,10 +685,13 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
     unprocessed = find_unprocessed_records(records)
     active_files = set(registry.data.get("file_registry", {}).keys())
 
+    # Store requested batch size for new batches (when user chooses Continue)
+    requested_batch_size = max(1, int(batch_size)) if batch_size > 0 else DEFAULT_BATCH_VISION_SIZE
+
     collecting_batches = registry.get_active_batches(status="collecting")
 
     if collecting_batches:
-        # RESUMING existing batch - use its stored limit for everything
+        # RESUMING existing batch - use its stored limit for current batch
         batch_id = next(iter(collecting_batches.keys()))
         batch_info = registry.get_active_batches().get(batch_id, {})
         stored_limit = batch_info.get("batch_size_limit", DEFAULT_BATCH_VISION_SIZE)
@@ -697,7 +700,7 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
         logging.info("Resuming batch %s with stored limit %d", batch_id, stored_limit)
     else:
         # NEW batch - use parameter if provided, else constant
-        originals_limit = max(1, int(batch_size)) if batch_size > 0 else DEFAULT_BATCH_VISION_SIZE
+        originals_limit = requested_batch_size
         total_limit = originals_limit
         batch_id = registry.create_batch("originals", originals_limit)
 
@@ -732,54 +735,56 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
     # Track saved files count to pass to dialog (incremented only on save action)
     saved_count = already_processed
 
-    # Configure tqdm to show progress through candidates only
-    for record in tqdm(candidates, desc="Collecting descriptions", unit="file"):
-        file_path = record.get(COL_PATH, "")
-        normalized = _normalize_path(file_path) if file_path else ""
+    # Create progressbar manually (don't iterate with it - only update on Save)
+    with tqdm(total=total, desc="Collecting descriptions", unit="file", initial=saved_count) as pbar:
+        for record in candidates:
+            file_path = record.get(COL_PATH, "")
+            normalized = _normalize_path(file_path) if file_path else ""
 
-        # Index represents next slot in batch (saved_count + 1), not enumerate position
-        # This ensures Reject/Skip don't increment the displayed position
-        viewing_index = saved_count + 1
-        estimate = _estimate_batch_cost(provider, batch_state.list_by_status("description_saved"))
-        cost = estimate.get("estimated_cost")
-        cost_text = f"${cost:.2f}" if isinstance(cost, (int, float)) else "N/A"
-        progress_text = f"Viewing: {viewing_index}/{total} | Est: {cost_text}"
-        response = collect_batch_description(
-            file_path,
-            DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH,
-            progress_text=progress_text,
-            saved_count=saved_count,
-            batch_limit=originals_limit
-        )
-        action = response.get("action")
+            # Index represents next slot in batch (saved_count + 1), not enumerate position
+            # This ensures Reject/Skip don't increment the displayed position
+            viewing_index = saved_count + 1
+            estimate = _estimate_batch_cost(provider, batch_state.list_by_status("description_saved"))
+            cost = estimate.get("estimated_cost")
+            cost_text = f"${cost:.2f}" if isinstance(cost, (int, float)) else "N/A"
+            progress_text = f"Viewing: {viewing_index}/{total} | Est: {cost_text}"
+            response = collect_batch_description(
+                file_path,
+                DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH,
+                progress_text=progress_text,
+                saved_count=saved_count,
+                batch_limit=originals_limit
+            )
+            action = response.get("action")
 
-        if action == "skip":
-            continue
-        if action == "reject":
-            record_map = load_csv(media_csv)
-            target_record = _find_record_for_path(record_map, file_path)
-            if target_record:
-                _reject_record(target_record)
-                save_csv_with_backup(record_map, media_csv)
-            continue
-        if action != "save":
-            continue
+            if action == "skip":
+                continue
+            if action == "reject":
+                record_map = load_csv(media_csv)
+                target_record = _find_record_for_path(record_map, file_path)
+                if target_record:
+                    _reject_record(target_record)
+                    save_csv_with_backup(record_map, media_csv)
+                continue
+            if action != "save":
+                continue
 
-        custom_id = _build_custom_id(file_path, batch_id)
-        batch_state.add_file(
-            file_path,
-            custom_id,
-            user_description=response.get("description", ""),
-            editorial=bool(response.get("editorial")),
-            editorial_data=response.get("editorial_data")
-        )
-        batch_state.update_file(file_path, status="description_saved")
-        registry.register_file(file_path, batch_id)
-        active_files.add(normalized)
-        registry.increment_batch_file_count(batch_id)
+            custom_id = _build_custom_id(file_path, batch_id)
+            batch_state.add_file(
+                file_path,
+                custom_id,
+                user_description=response.get("description", ""),
+                editorial=bool(response.get("editorial")),
+                editorial_data=response.get("editorial_data")
+            )
+            batch_state.update_file(file_path, status="description_saved")
+            registry.register_file(file_path, batch_id)
+            active_files.add(normalized)
+            registry.increment_batch_file_count(batch_id)
 
-        # Increment saved count for next dialog display
-        saved_count += 1
+            # Increment saved count and update progressbar (only on Save)
+            saved_count += 1
+            pbar.update(1)
 
         batch_info = registry.get_active_batches().get(batch_id, {})
         if batch_info.get("file_count", 0) >= originals_limit:
@@ -836,10 +841,13 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                 logging.info("Batch wait completed. Exiting collection mode.")
                 return  # Exit the function after waiting completes
             else:
-                # User wants to continue - create new batch and continue collecting
-                logging.info("Continuing to next batch...")
-                batch_id = registry.create_batch("originals", originals_limit)
+                # User wants to continue - create new batch with requested size
+                logging.info("Continuing to next batch with size %d...", requested_batch_size)
+                batch_id = registry.create_batch("originals", requested_batch_size)
                 batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
+                # Update originals_limit for new batch
+                originals_limit = requested_batch_size
+                total_limit = requested_batch_size
                 # Reset saved_count for new batch
                 saved_count = 0
 
@@ -1130,23 +1138,15 @@ def run_batch_mode(media_csv: str, batch_size: int, wait_timeout: int,
     else:
         logging.info("No active batches. Starting fresh collection.")
 
+    # Initial checks: retrieve any completed batches and send any ready batches
     _retrieve_completed_batches(registry, media_csv, model_key)
     _send_ready_batches(registry, media_csv, model_key)
+
+    # Collection phase - processes each batch with interactive prompts
+    # After each batch completion, user chooses to Wait or Continue
     _collect_descriptions(registry, batch_size, media_csv, model_key)
 
-    import time
-    if wait_timeout == 0:
-        while True:
-            _retrieve_completed_batches(registry, media_csv, model_key)
-            if not registry.get_active_batches(status="sent"):
-                break
-            time.sleep(poll_interval)
-    elif wait_timeout > 0:
-        start = time.time()
-        while time.time() - start < wait_timeout:
-            _retrieve_completed_batches(registry, media_csv, model_key)
-            time.sleep(poll_interval)
-        logging.info("Batch wait timeout reached (%s seconds).", wait_timeout)
+    logging.info("=== BATCH MODE COMPLETED ===")
 
 
 def check_batch_statuses() -> List[str]:
