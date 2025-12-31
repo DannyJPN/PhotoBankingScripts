@@ -861,7 +861,10 @@ def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str)
     ))
 
     if not ready_batches:
+        logging.info("No ready batches to send")
         return
+
+    logging.info("Found %d ready batch(es) to send", len(ready_batches))
 
     # Get categories from registry
     categories = registry.data.get("_categories")
@@ -1013,7 +1016,10 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
     sent_batches = list(registry.get_active_batches(status="sent").items())
 
     if not sent_batches:
+        logging.info("No sent batches to check for completion")
         return
+
+    logging.info("Checking %d sent batch(es) for completion", len(sent_batches))
 
     sent_batches.sort(key=lambda item: (
         1 if str(item[1].get("batch_type", "")).startswith("alternatives") else 0,
