@@ -71,9 +71,12 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
 
     return (
         "You are a professional stock photography metadata generator.\n"
-        "Based on the image and the user's description, generate complete metadata for stock photo platforms.\n"
+        "Based on the image and the user's input below, generate complete metadata for stock photo platforms.\n"
         "\n"
-        "USER DESCRIPTION:\n"
+        "NOTE: User input may include descriptions, specific instructions (e.g., 'identify species', 'determine exact type'), "
+        "notes about uncertainty, or contextual explanations. Interpret and apply this information appropriately.\n"
+        "\n"
+        "USER INPUT:\n"
         f"{user_description}\n"
         "\n"
         f"{editorial_block}"
