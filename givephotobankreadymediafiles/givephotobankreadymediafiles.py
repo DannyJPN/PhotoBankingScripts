@@ -56,9 +56,7 @@ def parse_arguments():
                         help=f"Batch poll interval in seconds (default: {DEFAULT_BATCH_POLL_INTERVAL})")
     parser.add_argument("--check_batch_status", action="store_true",
                         help="Print status of active batches and exit")
-    parser.add_argument("--check-batch-status", action="store_true", dest="check_batch_status",
-                        help="Print status of active batches and exit")
-    
+
     return parser.parse_args()
 
 

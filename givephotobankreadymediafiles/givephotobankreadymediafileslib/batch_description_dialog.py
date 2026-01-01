@@ -24,11 +24,21 @@ from givephotobankreadymediafileslib.media_helper import is_video_file
 class BatchDescriptionDialog:
     """Collects user description and optional editorial metadata."""
 
-    def __init__(self, parent: tk.Tk, file_path: str, min_length: int, progress_text: str = ""):
+    def __init__(
+        self,
+        parent: tk.Tk,
+        file_path: str,
+        min_length: int,
+        progress_text: str = "",
+        saved_count: int = 0,
+        batch_limit: int = 20
+    ):
         self.parent = parent
         self.file_path = file_path
         self.min_length = min_length
         self.progress_text = progress_text
+        self.saved_count = saved_count
+        self.batch_limit = batch_limit
         self.result: Optional[Dict[str, object]] = None
         self._image = None
         self._build_ui()
@@ -46,8 +56,12 @@ class BatchDescriptionDialog:
         top_frame.pack(fill=tk.X)
 
         ttk.Label(top_frame, text=self.file_path, wraplength=1000).pack(anchor=tk.W)
+
+        # Display saved file counter
+        batch_status_text = f"Saved to batch: {self.saved_count}/{self.batch_limit}"
         if self.progress_text:
-            ttk.Label(top_frame, text=self.progress_text).pack(anchor=tk.W)
+            batch_status_text += f" | {self.progress_text}"
+        ttk.Label(top_frame, text=batch_status_text, font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W)
 
         content_frame = ttk.Frame(main_frame)
         content_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
@@ -185,9 +199,32 @@ class BatchDescriptionDialog:
             messagebox.showerror("Error", f"Failed to open file location:\n{e}")
 
 
-def collect_batch_description(file_path: str, min_length: int, progress_text: str = "") -> Dict[str, object]:
-    """Show the dialog and return user result dict."""
+def collect_batch_description(
+    file_path: str,
+    min_length: int,
+    progress_text: str = "",
+    saved_count: int = 0,
+    batch_limit: int = 20
+) -> Dict[str, object]:
+    """
+    Show the dialog and return user result dict.
+
+    Args:
+        file_path: Path to the media file
+        min_length: Minimum description length required
+        progress_text: Progress text to display (legacy, will be replaced by saved_count display)
+        saved_count: Number of files already saved to current batch
+        batch_limit: Maximum batch size limit
+
+    Returns:
+        Dict with 'action' key and optional 'description', 'editorial', 'editorial_data'
+    """
     root = tk.Tk()
-    dialog = BatchDescriptionDialog(root, file_path, min_length, progress_text=progress_text)
+    dialog = BatchDescriptionDialog(
+        root, file_path, min_length,
+        progress_text=progress_text,
+        saved_count=saved_count,
+        batch_limit=batch_limit
+    )
     root.mainloop()
     return dialog.result or {"action": "skip"}

@@ -737,6 +737,10 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
 
     # Main collection loop - continues until user chooses to Wait or no more candidates
     while True:
+        # Reload records and unprocessed from CSV (needed after reject/skip to get updated status)
+        records = load_media_records(media_csv)
+        unprocessed = find_unprocessed_records(records)
+
         # Reload candidates for current batch (needed after Continue)
         candidates = []
         for record in unprocessed:
@@ -825,6 +829,9 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                     completed_batch_info = registry.get_active_batches().get(completed_batch_id)
                     if completed_batch_info and completed_batch_info.get("status") == "sent":
                         logging.info("Batch %s successfully sent to API", completed_batch_id)
+                    elif completed_batch_info and completed_batch_info.get("error") == "size_limit_split":
+                        # Batch was automatically split into smaller batches - this is expected and handled
+                        logging.info("Batch %s was split into smaller batches due to size limit and sent successfully", completed_batch_id)
                     else:
                         logging.warning("Batch %s send failed or was deferred (status: %s)",
                                       completed_batch_id,

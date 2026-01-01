@@ -477,48 +477,76 @@ def create_temp_file(suffix: str = "", prefix: str = "tmp_", dir_path: str | Non
     return temp_path
 
 
-def write_json(path: str, data: JsonData, indent: int = 2) -> None:
+def write_json(path: str, data: JsonData, indent: int = 2, max_retries: int = 10, retry_delay: float = 0.5) -> None:
     """
-    Write JSON file atomically (write to temp → rename).
+    Write JSON file atomically (write to temp → rename) with retry logic for lock errors.
 
     Args:
         path: Path to JSON file
         data: JSON-serializable data
         indent: Indent level for pretty printing
+        max_retries: Maximum number of retry attempts on lock errors
+        retry_delay: Initial delay between retries in seconds (exponential backoff)
     """
+    import time
+
     logging.debug("Writing JSON file: %s", path)
     ensure_directory(os.path.dirname(path))
 
-    temp_path = None
-    try:
-        # Write to temporary file first (in same directory for atomic rename)
-        dir_path = os.path.dirname(path) or '.'
-        temp_fd, temp_path = tempfile.mkstemp(
-            dir=dir_path,
-            prefix='.tmp_',
-            suffix='.json'
-        )
+    last_error = None
 
-        with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=indent, ensure_ascii=False)
+    for attempt in range(max_retries):
+        temp_path = None
+        try:
+            # Write to temporary file first (in same directory for atomic rename)
+            dir_path = os.path.dirname(path) or '.'
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=dir_path,
+                prefix='.tmp_',
+                suffix='.json'
+            )
 
-        # Atomic rename (overwrites destination on all platforms)
-        os.replace(temp_path, path)
-        temp_path = None  # Successfully moved, don't cleanup
+            with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=indent, ensure_ascii=False)
 
-    except (TypeError, ValueError) as e:
-        logging.error("Data not JSON-serializable in %s: %s", path, e)
-        raise
-    except IOError as e:
-        logging.error("Failed to write JSON file %s: %s", path, e)
-        raise
-    finally:
-        # Cleanup temp file if rename failed
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.unlink(temp_path)
-            except Exception:
-                pass
+            # Atomic rename (overwrites destination on all platforms)
+            os.replace(temp_path, path)
+            temp_path = None  # Successfully moved, don't cleanup
+
+            # Success!
+            if attempt > 0:
+                logging.info("Successfully wrote %s after %d retries", path, attempt)
+            return
+
+        except (TypeError, ValueError) as e:
+            logging.error("Data not JSON-serializable in %s: %s", path, e)
+            raise
+        except PermissionError as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                logging.warning(
+                    "File locked: %s (attempt %d/%d). Waiting %.1fs before retry...",
+                    path, attempt + 1, max_retries, wait_time
+                )
+                time.sleep(wait_time)
+            else:
+                logging.error("Failed to write JSON file %s after %d attempts: %s", path, max_retries, e)
+                raise
+        except IOError as e:
+            logging.error("Failed to write JSON file %s: %s", path, e)
+            raise
+        finally:
+            # Cleanup temp file if rename failed
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except Exception:
+                    pass
+
+    # If we exhausted retries (should not reach here due to raise in loop)
+    if last_error:
+        raise last_error
 
 
 def save_json_with_backup(data: JsonData, path: str, indent: int = 2) -> None:
