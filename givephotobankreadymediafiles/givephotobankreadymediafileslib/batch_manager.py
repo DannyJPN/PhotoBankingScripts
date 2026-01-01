@@ -379,8 +379,8 @@ def _update_record_with_metadata(record: Dict[str, str], metadata: Dict[str, obj
     else:
         record[COL_KEYWORDS] = str(keywords)
 
-    if COL_EDITORIAL in record:
-        record[COL_EDITORIAL] = "ano" if metadata.get("editorial") else "ne"
+    # Always set editorial (will add column if it doesn't exist)
+    record[COL_EDITORIAL] = "ano" if metadata.get("editorial") else "ne"
 
     record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
 
@@ -464,6 +464,23 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
             batch_state.update_file_by_custom_id(custom_id, status="batch_failed", error="file_not_found")
             failed_custom_ids.append(custom_id)
             continue
+
+        # Add editorial prefix to description if needed
+        editorial_data = file_entry.get("editorial_data")
+        if editorial_data:
+            city = editorial_data.get("city", "").strip()
+            country = editorial_data.get("country", "").strip()
+            date_str = editorial_data.get("date", "").strip()
+
+            if city and country and date_str:
+                editorial_prefix = f"{city.upper()}, {country.upper()} - {date_str}: "
+                description = metadata.get("description", "")
+
+                # Check if description already has the prefix
+                if not description.startswith(editorial_prefix):
+                    # Add prefix to description
+                    metadata["description"] = editorial_prefix + description
+                    logging.info(f"Added editorial prefix to description for {file_entry['file_path']}")
 
         saved = _save_metadata_to_csv(media_csv, file_entry["file_path"], metadata, bool(file_entry.get("editorial")))
         if not saved:
@@ -836,6 +853,7 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                         logging.warning("Batch %s send failed or was deferred (status: %s)",
                                       completed_batch_id,
                                       completed_batch_info.get("status") if completed_batch_info else "unknown")
+
 
                     # 4. Prompt user: wait for responses or continue to next batch
                     print("\n" + "=" * 60)
