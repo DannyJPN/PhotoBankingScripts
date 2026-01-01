@@ -4,6 +4,8 @@
       "template": [
         "Create a compelling, SEO-optimized title for this image suitable for stock photography.",
         "",
+        "**GEOGRAPHIC CONTEXT**: Unless EXPLICITLY specified otherwise, assume photos are from Czech Republic or Slovakia (Central Europe, temperate climate). DO NOT mention specific countries unless stated. Use generic terms like 'Central European forest', 'temperate meadow', 'mountain landscape'.",
+        "",
         "Requirements:",
         "- **CRITICAL**: DO NOT infer information from the image filename. Analyze only the visual content of the image itself.",
         "- Maximum {max_length} characters",
@@ -37,6 +39,8 @@
     "description": {
       "template": [
         "Create a detailed, SEO-optimized description for this image suitable for stock photography.",
+        "",
+        "**GEOGRAPHIC CONTEXT**: Unless EXPLICITLY specified otherwise, assume photos are from Czech Republic or Slovakia (Central Europe, temperate climate). DO NOT mention specific countries unless stated. Use generic terms like 'Central European forest', 'temperate meadow', 'mountain landscape'.",
         "",
         "Requirements:",
         "- **CRITICAL**: DO NOT infer information from the image filename. Analyze only the visual content of the image itself.",

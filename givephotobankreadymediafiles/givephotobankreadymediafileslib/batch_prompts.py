@@ -56,8 +56,10 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             categories_block += ", ".join(dreamstime_cats) + "\n\n"
 
         categories_block += "IMPORTANT:\n"
+        categories_block += "- STRONGLY PREFER selecting the MAXIMUM number of categories when multiple relevant options exist\n"
+        categories_block += "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
         categories_block += "- Choose categories that best match the image content and theme\n"
-        categories_block += "- You don't have to select the maximum number if fewer categories are more appropriate\n\n"
+        categories_block += "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
     else:
         # Fallback if no categories provided
         categories_block = (
@@ -65,8 +67,10 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             "- shutterstock: Select UP TO 2 most appropriate categories\n"
             "- adobestock: Select UP TO 1 most appropriate category\n"
             "- dreamstime: Select UP TO 3 most appropriate categories\n"
+            "- STRONGLY PREFER selecting the MAXIMUM number when multiple relevant options exist\n"
+            "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
             "- Choose categories that best match the image content and theme\n"
-            "- You don't have to select the maximum if fewer categories are more appropriate\n\n"
+            "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
         )
 
     return (
@@ -80,6 +84,13 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         "- Never copy non-English text directly into metadata fields\n"
         "- IMPORTANT: If place names appear (cities, mountains, regions), remove all diacritics\n"
         "  Examples: 'Bílá' → 'Bila', 'Šance' → 'Sance', 'Zbojnická' → 'Zbojnicka'\n"
+        "\n"
+        "**GEOGRAPHIC CONTEXT**:\n"
+        "- Unless the user EXPLICITLY specifies otherwise, assume all photos are from Czech Republic or Slovakia\n"
+        "- This is Central Europe with temperate climate - NOT Scandinavia, NOT tropics, NOT arctic regions\n"
+        "- DO NOT mention specific countries unless explicitly stated by the user\n"
+        "- Use generic geographic terms: \"Central European forest\", \"temperate meadow\", \"mountain landscape\"\n"
+        "- If describing species or features typical of Central Europe, that's acceptable\n"
         "\n"
         "NOTE: User input may include descriptions, specific instructions (e.g., 'identify species', 'determine exact type'), "
         "notes about uncertainty, or contextual explanations. Interpret and apply this information appropriately.\n"
