@@ -158,11 +158,31 @@ class MediaViewer:
         # File path display (in left frame)
         path_frame = ttk.LabelFrame(left_frame, text="Current File")
         path_frame.pack(fill=tk.X, padx=5, pady=(5, 2))
-        
-        self.file_path_label = ttk.Label(path_frame, text="No file loaded", 
+
+        self.file_path_label = ttk.Label(path_frame, text="No file loaded",
                                        wraplength=250, justify=tk.LEFT)
         self.file_path_label.pack(padx=10, pady=5, anchor=tk.W)
-        
+
+        # User Input (Optional) - for providing context, commands, or notes to AI
+        user_input_frame = ttk.LabelFrame(left_frame, text="User Input (Optional)")
+        user_input_frame.pack(fill=tk.X, padx=5, pady=(2, 2))
+
+        ttk.Label(user_input_frame, text="Describe the image, provide instructions, or add notes:",
+                 wraplength=240, justify=tk.LEFT).pack(anchor=tk.W, padx=10, pady=(5, 3))
+
+        # User description text (multiline, height=3)
+        self.user_desc_text = tk.Text(user_input_frame, height=3, wrap=tk.WORD, font=('Arial', 9), width=30)
+        self.user_desc_text.pack(fill=tk.X, padx=10, pady=(0, 5))
+
+        # Placeholder text hint
+        self.user_desc_placeholder = "e.g., 'Identify species', 'Photo taken in spring', 'Not sure about exact type'"
+        self.user_desc_text.insert('1.0', self.user_desc_placeholder)
+        self.user_desc_text.config(foreground='gray')
+
+        # Bind focus events for placeholder management
+        self.user_desc_text.bind('<FocusIn>', self.on_user_desc_focus_in)
+        self.user_desc_text.bind('<FocusOut>', self.on_user_desc_focus_out)
+
         # AI Model Selection (in left frame)
         self.setup_ai_model_panel(left_frame)
         
@@ -863,7 +883,28 @@ class MediaViewer:
     def on_keywords_focus_out(self, event=None) -> None:
         """Handle keywords field losing focus - update button states with debouncing."""
         self.update_all_button_states_debounced()
-    
+
+    def on_user_desc_focus_in(self, event=None) -> None:
+        """Handle user description field gaining focus - remove placeholder."""
+        current_text = self.user_desc_text.get('1.0', tk.END).strip()
+        if current_text == self.user_desc_placeholder:
+            self.user_desc_text.delete('1.0', tk.END)
+            self.user_desc_text.config(foreground='black')
+
+    def on_user_desc_focus_out(self, event=None) -> None:
+        """Handle user description field losing focus - restore placeholder if empty."""
+        current_text = self.user_desc_text.get('1.0', tk.END).strip()
+        if not current_text:
+            self.user_desc_text.insert('1.0', self.user_desc_placeholder)
+            self.user_desc_text.config(foreground='gray')
+
+    def get_user_description(self) -> Optional[str]:
+        """Get user description text, returning None if empty or placeholder."""
+        current_text = self.user_desc_text.get('1.0', tk.END).strip()
+        if current_text and current_text != self.user_desc_placeholder:
+            return current_text
+        return None
+
     def refresh_keywords_display(self):
         """Refresh the keywords display after loading from file."""
         # Set tags in the new TagEntry widget
@@ -946,8 +987,10 @@ class MediaViewer:
             # Create generator and generate title (returns str for original only)
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
+            user_desc = self.get_user_description()  # Get user description (None if empty/placeholder)
             title = generator.generate_title(self.current_file_path,
-                                            existing_title if existing_title else None)
+                                            existing_title if existing_title else None,
+                                            user_desc)
 
             # Check for cancellation before updating UI
             if self.ai_cancelled['title']:
@@ -1058,12 +1101,14 @@ class MediaViewer:
             generator = create_metadata_generator(model_key)
             existing_title = self.title_entry.get().strip()
             existing_desc = self.desc_text.get('1.0', tk.END).strip()
+            user_desc = self.get_user_description()  # Get user description (None if empty/placeholder)
 
             description = generator.generate_description(
                 self.current_file_path,
                 existing_title if existing_title else None,
                 existing_desc if existing_desc else None,
-                editorial_data
+                editorial_data,
+                user_desc
             )
 
             # Check for cancellation before updating UI

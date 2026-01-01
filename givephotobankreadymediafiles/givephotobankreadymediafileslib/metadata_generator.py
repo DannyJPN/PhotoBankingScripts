@@ -69,13 +69,15 @@ class MetadataGenerator:
         """
         self.photobank_categories = categories
     
-    def generate_title(self, image_path: str, context: Optional[str] = None) -> str:
+    def generate_title(self, image_path: str, context: Optional[str] = None,
+                       user_description: Optional[str] = None) -> str:
         """
         Generate SEO-optimized title for image (original version only).
 
         Args:
             image_path: Path to image file
             context: Optional context or existing title to refine
+            user_description: Optional user input (description, commands, or notes)
 
         Returns:
             Title string (max 100 characters)
@@ -90,7 +92,7 @@ class MetadataGenerator:
             logging.error(error_msg)
             raise ValueError(error_msg)
 
-        prompt = self.prompt_manager.get_title_prompt(context)
+        prompt = self.prompt_manager.get_title_prompt(context, user_description)
 
         import json
         from shared.ai_module import Message
@@ -136,7 +138,8 @@ class MetadataGenerator:
         raise RuntimeError(error_msg)
     
     def generate_description(self, image_path: str, title: Optional[str] = None,
-                           context: Optional[str] = None, editorial_data: Optional[Dict[str, str]] = None) -> str:
+                           context: Optional[str] = None, editorial_data: Optional[Dict[str, str]] = None,
+                           user_description: Optional[str] = None) -> str:
         """
         Generate detailed description for image (original version only).
 
@@ -145,6 +148,7 @@ class MetadataGenerator:
             title: Optional title to reference
             context: Optional context or existing description
             editorial_data: Optional editorial metadata (city, country, date) for editorial format
+            user_description: Optional user input (description, commands, or notes)
 
         Returns:
             Description string (max 200 characters, including editorial prefix if applicable)
@@ -177,7 +181,7 @@ class MetadataGenerator:
                     logging.error(error_msg)
                     raise ValueError(error_msg)
 
-        prompt = self.prompt_manager.get_description_prompt(title, context)
+        prompt = self.prompt_manager.get_description_prompt(title, context, user_description)
 
         import json
         from shared.ai_module import Message

@@ -23,13 +23,14 @@
         "- \"Woman practicing yoga Natarajasana pose at sunrise on beach\"",
         "- \"Norway spruce tree in misty morning forest\"",
         "",
-        "{context_section}Return ONLY valid JSON with this exact structure:",
+        "{user_input_section}{context_section}Return ONLY valid JSON with this exact structure:",
         "{{",
         "  \"original\": \"title for the image\"",
         "}}",
         "",
         "Return ONLY the JSON object, no other text or explanation."
       ],
+      "user_input_template": "NOTE: User input may include descriptions, specific instructions (e.g., 'identify species', 'determine exact type'), notes about uncertainty, or contextual explanations. Interpret and apply this information appropriately.\n\nUSER INPUT:\n{user_description}\n\n",
       "context_template": "Context/existing title to improve: {context}\n\n",
       "variables": {
         "max_length": 80,
@@ -67,13 +68,14 @@
         "Example of good description:",
         "\"Silhouette of woman practicing the yoga pose Natarajasana, or Lord of the Dance Pose during flaming orange, red and purple sunrise on Campeche beach in Florianópolis, at the Atlantic Ocean in Santa Catarina, Brazil. The surface of the water is calm and peaceful mirroring the woman and the small island in the background.\"",
         "",
-        "{title_section}{context_section}Return ONLY valid JSON with this exact structure:",
+        "{user_input_section}{title_section}{context_section}Return ONLY valid JSON with this exact structure:",
         "{{",
         "  \"original\": \"description for the image\"",
         "}}",
         "",
         "Return ONLY the JSON object, no other text or explanation."
       ],
+      "user_input_template": "NOTE: User input may include descriptions, specific instructions (e.g., 'identify species', 'determine exact type'), notes about uncertainty, or contextual explanations. Interpret and apply this information appropriately.\n\nUSER INPUT:\n{user_description}\n\n",
       "title_template": "Title: {title}\n",
       "context_template": "Context/existing description to improve: {context}\n",
       "variables": {
