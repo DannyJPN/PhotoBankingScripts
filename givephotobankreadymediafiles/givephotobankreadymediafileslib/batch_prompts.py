@@ -59,6 +59,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         categories_block += "- STRONGLY PREFER selecting the MAXIMUM number of categories when multiple relevant options exist\n"
         categories_block += "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
         categories_block += "- Choose categories that best match the image content and theme\n"
+        categories_block += "- Categories MUST be based on VISUAL CONTENT, not word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
         categories_block += "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
     else:
         # Fallback if no categories provided
@@ -70,6 +71,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             "- STRONGLY PREFER selecting the MAXIMUM number when multiple relevant options exist\n"
             "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
             "- Choose categories that best match the image content and theme\n"
+            "- Categories MUST be based on VISUAL CONTENT, not word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
             "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
         )
 
