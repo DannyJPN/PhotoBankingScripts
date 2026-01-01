@@ -871,12 +871,8 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                         # Break from for loop to restart while loop with new batch
                         break
 
-            # If we completed the for loop without breaking (batch not complete), exit while loop
-            else:
-                break
-
         # If batch was completed and user chose Continue, while loop continues with new batch
-        # Otherwise, we break from while loop
+        # Otherwise, while loop continues to reload candidates and process remaining files
 
 
 def _send_ready_batches(registry: BatchRegistry, media_csv: str, model_key: str) -> None:
