@@ -278,8 +278,8 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
     logging.debug(f"  - description: {description}")
     logging.debug(f"  - keywords: {keywords}")
 
-    # Detekce typu souboru
-    is_editorial = bool(re.search(EDITORIAL_REGEX, title))
+    # Detekce typu souboru (editorial prefix can be in title OR description)
+    is_editorial = bool(re.search(EDITORIAL_REGEX, title)) or bool(re.search(EDITORIAL_REGEX, description))
     is_vector = bool(re.search(VECTOREXT_REGEX, filename, re.IGNORECASE)) if filename else False
 
     # Kategorie pro DreamsTime
