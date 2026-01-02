@@ -379,9 +379,6 @@ def _update_record_with_metadata(record: Dict[str, str], metadata: Dict[str, obj
     else:
         record[COL_KEYWORDS] = str(keywords)
 
-    # Always set editorial (will add column if it doesn't exist)
-    record[COL_EDITORIAL] = "ano" if metadata.get("editorial") else "ne"
-
     record[COL_PREP_DATE] = datetime.now().strftime('%d.%m.%Y')
 
     categories = metadata.get("categories", {})
@@ -481,6 +478,12 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
                     # Add prefix to description
                     metadata["description"] = editorial_prefix + description
                     logging.info(f"Added editorial prefix to description for {file_entry['file_path']}")
+
+        # Enforce maximum 50 keywords limit
+        keywords = metadata.get("keywords", [])
+        if isinstance(keywords, list) and len(keywords) > 50:
+            logging.warning(f"Truncating keywords from {len(keywords)} to 50 for {file_entry['file_path']}")
+            metadata["keywords"] = keywords[:50]
 
         saved = _save_metadata_to_csv(media_csv, file_entry["file_path"], metadata, bool(file_entry.get("editorial")))
         if not saved:
@@ -1136,10 +1139,16 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
             if failed_custom_ids:
                 _sync_retry_failed_items(provider, batch_state, failed_custom_ids, media_csv, registry=registry)
 
-            # Always queue alternatives and complete batch, regardless of failures
-            _queue_alternatives_from_batch(batch_state, registry, media_csv)
-            _finalize_alternative_batches(registry)
-            registry.complete_batch(batch_id)
+            # Ensure batch completion even if alternative queuing fails
+            try:
+                _queue_alternatives_from_batch(batch_state, registry, media_csv)
+                _finalize_alternative_batches(registry)
+            except Exception as e:
+                logging.error(f"Error queuing alternatives for batch {batch_id}: {e}")
+            finally:
+                # ALWAYS complete batch to prevent infinite reprocessing
+                registry.complete_batch(batch_id)
+                logging.info(f"Batch {batch_id} marked as completed")
 
     originals = [item for item in sent_batches if not str(item[1].get("batch_type", "")).startswith("alternatives")]
     alternatives = [item for item in sent_batches if str(item[1].get("batch_type", "")).startswith("alternatives")]

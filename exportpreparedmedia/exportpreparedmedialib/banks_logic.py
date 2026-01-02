@@ -360,6 +360,7 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
     # Datum vytvoření
     creation_date = item.get('Datum vytvoření', '')
     year = ""
+    getty_date = ""
     if creation_date:
         try:
             # Datum je vždy řetězec ve formátu DD.MM.YYYY
@@ -368,6 +369,13 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
                 # Pokud je formát DD.MM.YYYY, vezmi posledních 4 znaky
                 if '.' in creation_date:
                     year = creation_date.split('.')[-1]
+                    # Getty Images vyžaduje formát MM/DD/YYYY HH:MM:SS +/-ZZZZ
+                    parts = creation_date.split('.')
+                    if len(parts) == 3:
+                        day, month, year_part = parts
+                        # Převod na MM/DD/YYYY 12:00:00 +0000 (GMT)
+                        getty_date = f"{month.zfill(2)}/{day.zfill(2)}/{year_part} 12:00:00 +0000"
+                        logging.debug(f"Converted date '{creation_date}' to Getty format '{getty_date}'")
                 else:
                     # Pro jiné formáty zkus extrahovat rok
                     year = ''.join(c for c in creation_date if c.isdigit())[-4:]
@@ -388,6 +396,7 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
         'vector': 'yes' if is_vector else 'no',
         'location': item.get('location', item.get('Location', DEFAULT_LOCATION)),
         'year': year,
+        'getty_date': getty_date,  # Getty Images formát MM/DD/YYYY HH:MM:SS +/-ZZZZ
 
         # DreamsTime kategorie (ID kategorií)
         'dreamstime_cat1': dreamstime_cats[0] if len(dreamstime_cats) > 0 else '',
