@@ -25,7 +25,7 @@ from givephotobankreadymediafileslib.constants import (
     MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH,
     STATUS_UNPROCESSED, STATUS_PREPARED, STATUS_REJECTED, STATUS_ERROR, STATUS_BACKUP,
     DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH,
-    DEFAULT_BATCH_POLL_INTERVAL,
+    DEFAULT_BATCH_POLL_INTERVAL, DEFAULT_MAX_POLL_ITERATIONS,
     DEFAULT_ALTERNATIVE_BATCH_SIZE, DEFAULT_ALTERNATIVE_EFFECTS,
     EFFECT_NAME_MAPPING, ORIGINAL_NO, CSV_ALLOWED_EXTENSIONS,
     DEFAULT_DAILY_BATCH_LIMIT, BATCH_COST_LOG, BATCH_IMAGE_MAX_BASE64_BYTES,
@@ -869,9 +869,10 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                         logging.info("Starting wait for batch responses...")
                         poll_interval = DEFAULT_BATCH_POLL_INTERVAL
 
-                        # Create progressbar for waiting (will run indefinitely until completed or user interrupts)
+                        # Create progressbar for waiting (will run until completed, timeout, or user interrupts)
+                        iteration = 0
                         with tqdm(desc="Waiting for batch responses", unit="s", total=None, bar_format='{desc}: {elapsed}') as wait_pbar:
-                            while True:
+                            while iteration < DEFAULT_MAX_POLL_ITERATIONS:
                                 # Check if there are any "sent" batches remaining
                                 sent_batches = registry.get_active_batches(status="sent")
                                 if not sent_batches:
@@ -884,6 +885,10 @@ def _collect_descriptions(registry: BatchRegistry, batch_size: int, media_csv: s
                                 # Sleep and update progressbar
                                 time.sleep(poll_interval)
                                 wait_pbar.update(poll_interval)
+                                iteration += 1
+
+                            if iteration >= DEFAULT_MAX_POLL_ITERATIONS:
+                                logging.warning("Maximum poll iterations reached (%d). Some batches may still be pending.", DEFAULT_MAX_POLL_ITERATIONS)
 
                         logging.info("Batch wait completed. Exiting collection mode.")
                         return  # Exit the function after waiting completes
@@ -1146,6 +1151,14 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
             except Exception as e:
                 logging.error(f"Error queuing alternatives for batch {batch_id}: {e}")
             finally:
+                # Check for permanent failures before completing
+                error_items = [item for item in batch_state.all_files() if item.get("status") == STATUS_ERROR]
+                if error_items:
+                    logging.warning(f"Batch {batch_id} completed with {len(error_items)} permanently failed items")
+                    # Log each failed item
+                    for item in error_items:
+                        logging.warning(f"  - {item.get('file_path')}: {item.get('error')}")
+
                 # ALWAYS complete batch to prevent infinite reprocessing
                 registry.complete_batch(batch_id)
                 logging.info(f"Batch {batch_id} marked as completed")

@@ -119,6 +119,7 @@ DEFAULT_BATCH_MODE = False
 DEFAULT_BATCH_SIZE = 20  # Total photos to collect per run; split into 20-photo vision batches
 DEFAULT_BATCH_WAIT_TIMEOUT = 3600  # 0 = unlimited wait for batch completion
 DEFAULT_BATCH_POLL_INTERVAL = 600  # Poll OpenAI API every 10 minutes (batches typically take 10-30 min)
+DEFAULT_MAX_POLL_ITERATIONS = 1000  # Maximum polling cycles before timeout (~5 hours at 18s interval)
 DEFAULT_BATCH_DESCRIPTION_MIN_LENGTH = 50  # Minimum user description length for quality
 DEFAULT_BATCH_CLEANUP_DAYS = 365  # Delete completed batches older than 1 year
 DEFAULT_ALTERNATIVE_BATCH_SIZE = 2000
