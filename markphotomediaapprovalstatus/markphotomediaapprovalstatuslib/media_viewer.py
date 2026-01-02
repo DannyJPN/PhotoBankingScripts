@@ -429,13 +429,13 @@ class MediaViewer:
         self.root.destroy()
         
     def on_window_close(self):
-        """Handle window close event - equivalent to Ctrl+C."""
-        logging.info("Approval window closed by user - terminating script")
+        """Handle window close event - signal cancellation to caller."""
+        logging.info("Approval window closed by user - cancelling operation")
         self.root.destroy()
-        
-        # Exit the entire script (equivalent to Ctrl+C)
-        import sys
-        sys.exit(0)
+
+        # Signal cancellation through callback instead of killing process
+        if self.completion_callback:
+            self.completion_callback(None)  # None signals user cancellation
 
 
 def show_media_viewer(
