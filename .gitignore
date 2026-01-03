@@ -72,4 +72,6 @@ htmlcov/
 backup_*
 
 # CUDA/GPU artifacts
-__pycache__/
+
+# Batch mode runtime state
+givephotobankreadymediafiles/batch_state/

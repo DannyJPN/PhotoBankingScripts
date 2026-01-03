@@ -117,7 +117,7 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
 
     "GettyImages": [
         {"target": "file name", "source": "filename"},
-        {"target": "created date", "source": "year"},
+        {"target": "created date", "source": "getty_date"},  # Getty formát: MM/DD/YYYY HH:MM:SS +/-ZZZZ
         {"target": "description", "source": "description"},
         {"target": "country", "source": "location"},
         {"target": "brief code", "value": ""},
