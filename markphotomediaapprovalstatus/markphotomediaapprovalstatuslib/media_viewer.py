@@ -172,44 +172,69 @@ class MediaViewer:
                                        command=self.process_current_file)
         self.process_button.pack(pady=10)
         
-    def load_media(self, file_path: str, record: Dict[str, str], completion_callback: Optional[Callable] = None):
-        """Load and display media file with approval controls."""
+    def load_media(
+        self,
+        file_path: str,
+        record: Dict[str, str],
+        completion_callback: Optional[Callable] = None,
+        target_bank: Optional[str] = None
+    ):
+        """
+        Load and display media file with approval controls.
+
+        Args:
+            file_path: Path to media file
+            record: CSV record dictionary
+            completion_callback: Callback function to receive user decision
+            target_bank: If specified, show controls for this bank only (bank-first mode).
+                        If None, show all banks with "kontrolováno" status (legacy mode).
+        """
         self.current_file_path = file_path
         self.current_record = record
         self.completion_callback = completion_callback
-        
+
         # Clear previous media
         self.clear_media()
-        
+
         # Update file path display
         self.file_path_label.configure(text=file_path)
-        
+
         # Update media info
         title = record.get('Název', '')
         description = record.get('Popis', '')
         self.title_label.configure(text=f"Title: {title}")
         self.description_label.configure(text=f"Description: {description}")
-        
-        # Find banks with "kontrolováno" status
+
+        # Determine which banks to show
         banks_to_show = []
-        for bank in BANKS:
-            status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+
+        if target_bank:
+            # Bank-first mode: show only target bank if it has "kontrolováno" status
+            status_column = f"{target_bank} {STATUS_COLUMN_KEYWORD}"
             if status_column in record and record[status_column] == STATUS_CHECKED:
-                banks_to_show.append(bank)
-        
+                banks_to_show = [target_bank]
+            else:
+                logging.warning(f"Target bank {target_bank} does not have 'kontrolováno' status for this file")
+        else:
+            # Legacy mode: show all banks with "kontrolováno" status
+            for bank in BANKS:
+                status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+                if status_column in record and record[status_column] == STATUS_CHECKED:
+                    banks_to_show.append(bank)
+
         if not banks_to_show:
             messagebox.showinfo("No Banks", "No banks with 'kontrolováno' status found for this file.")
             return
-            
+
         # Create controls for these banks
         self.create_bank_controls(banks_to_show)
-        
+
         # Load media file
         if is_video_file(file_path):
             self.load_video(file_path)
         else:
             self.load_image(file_path)
-            
+
         # Focus on first control
         if self.bank_vars:
             self.root.focus()
@@ -380,50 +405,65 @@ class MediaViewer:
         if not self.current_record:
             messagebox.showwarning("No File", "No file is currently loaded.")
             return
-            
+
         # Collect approval decisions
         decisions = {}
-        
+
         for bank, var in self.bank_vars.items():
             decision = var.get()
             if decision:  # Only process if user made a selection
                 decisions[bank] = decision
-                    
 
-
-
-
-
-
-            
-        # Call completion callback with decisions
+        # Call completion callback
         if self.completion_callback:
-            self.completion_callback(decisions)
-            
+            # If single bank (bank-first mode), return just the decision value
+            # If multiple banks (legacy mode), return dict
+            if len(self.bank_vars) == 1:
+                # Single bank mode: return just the decision string
+                single_decision = next(iter(decisions.values())) if decisions else None
+                self.completion_callback(single_decision)
+            else:
+                # Multiple banks mode: return dict
+                self.completion_callback(decisions)
+
         self.root.destroy()
         
     def on_window_close(self):
-        """Handle window close event - equivalent to Ctrl+C."""
-        logging.info("Approval window closed by user - terminating script")
+        """Handle window close event - signal cancellation to caller."""
+        logging.info("Approval window closed by user - cancelling operation")
         self.root.destroy()
-        
-        # Exit the entire script (equivalent to Ctrl+C)
-        import sys
-        sys.exit(0)
+
+        # Signal cancellation through callback instead of killing process
+        if self.completion_callback:
+            self.completion_callback(None)  # None signals user cancellation
 
 
-def show_media_viewer(file_path: str, record: Dict[str, str], completion_callback: Optional[Callable] = None):
-    """Show the media viewer for a specific file and record."""
+def show_media_viewer(
+    file_path: str,
+    record: Dict[str, str],
+    completion_callback: Optional[Callable] = None,
+    target_bank: Optional[str] = None
+):
+    """
+    Show the media viewer for a specific file and record.
+
+    Args:
+        file_path: Path to media file
+        record: CSV record dictionary
+        completion_callback: Callback function to receive user decision
+        target_bank: If specified, show controls for this bank only (bank-first mode).
+                    If None, show all banks with "kontrolováno" status (legacy mode).
+    """
     root = tk.Tk()
     viewer = MediaViewer(root)
-    viewer.load_media(file_path, record, completion_callback)
-    
+    viewer.load_media(file_path, record, completion_callback, target_bank=target_bank)
+
     # Center window
     root.update_idletasks()
     x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
     y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
     root.geometry(f"+{x}+{y}")
-    
+
     root.mainloop()
 
 

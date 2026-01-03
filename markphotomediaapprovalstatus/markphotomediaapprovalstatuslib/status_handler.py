@@ -178,6 +178,47 @@ def filter_checked_entries(data: List[Dict[str, str]]) -> List[Dict[str, str]]:
     return filter_records_by_status(data, STATUS_CHECKED)
 
 
+def filter_records_by_bank_status(
+    records: List[Dict[str, str]],
+    bank: str,
+    status_value: str
+) -> List[Dict[str, str]]:
+    """
+    Filter records where a specific bank's status column has the given value.
+
+    This enables bank-first iteration by filtering records that need processing
+    for a particular photobank.
+
+    Args:
+        records: List of dictionaries representing CSV rows
+        bank: Bank name (e.g., "ShutterStock", "AdobeStock")
+        status_value: Status to match (e.g., "kontrolováno", "připraveno")
+
+    Returns:
+        List of records where the specified bank's status column equals status_value
+
+    Example:
+        >>> shutterstock_records = filter_records_by_bank_status(
+        ...     all_records, "ShutterStock", "kontrolováno"
+        ... )
+        >>> # Returns only records with "ShutterStock status" = "kontrolováno"
+    """
+    if not records:
+        logging.warning("No records provided to filter by bank status")
+        return []
+
+    status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+    logging.debug(f"Filtering records for bank '{bank}' with status '{status_value}' (column: {status_column})")
+
+    filtered = []
+    for record in records:
+        if status_column in record and record[status_column] == status_value:
+            filtered.append(record)
+
+    logging.info(f"Found {len(filtered)} records for {bank} with status '{status_value}'")
+    return filtered
+
+
 def find_sharpen_for_original(original_filename: str, all_records: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
     """
     Najde _sharpen verzi originálu v seznamu záznamů.
