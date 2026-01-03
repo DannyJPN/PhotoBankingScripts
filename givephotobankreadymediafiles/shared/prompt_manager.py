@@ -43,12 +43,14 @@ class PromptManager:
             logging.error(f"Failed to load prompts config from {self.config_path}: {e}")
             self.config = {}
     
-    def get_title_prompt(self, context: Optional[str] = None) -> str:
+    def get_title_prompt(self, context: Optional[str] = None,
+                        user_description: Optional[str] = None) -> str:
         """
         Generate title prompt with variable substitution.
 
         Args:
             context: Optional existing title to improve
+            user_description: Optional user input (description, commands, or notes)
 
         Returns:
             Generated prompt string
@@ -57,6 +59,13 @@ class PromptManager:
             prompt_config = self.config["metadata_generation"]["title"]
             variables = prompt_config["variables"].copy()
 
+            # Set user input section
+            user_input_section = ""
+            if user_description:
+                user_input_template = prompt_config.get("user_input_template", "")
+                if user_input_template:
+                    user_input_section = user_input_template.format(user_description=user_description)
+
             # Set context section
             context_section = ""
             if context:
@@ -64,6 +73,7 @@ class PromptManager:
                 context_section = context_template.format(context=context)
 
             # Build final prompt
+            variables["user_input_section"] = user_input_section
             variables["context_section"] = context_section
 
             # Support both string and array templates
@@ -75,37 +85,47 @@ class PromptManager:
 
         except Exception as e:
             logging.error(f"Failed to generate title prompt: {e}")
-            return self._get_fallback_title_prompt(context)
+            return self._get_fallback_title_prompt(context, user_description)
     
-    def get_description_prompt(self, title: Optional[str] = None, 
-                             context: Optional[str] = None) -> str:
+    def get_description_prompt(self, title: Optional[str] = None,
+                             context: Optional[str] = None,
+                             user_description: Optional[str] = None) -> str:
         """
         Generate description prompt with variable substitution.
-        
+
         Args:
             title: Optional title for context
             context: Optional existing description to improve
-            
+            user_description: Optional user input (description, commands, or notes)
+
         Returns:
             Generated prompt string
         """
         try:
             prompt_config = self.config["metadata_generation"]["description"]
             variables = prompt_config["variables"].copy()
-            
+
+            # Set user input section
+            user_input_section = ""
+            if user_description:
+                user_input_template = prompt_config.get("user_input_template", "")
+                if user_input_template:
+                    user_input_section = user_input_template.format(user_description=user_description)
+
             # Set title section
             title_section = ""
             if title:
                 title_template = prompt_config["title_template"]
                 title_section = title_template.format(title=title)
-            
+
             # Set context section
             context_section = ""
             if context:
                 context_template = prompt_config["context_template"]
                 context_section = context_template.format(context=context)
-            
+
             # Build final prompt
+            variables["user_input_section"] = user_input_section
             variables["title_section"] = title_section
             variables["context_section"] = context_section
 
@@ -118,7 +138,7 @@ class PromptManager:
 
         except Exception as e:
             logging.error(f"Failed to generate description prompt: {e}")
-            return self._get_fallback_description_prompt(title, context)
+            return self._get_fallback_description_prompt(title, context, user_description)
     
     def get_keywords_prompt(self, title: Optional[str] = None,
                            description: Optional[str] = None, count: int = 30) -> str:
@@ -295,19 +315,25 @@ class PromptManager:
         return limits.get(photobank.lower().replace(' ', ''), 1)
     
     # Fallback methods when config loading fails
-    
-    def _get_fallback_title_prompt(self, context: Optional[str] = None) -> str:
+
+    def _get_fallback_title_prompt(self, context: Optional[str] = None,
+                                   user_description: Optional[str] = None) -> str:
         """Fallback title prompt when config fails - minimal structure only."""
         base = "Create a title for this image.\n\n"
+        if user_description:
+            base += f"User input: {user_description}\n\n"
         if context:
             base += f"Context/existing title to improve: {context}\n\n"
         base += "Return ONLY the title, no other text."
         return base
-    
+
     def _get_fallback_description_prompt(self, title: Optional[str] = None,
-                                       context: Optional[str] = None) -> str:
+                                       context: Optional[str] = None,
+                                       user_description: Optional[str] = None) -> str:
         """Fallback description prompt when config fails - minimal structure only."""
         base = "Create a description for this image.\n\n"
+        if user_description:
+            base += f"User input: {user_description}\n"
         if title:
             base += f"Title: {title}\n"
         if context:
