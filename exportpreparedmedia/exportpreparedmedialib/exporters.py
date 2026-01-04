@@ -8,7 +8,9 @@ from pathlib import Path
 from shared.file_operations import save_csv
 from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
-from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_BATCH_SIZE_LIMITS, FORMAT_SUBDIRS
+
+from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_BATCH_SIZE_LIMITS, PHOTOBANK_EXPORT_FORMATS, FORMAT_SUBDIRS
+
 
 
 def expand_item_with_alternative_formats(item: Dict[str, str], bank: str, include_alternatives: bool = False) -> List[Dict[str, str]]:
@@ -33,7 +35,9 @@ def expand_item_with_alternative_formats(item: Dict[str, str], bank: str, includ
     source_ext = source_path.suffix.lower()
 
     # Get supported formats for this bank
-    supported_formats = PHOTOBANK_SUPPORTED_FORMATS.get(bank, {'.jpg'})
+    # Check export-specific formats first, fall back to general formats
+    supported_formats = PHOTOBANK_EXPORT_FORMATS.get(bank, PHOTOBANK_SUPPORTED_FORMATS.get(bank, {'.jpg'}))
+    logging.debug(f"Using export formats for {bank}: {supported_formats}")
 
     # Add source file only if its format is supported by this bank
     if source_ext in supported_formats:
