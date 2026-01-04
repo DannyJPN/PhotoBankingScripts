@@ -8,7 +8,9 @@ from pathlib import Path
 from shared.file_operations import save_csv
 from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
-from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_EXPORT_FORMATS, FORMAT_SUBDIRS
+
+from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_BATCH_SIZE_LIMITS, PHOTOBANK_EXPORT_FORMATS, FORMAT_SUBDIRS
+
 
 
 def expand_item_with_alternative_formats(item: Dict[str, str], bank: str, include_alternatives: bool = False) -> List[Dict[str, str]]:
@@ -320,37 +322,8 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
         output_file = output_paths[bank]
         logging.debug(f"Processing bank: {bank}, output file: {output_file}")
 
-        # Zápis hlavičky
-        try:
-            bank_format = export_formats.get(bank, {})
-            header = bank_format.get('headers', '')
-            delimiter = bank_format.get('delimiter', ',')
-
-            # Oddělovač by měl být již převeden na skutečný znak v load_photobank_headers
-            if delimiter == '\t':
-                logging.debug(f"Using TAB delimiter for {bank} header")
-            else:
-                logging.debug(f"Using delimiter for {bank} header: '{delimiter}'")
-
-            logging.debug(f"Bank format for {bank}:\n{json.dumps(bank_format, indent=2)}")
-
-            if header:
-                logging.debug(f"Writing header to file: {output_file}")
-                logging.debug(f"Header content: {repr(header)}")
-                with open(output_file, 'w', encoding='utf-8') as f:
-                    f.write(header + '\n')
-                logging.debug(f"Wrote header for {bank}")
-                logging.debug(f"File exists after header write: {os.path.exists(output_file)}")
-                logging.debug(f"File size after header write: {os.path.getsize(output_file)} bytes")
-            else:
-                logging.warning(f"No header defined for {bank}")
-        except Exception as e:
-            logging.error(f"Failed to write header for {bank}: {e}")
-            logging.debug(f"Exception details: {str(e)}", exc_info=True)
-
-        # Export záznamů
-        export_count = 0
-        attempted_count = 0
+        # Check if bank has batch size limit
+        batch_size_limit = PHOTOBANK_BATCH_SIZE_LIMITS.get(bank, 0)
 
         # Filtruj položky podle banky, pokud je zadána filtrovací funkce
         bank_items = items
@@ -358,26 +331,58 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
             bank_items = [item for item in items if filter_func(item, bank)]
             logging.info(f"Filtered {len(bank_items)}/{len(items)} items for {bank} based on status")
 
-        # Pro každou položku vytvoř rozšířený záznam a exportuj ho
+        # Expand to alternative formats and create records
+        all_records = []
         for item in bank_items:
-            # Expand to alternative formats if supported by this bank
             expanded_items = expand_item_with_alternative_formats(item, bank, include_alternative_formats)
-
             for expanded_item in expanded_items:
-                attempted_count += 1
-                # Vytvoření rozšířeného záznamu pro aktuální položku
                 record = extract_media_properties(expanded_item, category_maps, pond_prices)
+                all_records.append(record)
 
-                if export_mediafile(bank, record, output_file, export_formats):
+        logging.info(f"{bank}: {len(all_records)} total records after format expansion")
+
+        # Split into batches if needed
+        if batch_size_limit > 0 and len(all_records) > batch_size_limit:
+            batches = [all_records[i:i + batch_size_limit] for i in range(0, len(all_records), batch_size_limit)]
+            logging.info(f"{bank} has batch size limit of {batch_size_limit}, splitting into {len(batches)} files")
+        else:
+            batches = [all_records]
+
+        # Process each batch
+        for batch_idx, batch_records in enumerate(batches, start=1):
+            # Determine output file path
+            if len(batches) > 1:
+                # Multiple batches: add suffix _1, _2, etc.
+                output_path = Path(output_file)
+                batch_output_file = str(output_path.parent / f"{output_path.stem}_{batch_idx}{output_path.suffix}")
+            else:
+                # Single batch: use original filename
+                batch_output_file = output_file
+
+            logging.info(f"Writing batch {batch_idx}/{len(batches)} to {batch_output_file}")
+
+            # Write header
+            try:
+                bank_format = export_formats.get(bank, {})
+                header = bank_format.get('headers', '')
+                delimiter = bank_format.get('delimiter', ',')
+
+                if header:
+                    with open(batch_output_file, 'w', encoding='utf-8') as f:
+                        f.write(header + '\n')
+                    logging.debug(f"Wrote header for {bank} batch {batch_idx}")
+                else:
+                    logging.warning(f"No header defined for {bank}")
+            except Exception as e:
+                logging.error(f"Failed to write header for {bank} batch {batch_idx}: {e}")
+                continue
+
+            # Export records in this batch
+            export_count = 0
+            for record in batch_records:
+                if export_mediafile(bank, record, batch_output_file, export_formats):
                     export_count += 1
                     if export_count % 10 == 0:
-                        logging.debug(f"Successfully exported {export_count}/{attempted_count} records to {bank} (total items: {len(items)})")
+                        logging.debug(f"Batch {batch_idx}: exported {export_count}/{len(batch_records)} records")
 
-        if attempted_count > 0:
-            logging.info(f"Exported {export_count}/{attempted_count} records to {bank} (success rate: {export_count/attempted_count*100:.1f}%)")
-        else:
-            logging.info(f"No records found for {bank} - skipping export")
-        if os.path.exists(output_file):
-            logging.debug(f"Final file size for {bank}: {os.path.getsize(output_file)} bytes")
-        else:
-            logging.warning(f"Output file for {bank} does not exist after export: {output_file}")
+            logging.info(f"Batch {batch_idx}: exported {export_count}/{len(batch_records)} records to {batch_output_file}")

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pathlib import Path
 from shared.file_operations import ensure_directory, copy_file
 from shared.exif_handler import update_exif_metadata
@@ -10,18 +10,50 @@ from createbatchlib.constants import (
     PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS, ALTERNATIVE_EDIT_TAGS
 )
 
+
+def split_into_batches(records: List[Dict[str, str]], batch_size: int) -> List[List[Dict[str, str]]]:
+    """
+    Split records into batches of specified size.
+
+    Args:
+        records: List of records to split
+        batch_size: Maximum number of records per batch
+
+    Returns:
+        List of batches (each batch is a list of records)
+    """
+    # Handle empty input
+    if not records:
+        logging.warning("split_into_batches called with empty records list")
+        return []
+
+    if batch_size <= 0:
+        logging.warning(f"Invalid batch_size {batch_size}, treating as unlimited")
+        return [records]  # No splitting
+
+    batches = []
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i + batch_size]
+        batches.append(batch)
+
+    logging.info(f"Split {len(records)} records into {len(batches)} batches of max {batch_size} items")
+    return batches
+
+
 def prepare_media_file(
     record: Dict[str, str],
     output_folder: str,
     exif_tool_path: str,
     overwrite: bool = True,
     bank: str = None,
-    include_alternative_formats: bool = False
+    include_alternative_formats: bool = False,
+    batch_number: Optional[int] = None
 ) -> List[str]:
     """
     Copy a media file into output_folder/<photobank>/<format>/ and update its EXIF metadata.
     If 'bank' is specified, only files for that photobank are processed.
     If include_alternative_formats is True, also copy alternative format versions (PNG, TIFF, RAW).
+    If batch_number is specified, files are copied to output_folder/<photobank>/batch_XXX/<format>/.
 
     Returns a list of paths where the file was copied.
     """
@@ -74,8 +106,15 @@ def prepare_media_file(
                 # Create edit subfolder (original or tag)
                 edit_subfolder = edit_tag if edit_tag else 'original'
 
-                # Create destination path: output_folder/BankName/format/edit/filename
-                bank_folder = os.path.join(output_folder, bank_name, format_subdir, edit_subfolder)
+                # Create destination path
+                if batch_number is not None:
+                    # Create batch subfolder: output_folder/BankName/batch_001/format/edit/filename
+                    batch_folder = f"batch_{batch_number:03d}"  # Format: batch_001, batch_002, etc.
+                    bank_folder = os.path.join(output_folder, bank_name, batch_folder, format_subdir, edit_subfolder)
+                else:
+                    # Original path: output_folder/BankName/format/edit/filename
+                    bank_folder = os.path.join(output_folder, bank_name, format_subdir, edit_subfolder)
+
                 ensure_directory(bank_folder)
                 dest = os.path.join(bank_folder, filename)
 

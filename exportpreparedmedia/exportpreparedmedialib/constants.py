@@ -116,3 +116,9 @@ PHOTOBANKS = [
     "Alamy",
     "GettyImages"
 ]
+
+# Batch size limits for photobanks (items per batch)
+# Banks not listed here have no batch size limit
+PHOTOBANK_BATCH_SIZE_LIMITS = {
+    'GettyImages': 128,
+}
