@@ -24,7 +24,11 @@ They are **shared** across all modules; local specifics may be added at script l
 
   * Always under result folder defined in `constants.py` (overridable by CLI arg).
   * Folder structure and filenames must follow fixed convention (`<BankName>Output.csv/json`).
-  * No other names allowed.
+  * **Exception for batch splitting:** Banks with batch size limits create numbered files:
+    - Example: `GettyImagesOutput_1.csv`, `GettyImagesOutput_2.csv`
+    - Each file contains maximum items per bank's batch size limit
+    - Subfolder structure: `GettyImages/batch_001/`, `GettyImages/batch_002/`
+  * No other naming variations allowed.
 
 ---
 

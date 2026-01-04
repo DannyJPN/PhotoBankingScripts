@@ -22,7 +22,13 @@ def split_into_batches(records: List[Dict[str, str]], batch_size: int) -> List[L
     Returns:
         List of batches (each batch is a list of records)
     """
+    # Handle empty input
+    if not records:
+        logging.warning("split_into_batches called with empty records list")
+        return []
+
     if batch_size <= 0:
+        logging.warning(f"Invalid batch_size {batch_size}, treating as unlimited")
         return [records]  # No splitting
 
     batches = []
