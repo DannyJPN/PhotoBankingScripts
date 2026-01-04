@@ -68,6 +68,12 @@ FORMAT_SUBDIRS = {
     **{ext: 'RAW' for ext in RAW_FORMATS}
 }
 
+# Export-specific format restrictions (overrides PHOTOBANK_SUPPORTED_FORMATS for CSV export)
+# Banks not listed here use PHOTOBANK_SUPPORTED_FORMATS
+PHOTOBANK_EXPORT_FORMATS = {
+    'DreamsTime': {'.jpg'},  # DreamsTime accepts JPG, PNG, RAW in portal but only JPG in CSV import
+}
+
 # File numbering system constants
 MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
