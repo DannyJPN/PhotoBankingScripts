@@ -19,6 +19,10 @@ DEFAULT_FINAL_TARGET_FOLDER  = r"J:/"
 # logování
 DEFAULT_LOG_DIR              = r"H:/Logs"
 
+# report output
+DEFAULT_REPORT_DIR           = r"H:/Logs/PullNewMediaToUnsorted"
+DEFAULT_REPORT_FORMAT        = "csv"
+
 # konstanty pro detekci screenshotů
 SCREENSHOT_MARKERS = [
     'Sním',  # Česká část slova "Snímek obrazovky"
