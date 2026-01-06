@@ -28,6 +28,8 @@ from updatemedialdatabaselib.constants import (
     DEFAULT_EDIT_PHOTO_DIR,
     DEFAULT_EDIT_VIDEO_DIR,
     DEFAULT_LOG_DIR,
+    DEFAULT_REPORT_DIR,
+    DEFAULT_REPORT_FORMAT,
     COLUMN_FILENAME
 )
 from updatemedialdatabaselib.exif_downloader import ensure_exiftool
@@ -105,6 +107,12 @@ def parse_arguments():
     # ExifTool path is now managed via constants, no longer a parameter
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument(\"--export-report\", action=\"store_true\",
+                        help=\"Export summary report of processed records\")
+    parser.add_argument(\"--report-dir\", type=str, default=DEFAULT_REPORT_DIR,
+                        help=\"Directory for report output\")
+    parser.add_argument(\"--report-format\", type=str, default=DEFAULT_REPORT_FORMAT,
+                        choices=[\"csv\", \"json\"], help=\"Report format: csv or json\")
     return parser.parse_args()
 
 def main():
@@ -194,6 +202,14 @@ def main():
     print(f"  Videos: {len(videos)}")
     print(f"  Non-JPG images: {len(non_jpg_images)}")
     logging.info(f"Split files: {len(jpg_files)} JPG, {len(videos)} videos, {len(non_jpg_images)} non-JPG images")
+
+    report_stats = {
+        "new_jpg": 0,
+        "new_video": 0,
+        "new_non_jpg": 0,
+        "skipped_non_jpg": 0,
+        "updated": 0
+    }
 
     # Step 3: Process JPG files first
     if jpg_files:
@@ -304,6 +320,7 @@ def main():
         print(f"  Files to process: {len(files_to_process)}")
         print(f"  Files skipped (JPG exists): {skipped_count}")
         logging.info(f"Non-JPG: {len(files_to_process)} to process, {skipped_count} skipped (JPG exists)")
+        report_stats["skipped_non_jpg"] = skipped_count
 
         if files_to_process:
             new_records = []
@@ -338,7 +355,27 @@ def main():
             logging.info("No non-JPG files to process")
     
     print("\n✅ UpdateMediaDatabase completed successfully")
+    if args.export_report:
+        _write_report(report_stats, args.report_dir, args.report_format)
+
     logging.info("UpdateMediaDatabase completed successfully")
+
+def _write_report(stats: Dict[str, int], report_dir: str, report_format: str) -> None:
+    """
+    Write summary report for processed records.
+    """
+    from datetime import datetime
+    from shared.file_operations import save_csv, save_json
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"UpdateMediaDatabaseReport_{timestamp}.{report_format}"
+    report_path = os.path.join(report_dir, filename)
+    records = [{"metric": key, "count": str(value)} for key, value in stats.items()]
+    if report_format == "csv":
+        save_csv(records, report_path, ["metric", "count"])
+    else:
+        save_json({"metrics": records}, report_path)
+    logging.info("Report saved to %s", report_path)
+
 
 if __name__ == "__main__":
     main()
