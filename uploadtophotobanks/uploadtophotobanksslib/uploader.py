@@ -41,7 +41,8 @@ class PhotobankUploader:
         media_folder: str,
         photobanks: List[str],
         export_dir: str,
-        dry_run: bool = False
+        dry_run: bool = False,
+        resume_failed_files: Optional[Dict[str, set[str]]] = None
     ) -> Dict[str, Dict[str, int]]:
         """
         Upload files to specified photobanks.
@@ -74,7 +75,7 @@ class PhotobankUploader:
         for photobank in photobanks:
             logging.info(f"Processing photobank: {photobank}")
             results[photobank] = self._upload_to_photobank(
-                photobank, media_files, export_dir, dry_run
+                photobank, media_files, export_dir, dry_run, resume_failed_files
             )
 
         # Disconnect all connections
@@ -115,7 +116,8 @@ class PhotobankUploader:
         photobank: str,
         media_files: List[str],
         export_dir: str,
-        dry_run: bool
+        dry_run: bool,
+        resume_failed_files: Optional[Dict[str, set[str]]]
     ) -> Dict[str, int]:
         """Upload files to a specific photobank."""
 
@@ -139,6 +141,14 @@ class PhotobankUploader:
         # Filter files supported by this photobank
         uploadable_files = self._filter_files_for_photobank(media_files, photobank)
         logging.info(f"Found {len(uploadable_files)} files compatible with {photobank}")
+
+        if resume_failed_files and photobank in resume_failed_files:
+            failed_set = resume_failed_files.get(photobank, set())
+            uploadable_files = [
+                path for path in uploadable_files
+                if os.path.basename(path) in failed_set
+            ]
+            logging.info("Resume mode: %d files selected for %s", len(uploadable_files), photobank)
 
         if not uploadable_files:
             return {"skipped": 0}
