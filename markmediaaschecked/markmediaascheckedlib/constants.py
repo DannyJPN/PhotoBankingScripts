@@ -11,6 +11,7 @@ STATUS_CHECKED = "kontrolováno"
 
 # Default log directory
 DEFAULT_LOG_DIR = "H:/Logs"
+DEFAULT_REPORT_DIR = "H:/Logs/MarkMediaAsChecked"
 
 # Column names
 COL_FILE = "Soubor"
