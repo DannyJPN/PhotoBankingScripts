@@ -15,6 +15,10 @@ The createbatch script processes media records from PhotoMedia.csv and creates b
 
 ## Recent Changes
 
+### 2026-01-06 - Preview Mode
+
+- Added `--preview` to simulate batch creation without copying files.
+
 ### Version 2.0 - Performance Optimization (2025-11-29)
 
 **Major Performance Improvement:**
