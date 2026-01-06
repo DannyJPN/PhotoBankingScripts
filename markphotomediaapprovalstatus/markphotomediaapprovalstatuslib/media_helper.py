@@ -51,7 +51,12 @@ def is_media_file(file_path: str) -> bool:
     return ext in media_extensions
 
 
-def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dict[str, str]], csv_path: str) -> bool:
+def process_approval_records(
+    data: List[Dict[str, str]],
+    filtered_data: List[Dict[str, str]],
+    csv_path: str,
+    batch_action: str = ""
+) -> bool:
     """
     Process approval records bank-by-bank, file-by-file using MediaViewer GUI.
 
@@ -108,6 +113,12 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
                 logging.warning(f"File not found: {file_path}, skipping {file_name}")
                 continue
 
+            if batch_action:
+                decision = _map_batch_action(batch_action)
+                _apply_decision(record, data, bank, decision, file_name, csv_path)
+                changes_made = True
+                continue
+
             # Show viewer for THIS BANK ONLY
             decision = None
 
@@ -120,27 +131,9 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
                 from markphotomediaapprovalstatuslib.media_viewer import show_media_viewer
                 show_media_viewer(file_path, record, completion_callback, target_bank=bank)
 
-                # Apply decision for THIS bank
                 if decision:
-                    status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
-                    if status_column in record:
-                        old_value = record[status_column]
-                        record[status_column] = decision
-                        changes_made = True
-
-                        # Log the change
-                        logging.info(f"APPROVAL_CHANGE: {file_name} : {bank} : {old_value} -> {decision}")
-
-                        # Update _sharpen status if needed
-                        sharpen_changed = update_sharpen_status(record, data, bank, decision)
-
-                        # Save immediately after each file
-                        try:
-                            save_csv_with_backup(data, csv_path)
-                            logging.info(f"Saved changes after processing {file_name} for {bank}")
-                        except Exception as e:
-                            logging.error(f"Failed to save changes after processing {file_name}: {e}")
-                            # Continue processing even if save fails
+                    _apply_decision(record, data, bank, decision, file_name, csv_path)
+                    changes_made = True
 
             except Exception as e:
                 logging.error(f"Error processing {file_name} for {bank}: {e}")
@@ -150,3 +143,38 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
 
     logging.info(f"=== Completed all {total_banks} banks, changes made: {changes_made} ===")
     return changes_made
+
+
+def _map_batch_action(batch_action: str) -> str:
+    """
+    Map batch action to status value.
+    """
+    if batch_action == "approve":
+        return STATUS_APPROVED
+    if batch_action == "reject":
+        return STATUS_REJECTED
+    return STATUS_MAYBE
+
+
+def _apply_decision(
+    record: Dict[str, str],
+    all_records: List[Dict[str, str]],
+    bank: str,
+    decision: str,
+    file_name: str,
+    csv_path: str
+) -> None:
+    """
+    Apply approval decision and save changes.
+    """
+    status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+    if status_column in record:
+        old_value = record[status_column]
+        record[status_column] = decision
+        logging.info(f"APPROVAL_CHANGE: {file_name} : {bank} : {old_value} -> {decision}")
+        update_sharpen_status(record, all_records, bank, decision)
+        try:
+            save_csv_with_backup(all_records, csv_path)
+            logging.info(f"Saved changes after processing {file_name} for {bank}")
+        except Exception as e:
+            logging.error(f"Failed to save changes after processing {file_name}: {e}")
