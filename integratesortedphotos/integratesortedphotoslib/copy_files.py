@@ -3,7 +3,7 @@ import logging
 from tqdm import tqdm
 from shared.file_operations import copy_file
 
-def copy_files_with_preserved_dates(src_folder, dest_folder):
+def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, conflict_strategy: str = "skip") -> None:
     """
     Copies files from src_folder to dest_folder while preserving the original creation dates.
     """
@@ -28,13 +28,34 @@ def copy_files_with_preserved_dates(src_folder, dest_folder):
         # Copy files with progress bar
         with tqdm(total=len(all_files), desc="Copying files", unit="file") as pbar:
             for src_file, dest_file in all_files:
-                if not os.path.exists(dest_file):  # Check if the file already exists
+                if os.path.exists(dest_file):
+                    if conflict_strategy == "overwrite":
+                        copy_file(src_file, dest_file, overwrite=True)
+                        logging.debug(f"Overwrote {dest_file} with {src_file}")
+                    elif conflict_strategy == "rename":
+                        resolved_path = _resolve_conflict_path(dest_file)
+                        copy_file(src_file, resolved_path, overwrite=False)
+                        logging.debug(f"Copied {src_file} to {resolved_path}")
+                    else:
+                        logging.debug(f"Skipped {src_file} as it already exists at {dest_file}")
+                else:
                     copy_file(src_file, dest_file, overwrite=True)
                     logging.debug(f"Copied {src_file} to {dest_file}")
-                else:
-                    logging.debug(f"Skipped {src_file} as it already exists at {dest_file}")
                 pbar.update(1)
 
     except Exception as e:
         logging.error(f"An error occurred while copying files: {e}", exc_info=True)
         raise
+
+
+def _resolve_conflict_path(dest_file: str) -> str:
+    """
+    Resolve a conflict by appending a numeric suffix.
+    """
+    base, ext = os.path.splitext(dest_file)
+    counter = 1
+    while True:
+        candidate = f"{base}_{counter:03d}{ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        counter += 1
