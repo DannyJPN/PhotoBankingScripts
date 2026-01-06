@@ -112,6 +112,34 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+
+
+def move_folder_contents(src: str, dest: str, overwrite: bool = False, pattern: str = "") -> None:
+    """
+    Moves files from src to dest folder (recursively) without deleting src root.
+    Only moves files matching the regex `pattern`. If pattern is empty, all files are moved.
+    Shows a progress bar for each file.
+    """
+    logging.debug("Moving folder contents from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
+    try:
+        files = list_files(src, recursive=True)
+        if pattern:
+            regex = re.compile(pattern, re.IGNORECASE)
+            files = [f for f in files if regex.search(os.path.basename(f))]
+
+        if not files:
+            logging.info("No files to move from %s to %s", src, dest)
+            return
+
+        for file_path in tqdm(files, desc="Moving folder contents", unit="file"):
+            rel_path = os.path.relpath(file_path, src)
+            dest_path = os.path.join(dest, rel_path)
+            move_file(file_path, dest_path, overwrite=overwrite)
+
+        logging.info("Moved folder contents from %s to %s", src, dest)
+    except Exception as e:
+        logging.error("Failed to move folder contents from %s to %s: %s", src, dest, e)
+        raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
     Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
