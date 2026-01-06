@@ -1,16 +1,19 @@
 import os
 import argparse
 import logging
+from datetime import datetime
 from tqdm import tqdm
 
 from shared.utils import get_log_filename
-from shared.file_operations import list_files, ensure_directory, unify_duplicate_files
+from shared.file_operations import list_files, ensure_directory, unify_duplicate_files, save_csv, save_json
 from shared.logging_config import setup_logging
 
 from removealreadysortedoutlib.constants import (
     DEFAULT_UNSORTED_FOLDER,
     DEFAULT_TARGET_FOLDER,
     DEFAULT_LOG_DIR,
+    DEFAULT_REPORT_DIR,
+    DEFAULT_REPORT_FORMAT,
     PREFIXES_TO_NORMALIZE,
 )
 
@@ -18,7 +21,8 @@ from removealreadysortedoutlib.removal_operations import (
     get_target_files_map,
     find_duplicates,
     handle_duplicate,
-    remove_desktop_ini
+    remove_desktop_ini,
+    should_replace_file
 )
 
 from removealreadysortedoutlib.renaming import (
@@ -46,6 +50,12 @@ def parse_arguments():
                         help="Width of numeric suffix")
     parser.add_argument("--index_max", type=int, default=9999, 
                         help="Max index number to scan")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Preview duplicate removals without changes")
+    parser.add_argument("--report-dir", type=str, default=DEFAULT_REPORT_DIR,
+                        help="Directory for dry-run report")
+    parser.add_argument("--report-format", type=str, default=DEFAULT_REPORT_FORMAT,
+                        choices=["csv", "json"], help="Report format: csv or json")
     return parser.parse_args()
 
 def main():
@@ -101,6 +111,12 @@ def main():
     duplicates = find_duplicates(unsorted_files, target_files_map)
     logging.info(f"Found {len(duplicates)} files that exist in both folders")
     
+    if args.dry_run:
+        report_records = _build_dry_run_report(duplicates, args.overwrite)
+        _write_dry_run_report(report_records, args.report_dir, args.report_format)
+        logging.info("Dry-run completed, no files were modified")
+        return
+
     # Process duplicates
     logging.info("Processing duplicates...")
     with tqdm(total=len(duplicates), desc="Removing duplicates", unit="files") as pbar:
@@ -109,6 +125,48 @@ def main():
             pbar.update(1)
     
     logging.info("RemoveAlreadySortedOut process completed successfully")
+
+def _build_dry_run_report(duplicates: dict[str, list[str]], overwrite: bool) -> list[dict[str, str]]:
+    """
+    Build a dry-run report for duplicates.
+    """
+    records: list[dict[str, str]] = []
+    for source_path, target_paths in duplicates.items():
+        action = _determine_action(source_path, target_paths, overwrite)
+        records.append({
+            "source_path": source_path,
+            "target_paths": "|".join(target_paths),
+            "action": action
+        })
+    return records
+
+
+def _determine_action(source_path: str, target_paths: list[str], overwrite: bool) -> str:
+    """
+    Determine action that would be taken for a duplicate.
+    """
+    for target_path in target_paths:
+        if not os.path.exists(target_path):
+            continue
+        if should_replace_file(source_path, target_path):
+            return "replace" if overwrite else "skip_replace"
+        return "remove_source"
+    return "skip_missing_target"
+
+
+def _write_dry_run_report(records: list[dict[str, str]], report_dir: str, report_format: str) -> None:
+    """
+    Write dry-run report to CSV or JSON.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"RemoveAlreadySortedOutDryRun_{timestamp}.{report_format}"
+    report_path = os.path.join(report_dir, filename)
+    if report_format == "csv":
+        save_csv(records, report_path, ["source_path", "target_paths", "action"])
+    else:
+        save_json({"records": records}, report_path)
+    logging.info("Dry-run report saved to %s", report_path)
+
 
 if __name__ == "__main__":
     main()
