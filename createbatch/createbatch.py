@@ -59,6 +59,12 @@ def parse_arguments():
         action='store_true',
         help="Include alternative formats (PNG, TIFF, RAW) in batch creation (default: only JPG)"
     )
+    parser.add_argument(
+        "--banks",
+        type=str,
+        default="",
+        help="Comma-separated list of photobanks to include (default: all prepared banks)"
+    )
     return parser.parse_args()
 
 
@@ -94,6 +100,21 @@ def main():
     # Calculate records per bank and get sorted bank list
     records_per_bank = {bank: len(records) for bank, records in bank_records_map.items()}
     banks = sorted(bank_records_map.keys())
+
+    if args.banks:
+        selected_banks = _parse_banks(args.banks)
+        if selected_banks:
+            bank_lookup = {bank.lower(): bank for bank in banks}
+            filtered_banks = []
+            for bank in selected_banks:
+                if bank.lower() in bank_lookup:
+                    filtered_banks.append(bank_lookup[bank.lower()])
+                else:
+                    logging.warning("Requested bank not found in prepared records: %s", bank)
+
+            banks = filtered_banks
+            bank_records_map = {bank: bank_records_map[bank] for bank in banks}
+            records_per_bank = {bank: len(records) for bank, records in bank_records_map.items()}
 
     if not banks:
         logging.warning("No banks found in prepared records. Exiting.")
@@ -177,6 +198,13 @@ def main():
         logging.info("=" * 60)
 
     logging.info("CreateBatch process completed")
+
+def _parse_banks(banks_value: str) -> List[str]:
+    """
+    Parse a comma-separated bank list.
+    """
+    return [item.strip() for item in banks_value.split(",") if item.strip()]
+
 
 if __name__ == "__main__":
     main()
