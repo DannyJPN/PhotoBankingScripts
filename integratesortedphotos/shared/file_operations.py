@@ -1,6 +1,8 @@
 import os
 import logging
 import shutil
+import csv
+import json
 
 
 def ensure_directory(directory: str) -> None:
@@ -37,8 +39,29 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
             ensure_directory(dest_dir)
         
         # Copy file with metadata preservation
-        shutil.copy2(src, dest)
-        logging.debug("Copied file from %s to %s", src, dest)
+    shutil.copy2(src, dest)
+    logging.debug("Copied file from %s to %s", src, dest)
+
+
+def save_csv(records: list[dict[str, str]], path: str, fieldnames: list[str]) -> None:
+    """
+    Save records to a CSV file.
+    """
+    ensure_directory(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8-sig", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=",", quotechar="\"")
+        writer.writeheader()
+        for row in records:
+            writer.writerow(row)
+
+
+def save_json(data: object, path: str) -> None:
+    """
+    Save data to a JSON file.
+    """
+    ensure_directory(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8") as json_file:
+        json.dump(data, json_file, indent=2, ensure_ascii=True)
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
