@@ -310,3 +310,25 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
     except Exception as e:
         logging.error("Failed to save CSV file %s: %s", path, e)
         raise
+
+
+def save_csv(records: List[Dict[str, str]], path: str) -> None:
+    """
+    Save records to a CSV file.
+    """
+    logging.debug("Saving CSV file to %s", path)
+    try:
+        if not records:
+            logging.warning("No records to save to CSV file %s", path)
+            return
+
+        fieldnames = list(records[0].keys())
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='"')
+            writer.writeheader()
+            writer.writerows(records)
+
+        logging.info("Saved %d records to CSV %s", len(records), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise
