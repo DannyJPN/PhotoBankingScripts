@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """
 MarkMediaAsChecked - Script to mark media as checked in CSV files.
 
@@ -53,7 +53,7 @@ def parse_arguments():
     parser.add_argument(
         "--include-edited",
         action="store_true",
-        help="Include edited photos from 'upravené' folders (default: only original photos)"
+        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
     )
     return parser.parse_args()
 
@@ -84,6 +84,8 @@ def main():
 
     # 3. Find status columns
     status_columns = extract_status_columns(all_records)
+    if args.banks:
+        status_columns = _filter_status_columns(status_columns, _parse_banks(args.banks))
     if not status_columns:
         logging.error("No status columns found in the CSV file")
         return
@@ -111,5 +113,35 @@ def main():
     logging.info("MarkMediaAsChecked process completed successfully")
 
 
+def _parse_banks(banks_value: str) -> list[str]:
+    """
+    Parse a comma-separated bank list.
+    """
+    return [item.strip() for item in banks_value.split(",") if item.strip()]
+
+
+def _filter_status_columns(status_columns: list[str], banks: list[str]) -> list[str]:
+    """
+    Filter status columns to selected banks.
+    """
+    if not banks:
+        return status_columns
+
+    filtered: list[str] = []
+    lower_columns = {col.lower(): col for col in status_columns}
+
+    for bank in banks:
+        matched = False
+        for col_lower, col in lower_columns.items():
+            if col_lower.startswith(bank.lower()):
+                filtered.append(col)
+                matched = True
+        if not matched:
+            logging.warning("No status column found for bank: %s", bank)
+
+    return filtered
+
+
 if __name__ == "__main__":
     main()
+
