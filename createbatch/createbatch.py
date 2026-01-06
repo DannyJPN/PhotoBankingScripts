@@ -13,11 +13,13 @@ from createbatchlib.constants import (
     DEFAULT_LOG_DIR,
     STATUS_FIELD_KEYWORD,
     PREPARED_STATUS_VALUE,
+    PREPARED_DATE_COLUMN,
     PHOTOBANK_BATCH_SIZE_LIMITS
 )
 from createbatchlib.optimization import RecordProcessor
 from createbatchlib.media_preparation import prepare_media_file, split_into_batches
 from createbatchlib.progress_tracker import UnifiedProgressTracker
+from createbatchlib.date_filter import parse_prepared_date, filter_records_by_prepared_date
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
@@ -59,6 +61,18 @@ def parse_arguments():
         action='store_true',
         help="Include alternative formats (PNG, TIFF, RAW) in batch creation (default: only JPG)"
     )
+    parser.add_argument(
+        "--prepared-after",
+        type=str,
+        default="",
+        help="Include records prepared on/after this date"
+    )
+    parser.add_argument(
+        "--prepared-before",
+        type=str,
+        default="",
+        help="Include records prepared on/before this date"
+    )
     return parser.parse_args()
 
 
@@ -77,6 +91,7 @@ def main():
 
     # Load CSV and process with optimized single-pass algorithm
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
+    records = _apply_prepared_date_filter(records, args.prepared_after, args.prepared_before)
 
     # Initialize optimized record processor
     processor = RecordProcessor(STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE)
@@ -177,6 +192,25 @@ def main():
         logging.info("=" * 60)
 
     logging.info("CreateBatch process completed")
+
+def _apply_prepared_date_filter(
+    records: List[Dict[str, str]],
+    prepared_after: str,
+    prepared_before: str
+) -> List[Dict[str, str]]:
+    """
+    Apply prepared date range filter to records.
+    """
+    after_date = parse_prepared_date(prepared_after)
+    before_date = parse_prepared_date(prepared_before)
+
+    if prepared_after and after_date is None:
+        logging.warning("Invalid prepared-after value: %s", prepared_after)
+    if prepared_before and before_date is None:
+        logging.warning("Invalid prepared-before value: %s", prepared_before)
+
+    return filter_records_by_prepared_date(records, PREPARED_DATE_COLUMN, after_date, before_date)
+
 
 if __name__ == "__main__":
     main()
