@@ -10,11 +10,19 @@ import argparse
 import logging
 
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory
+from shared.file_operations import ensure_directory, save_csv, save_json
 from shared.logging_config import setup_logging
 
-from sortunsortedmedialib.constants import DEFAULT_UNSORTED_FOLDER, DEFAULT_TARGET_FOLDER, DEFAULT_INTERVAL, DEFAULT_MAX_PARALLEL
+from sortunsortedmedialib.constants import (
+    DEFAULT_UNSORTED_FOLDER,
+    DEFAULT_TARGET_FOLDER,
+    DEFAULT_INTERVAL,
+    DEFAULT_MAX_PARALLEL,
+    DEFAULT_REPORT_DIR,
+    DEFAULT_REPORT_FORMAT,
+)
 from sortunsortedmedialib.media_helper import find_unmatched_media, process_unmatched_files
+from sortunsortedmedialib.reporting import build_summary_records, build_report_filename
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -31,6 +39,12 @@ def parse_arguments():
                         help=f"Maximum number of parallel processes (default: {DEFAULT_MAX_PARALLEL})")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--export-summary", action="store_true",
+                        help="Export summary report (CSV/JSON)")
+    parser.add_argument("--report-dir", type=str, default=DEFAULT_REPORT_DIR,
+                        help="Directory for summary reports")
+    parser.add_argument("--report-format", type=str, default=DEFAULT_REPORT_FORMAT,
+                        choices=["csv", "json"], help="Report format: csv or json")
     return parser.parse_args()
 
 
@@ -58,9 +72,13 @@ def main():
     if total_files == 0:
         print("No unmatched media files found.")
         logging.info("No unmatched media files found")
+        if args.export_summary:
+            write_summary_report(unmatched_categories, args.report_dir, args.report_format)
         return
 
     print(f"\n=== Found {total_files} unmatched media files ===")
+    if args.export_summary:
+        write_summary_report(unmatched_categories, args.report_dir, args.report_format)
     
     for category in category_order:
         files = unmatched_categories[category]
@@ -76,6 +94,24 @@ def main():
 
     logging.info("Unsorted media processing completed")
     print("\nAll media processing completed!")
+
+
+def write_summary_report(
+    unmatched_categories: dict[str, list[str]],
+    report_dir: str,
+    report_format: str
+) -> None:
+    """
+    Write summary report for unmatched files.
+    """
+    summary_records = build_summary_records(unmatched_categories)
+    summary_name = build_report_filename("SortUnsortedMediaSummary", report_format)
+    summary_path = os.path.join(report_dir, summary_name)
+    if report_format == "csv":
+        save_csv(summary_records, summary_path, ["category", "count"])
+    else:
+        save_json({"summary": summary_records}, summary_path)
+    logging.info("Summary report saved to %s", summary_path)
 
 if __name__ == "__main__":
     main()

@@ -10,6 +10,10 @@ DEFAULT_INTERVAL = 60  # seconds
 DEFAULT_MAX_PARALLEL = 60
 # Maximum number of parallel processes
 
+# Report output directory
+DEFAULT_REPORT_DIR = "H:/Logs/SortUnsortedMedia"
+DEFAULT_REPORT_FORMAT = "csv"
+
 # Terminal pause duration after processing a single file (in seconds)
 TERMINAL_PAUSE_DURATION = 300  # 5 minutes = 300 seconds
 
