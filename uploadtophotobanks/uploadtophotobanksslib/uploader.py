@@ -168,6 +168,7 @@ class PhotobankUploader:
             return {"error": len(uploadable_files)}
 
         stats = {"success": 0, "failure": 0, "skipped": 0}
+        file_results: List[Dict[str, str]] = []
 
         if dry_run:
             logging.info("DRY RUN MODE - No files will be uploaded")
@@ -190,11 +191,23 @@ class PhotobankUploader:
             if not self.file_validator.validate_file_for_photobank(file_path, photobank):
                 logging.error(f"File validation failed for {filename}")
                 stats["failure"] += 1
+                file_results.append({
+                    "photobank": photobank,
+                    "filename": filename,
+                    "status": "failure",
+                    "message": "validation_failed"
+                })
                 continue
 
             if dry_run:
                 logging.info(f"[DRY RUN] Would upload: {filename}")
                 stats["success"] += 1
+                file_results.append({
+                    "photobank": photobank,
+                    "filename": filename,
+                    "status": "success",
+                    "message": "dry_run"
+                })
                 continue
 
             # Upload file
@@ -203,10 +216,23 @@ class PhotobankUploader:
             if success:
                 stats["success"] += 1
                 logging.info(f"Successfully uploaded {filename} to {photobank}")
+                file_results.append({
+                    "photobank": photobank,
+                    "filename": filename,
+                    "status": "success",
+                    "message": ""
+                })
             else:
                 stats["failure"] += 1
                 logging.error(f"Failed to upload {filename} to {photobank}")
+                file_results.append({
+                    "photobank": photobank,
+                    "filename": filename,
+                    "status": "failure",
+                    "message": "upload_failed"
+                })
 
+        stats["files"] = file_results
         logging.info(f"Upload to {photobank} completed: {stats}")
         return stats
 
