@@ -59,6 +59,11 @@ def parse_arguments():
         action='store_true',
         help="Include alternative formats (PNG, TIFF, RAW) in batch creation (default: only JPG)"
     )
+    parser.add_argument(
+        "--preview",
+        action='store_true',
+        help="Preview batch creation without copying files"
+    )
     return parser.parse_args()
 
 
@@ -131,17 +136,22 @@ def main():
 
                 for rec in batch_records:
                     try:
-                        paths = prepare_media_file(
-                            rec,
-                            args.output_folder,
-                            exif_tool_path,
-                            overwrite=args.overwrite,
-                            bank=bank,
-                            include_alternative_formats=args.include_alternative_formats,
-                            batch_number=batch_num
-                        )
-                        processed.extend(paths)
-                        progress_tracker.update_progress(1)  # Track by record, not files
+                        if args.preview:
+                            processed.append(rec.get('Cesta', ''))
+                            progress_tracker.update_progress(1)
+                            logging.info("Preview: would prepare %s for %s", rec.get('Cesta', ''), bank)
+                        else:
+                            paths = prepare_media_file(
+                                rec,
+                                args.output_folder,
+                                exif_tool_path,
+                                overwrite=args.overwrite,
+                                bank=bank,
+                                include_alternative_formats=args.include_alternative_formats,
+                                batch_number=batch_num
+                            )
+                            processed.extend(paths)
+                            progress_tracker.update_progress(1)  # Track by record, not files
 
                     except Exception as e:
                         logging.error(
@@ -168,6 +178,8 @@ def main():
     if all_processed or error_count > 0:
         logging.info("=" * 60)
         logging.info("Processing summary:")
+        if args.preview:
+            logging.info("  Preview mode: no files were copied")
         logging.info(f"  Total files processed successfully: {len(all_processed)}")
         logging.info(f"  Total errors: {error_count}")
         logging.info(f"  Banks processed: {len(banks)}")
