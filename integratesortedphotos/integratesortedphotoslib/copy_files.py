@@ -3,7 +3,7 @@ import logging
 from tqdm import tqdm
 from shared.file_operations import copy_file
 
-def copy_files_with_preserved_dates(src_folder, dest_folder):
+def copy_files_with_preserved_dates(src_folder: str, dest_folder: str, dry_run: bool = False) -> None:
     """
     Copies files from src_folder to dest_folder while preserving the original creation dates.
     """
@@ -28,11 +28,14 @@ def copy_files_with_preserved_dates(src_folder, dest_folder):
         # Copy files with progress bar
         with tqdm(total=len(all_files), desc="Copying files", unit="file") as pbar:
             for src_file, dest_file in all_files:
-                if not os.path.exists(dest_file):  # Check if the file already exists
-                    copy_file(src_file, dest_file, overwrite=True)
-                    logging.debug(f"Copied {src_file} to {dest_file}")
-                else:
+                if os.path.exists(dest_file):
                     logging.debug(f"Skipped {src_file} as it already exists at {dest_file}")
+                else:
+                    if dry_run:
+                        logging.debug(f"Dry-run: would copy {src_file} to {dest_file}")
+                    else:
+                        copy_file(src_file, dest_file, overwrite=True)
+                        logging.debug(f"Copied {src_file} to {dest_file}")
                 pbar.update(1)
 
     except Exception as e:
