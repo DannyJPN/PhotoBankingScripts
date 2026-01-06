@@ -128,7 +128,7 @@
       }
     },
     "categories": {
-      "template": "Select UP TO {max_categories} most appropriate categor{category_word} for this image from the {photobank} categories below (Attempt to reach the max though,but not at any cost).\n\nRequirements:\n- You may select 1-{max_categories} categories (you don't have to select the maximum)\n- Choose categories that best match the image content and theme\n- If only one category is truly appropriate, select only that one\n- Draw inspiration from existing successful stock photos or photos by user DannyJPN that have similar titles and descriptions\n\nAvailable categories:\n{categories_list}\n\n{title_section}{description_section}Return ONLY the selected category name{category_plural} separated by commas (1-{max_categories} categories), no other text.",
+      "template": "Select UP TO {max_categories} most appropriate categor{category_word} for this image from the {photobank} categories below.\n\nRequirements:\n- You may select 1-{max_categories} categories\n- Choose categories that best match the image content and theme\n- Select the maximum only when multiple options are clearly relevant\n- Never choose unrelated categories just to reach the maximum\n- If only one category is truly appropriate, select only that one\n\nAvailable categories:\n{categories_list}\n\n{title_section}{description_section}Return ONLY the selected category name{category_plural} separated by commas (1-{max_categories} categories), no other text.",
       "title_template": "Title: {title}\n",
       "description_template": "Description: {description}\n",
       "variables": {
