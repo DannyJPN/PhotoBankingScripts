@@ -4,7 +4,7 @@ import logging
 import re
 
 from shared.utils            import get_log_filename
-from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder
+from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder, move_folder_contents
 from shared.logging_config  import setup_logging
 
 from pullnewmediatounsortedlib.constants import (
@@ -50,6 +50,7 @@ def parse_arguments():
     parser.add_argument("--index_prefix",    type=str, default="PICT", help="Prefix for indexed filenames")
     parser.add_argument("--index_width",     type=int, default=4, help="Width of numeric suffix")
     parser.add_argument("--index_max",       type=int, default=9999, help="Max index number to scan")
+    parser.add_argument("--move",            action="store_true", help="Move files instead of copy")
     return parser.parse_args()
 
 
@@ -103,14 +104,20 @@ def main():
                 max_number=args.index_max,
             )
 
-    # 4) Copy media files to target
+    # 4) Copy or move media files to target
     for folder in sources:
-        copy_folder(folder, args.target)
+        if args.move:
+            move_folder_contents(folder, args.target)
+        else:
+            copy_folder(folder, args.target)
 
-    # 5) Copy screenshot files to target_screen
+    # 5) Copy or move screenshot files to target_screen
     pattern = rf"(?:{'|'.join(re.escape(m) for m in SCREENSHOT_MARKERS)})"
     for folder in sources + screen_sources:
-        copy_folder(folder, args.target_screen, pattern=pattern)
+        if args.move:
+            move_folder_contents(folder, args.target_screen, pattern=pattern)
+        else:
+            copy_folder(folder, args.target_screen, pattern=pattern)
 
     # 6) Flatten target folder structure (move all files to root level)
     logging.info("Flattening target folder structure")
