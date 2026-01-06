@@ -68,15 +68,16 @@ def should_replace_file(source_path: str, target_path: str) -> bool:
             return True
         return False
 
-def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool, log_file: str) -> None:
+def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool, log_file: str) -> list[str]:
     """
-    Projde všechny kolidující soubory a rozhodne o přepisu nebo odstranění.
+    Projde vsechny kolidujici soubory a rozhodne o prepisu nebo odstraneni.
     """
+    removed_paths: list[str] = []
     for target_path in target_paths:
         if not os.path.exists(target_path):
             logging.debug(f"Target file no longer exists: {target_path}")
             continue
-            
+
         if should_replace_file(source_path, target_path):
             if overwrite:
                 try:
@@ -87,20 +88,23 @@ def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool,
             else:
                 logging.info(f"Skipping replacement of {target_path} (overwrite disabled)")
         else:
-            # Files have the same size, remove source file
-            remove_if_identical(source_path, target_path, log_file)
-            # Once we've handled one target file, we can stop
+            if remove_if_identical(source_path, target_path, log_file):
+                removed_paths.append(source_path)
             break
 
-def remove_if_identical(source_path: str, target_path: str, log_file: str) -> None:
+    return removed_paths
+
+def remove_if_identical(source_path: str, target_path: str, log_file: str) -> bool:
     """
-    Pokud má cílový a zdrojový soubor stejnou velikost, odstraní zdrojový a zaloguje.
+    Pokud cilovy a zdrojovy soubor odpovidaji, odstrani zdrojovy a zaloguje.
     """
     try:
         os.remove(source_path)
         logging.debug(f"Removed duplicate file: {source_path} (identical to {target_path})")
+        return True
     except Exception as e:
         logging.error(f"Failed to remove file {source_path}: {e}")
+        return False
 
 def remove_desktop_ini(folder: str) -> None:
     """
