@@ -157,9 +157,13 @@ class BatchDescriptionDialog:
         editorial_data = None
         if self.editorial_var.get():
             extracted, missing = extract_editorial_metadata_from_exif(self.file_path)
-            editorial_data = get_editorial_metadata(self.parent, missing, extracted)
-            if editorial_data is None:
-                return
+            if any(missing.values()):
+                editorial_data = get_editorial_metadata(self.parent, missing, extracted)
+                if editorial_data is None:
+                    return
+                editorial_data = {**extracted, **editorial_data}
+            else:
+                editorial_data = extracted
 
         self.result = {
             "action": "save",
