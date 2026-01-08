@@ -276,6 +276,20 @@ def main():
                 original_keywords_list = keywords
                 is_editorial = saved_metadata.get('editorial', False)
 
+                # Extract full editorial_data from description if present
+                editorial_data = None
+                if is_editorial and original_description:
+                    import re
+                    # Pattern: "CITY, COUNTRY - DD MM YYYY: "
+                    match = re.match(r'^([A-Z\s]+),\s*([A-Z\s]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*', original_description)
+                    if match:
+                        editorial_data = {
+                            'city': match.group(1).strip(),
+                            'country': match.group(2).strip(),
+                            'date': match.group(3).strip()
+                        }
+                        logging.debug(f"Extracted editorial data from description: {editorial_data}")
+
                 # Generate metadata ONCE per edit tag (not per file)
                 edit_metadata = {}  # Store metadata for each edit tag
 
@@ -310,7 +324,7 @@ def main():
 
                                 alt_description = ai_generator.generate_description_for_alternative(
                                     args.file, edit_tag, original_title, original_description,
-                                    editorial_data={'is_editorial': is_editorial} if is_editorial else None
+                                    editorial_data=editorial_data  # Pass full editorial_data with city, country, date
                                 )
                                 logging.debug(f"Generated description for {edit_tag}: {alt_description[:50]}...")
 

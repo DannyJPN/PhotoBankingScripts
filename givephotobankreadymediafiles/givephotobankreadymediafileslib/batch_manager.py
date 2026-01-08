@@ -497,7 +497,8 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
 
 
 def _generate_alternatives_for_file(registry: BatchRegistry, media_csv: str,
-                                    original_path: str, original_metadata: Dict[str, object]) -> None:
+                                    original_path: str, original_metadata: Dict[str, object],
+                                    editorial_data: Optional[Dict[str, str]] = None) -> None:
     normalized = _normalize_path(original_path)
     if registry.data.get("alternatives_generated", {}).get(normalized):
         return
@@ -565,7 +566,7 @@ def _generate_alternatives_for_file(registry: BatchRegistry, media_csv: str,
                 custom_id,
                 user_description="",
                 editorial=editorial_flag,
-                editorial_data=None,
+                editorial_data=editorial_data,  # Pass editorial_data from original
                 entry_type="alternative",
                 extra={
                     "edit_tag": edit_tag,
@@ -601,7 +602,8 @@ def _queue_alternatives_from_batch(batch_state: BatchState, registry: BatchRegis
         if not original_path:
             continue
         original_metadata = item.get("result") or {}
-        _generate_alternatives_for_file(registry, media_csv, original_path, original_metadata)
+        editorial_data = item.get("editorial_data")  # Extract editorial_data from batch entry
+        _generate_alternatives_for_file(registry, media_csv, original_path, original_metadata, editorial_data)
 
 
 def _finalize_alternative_batches(registry: BatchRegistry) -> None:
