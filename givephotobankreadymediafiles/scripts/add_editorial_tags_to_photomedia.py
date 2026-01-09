@@ -13,7 +13,6 @@ Usage:
 import sys
 import argparse
 import re
-import csv
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
 from datetime import datetime
@@ -43,6 +42,7 @@ from givephotobankreadymediafileslib.constants import (
     COL_DESCRIPTION,
     COL_PATH,
     DEFAULT_MEDIA_CSV_PATH,
+    MAX_DESCRIPTION_LENGTH,
 )
 from shared.config import Config
 from shared.file_operations import load_csv, save_csv_with_backup
@@ -60,9 +60,6 @@ except ImportError:
 import logging
 setup_logging(debug=False, log_file="logs/add_editorial_tags_to_photomedia.log")
 logger = logging.getLogger(__name__)
-
-# Constants
-MAX_DESCRIPTION_LENGTH = 200
 
 
 def collect_editorial_cities(csv_path: str) -> Set[str]:
