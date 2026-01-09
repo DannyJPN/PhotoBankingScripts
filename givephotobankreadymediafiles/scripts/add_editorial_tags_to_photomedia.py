@@ -514,16 +514,46 @@ def process_photomedia_csv(
         else:
             # Live mode: AI regenerate with progress bar
             logger.info("Regenerating descriptions with AI...")
-            for candidate in tqdm(ai_candidates, desc="AI generation", unit="photo"):
-                # Extract EXIF date
-                exif_date = extract_exif_date(candidate['full_path'])
+            pbar = tqdm(ai_candidates, desc="AI generation", unit="photo")
+            for candidate in pbar:
+                # Check if this is an edited file (_bw, _negative, _sharpen)
+                filename = candidate['filename']
+                file_path = candidate['full_path']
+
+                # Update progress bar with current file
+                pbar.set_postfix_str(f"Processing: {filename}")
+
+                # If edited file, find original and extract EXIF from it
+                if any(suffix in filename for suffix in ['_bw', '_negative', '_sharpen']):
+                    # Remove edit suffix to get original filename
+                    original_filename = filename
+                    for suffix in ['_bw', '_negative', '_sharpen']:
+                        original_filename = original_filename.replace(suffix, '')
+
+                    # Find original in records
+                    original_path = None
+                    for record in records:
+                        if record.get(COL_FILE, '') == original_filename:
+                            original_path = record.get(COL_PATH, '')
+                            break
+
+                    if original_path:
+                        logger.debug(f"Edited file {filename} - using EXIF from original {original_filename}")
+                        exif_date = extract_exif_date(original_path)
+                    else:
+                        logger.warning(f"Could not find original file for {filename}, trying edited file")
+                        exif_date = extract_exif_date(file_path)
+                else:
+                    # Normal file - extract EXIF directly
+                    exif_date = extract_exif_date(file_path)
+
                 if not exif_date:
-                    logger.warning(f"Could not extract EXIF date from {candidate['filename']}, skipping")
+                    logger.warning(f"Could not extract EXIF date from {filename}, skipping")
                     continue
 
                 # Regenerate with AI
                 new_description = regenerate_description_with_editorial(
-                    candidate['full_path'],
+                    file_path,
                     candidate['city'],
                     exif_date,
                     candidate['current_title'],
