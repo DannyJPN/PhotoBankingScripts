@@ -640,8 +640,13 @@ def print_live_run_summary(processed: List[Dict]) -> None:
     print(f"{'='*80}\n")
 
 
-def main():
-    """Main entry point."""
+def main() -> int:
+    """
+    Main entry point for adding editorial tags to PhotoMedia.csv.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     parser = argparse.ArgumentParser(
         description="Add missing editorial tags to PhotoMedia.csv"
     )

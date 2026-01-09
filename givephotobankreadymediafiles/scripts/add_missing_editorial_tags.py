@@ -667,8 +667,13 @@ def bulk_update_batches(confirmed_photos: List[Dict], registry: BatchRegistry, m
     print(f"{'='*70}")
 
 
-def main():
-    """Main entry point for the script."""
+def main() -> int:
+    """
+    Main entry point for the script.
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     parser = argparse.ArgumentParser(
         description="Add missing editorial tags to photos in completed batches",
         formatter_class=argparse.RawDescriptionHelpFormatter,
