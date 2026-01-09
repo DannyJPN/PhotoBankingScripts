@@ -3,7 +3,9 @@
 Interactive tool to add missing editorial tags to photos in completed batches.
 
 Scans completed batches for photos with editorial_data.city but missing editorial tag
-in description, shows each photo to user for confirmation, then bulk-updates batch + PhotoMedia.csv.
+in description, shows each photo to user for confirmation, then bulk-updates batch state files.
+
+NOTE: This script ONLY updates batch state files. PhotoMedia.csv requires separate handling.
 
 Usage:
     python add_missing_editorial_tags.py [--dry-run]
@@ -39,12 +41,9 @@ from givephotobankreadymediafileslib.batch_state import (
 )
 from givephotobankreadymediafileslib.constants import (
     BATCH_STATE_DIR,
-    COL_DESCRIPTION,
-    COL_FILE,
     DEFAULT_MEDIA_CSV_PATH,
     MAX_DESCRIPTION_LENGTH,
 )
-from shared.file_operations import load_csv, save_csv_with_backup
 from shared.config import get_config
 from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
 
@@ -113,7 +112,7 @@ def has_editorial_tag(description: str, city: str) -> bool:
 def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
     """
     Scan completed batches and find photos with editorial_data.city but missing tag.
-    Also finds alternative (edited) versions of those photos.
+    Also finds edited versions of those photos (files with _bw, _sharpen, etc. suffix).
 
     Args:
         registry: Batch registry instance
@@ -133,6 +132,11 @@ def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
 
     cities_found = set()
 
+    # PHASE 1: Collect ALL editorial originals across ALL batches
+    # Maps: original_basename (without extension) -> (city, country, date)
+    editorial_originals = {}
+
+    print("Phase 1: Collecting editorial originals...")
     for batch_id in completed_batch_ids:
         try:
             batch_dir = registry.get_batch_dir(batch_id)
@@ -142,14 +146,7 @@ def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
             batch_state = BatchState(batch_id, batch_dir)
             files = batch_state.all_files()
 
-            # First pass: Find originals with editorial_data.city needing tags
-            originals_needing_tags = {}  # file_path -> (city, country, date)
-
             for file_entry in files:
-                # Skip alternative entries in first pass
-                if file_entry.get("entry_type") == "alternative":
-                    continue
-
                 # Check if photo has editorial_data.city
                 editorial_data = file_entry.get("editorial_data")
                 if not editorial_data or not isinstance(editorial_data, dict):
@@ -164,18 +161,20 @@ def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
                 # Get current result
                 result = file_entry.get("result")
                 if not result:
-                    # Batch not completed for this file - skip
                     continue
 
-                current_description = result.get("description", "")
-
-                # Check if editorial tag is already correct
-                if has_editorial_tag(current_description, city):
-                    continue  # Already has correct tag - skip
-
-                # This photo needs tag correction
                 file_path = file_entry.get("file_path", "")
-                custom_id = file_entry.get("custom_id", "")
+                country = editorial_data.get("country", "Czech")
+
+                # Extract basename without extension for matching
+                # DSC01234.JPG -> DSC01234
+                # DSC01234_bw.JPG -> DSC01234 (but we want just originals here)
+                basename = os.path.basename(file_path)
+                name_without_ext = os.path.splitext(basename)[0]
+
+                # Skip if this looks like an edited version (contains underscore)
+                if "_" in name_without_ext:
+                    continue  # This is likely an edited version, skip in Phase 1
 
                 # Extract date from EXIF
                 date = extract_date_from_exif(file_path)
@@ -183,54 +182,65 @@ def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
                     date = "UNKNOWN"
 
                 # Store original info
-                country = editorial_data.get("country", "Czech")
-                originals_needing_tags[file_path] = (city, country, date)
+                editorial_originals[name_without_ext] = (city, country, date)
 
-                # Add original to candidates
-                candidates.append({
-                    "file_path": file_path,
-                    "batch_id": batch_id,
-                    "custom_id": custom_id,
-                    "city": city,
-                    "country": country,
-                    "date": date,
-                    "current_description": current_description,
-                    "current_title": result.get("title", ""),
-                    "is_alternative": False,
-                    "edit_tag": None,
-                })
+        except Exception as e:
+            print(f"  Warning: Error scanning batch {batch_id} in Phase 1: {e}")
+            continue
 
-            # Second pass: Find alternative entries for those originals
+    print(f"  Found {len(editorial_originals)} editorial originals")
+
+    # PHASE 2: Find ALL files (originals + edited versions) that need tags
+    print("Phase 2: Finding files missing editorial tags...")
+
+    originals_fixed = 0
+    edited_fixed = 0
+
+    for batch_id in completed_batch_ids:
+        try:
+            batch_dir = registry.get_batch_dir(batch_id)
+            if not os.path.exists(batch_dir):
+                continue
+
+            batch_state = BatchState(batch_id, batch_dir)
+            files = batch_state.all_files()
+
             for file_entry in files:
-                if file_entry.get("entry_type") != "alternative":
-                    continue
-
-                original_path = file_entry.get("original_file_path", "")
-                if not original_path:
-                    continue
-
-                # Check if this alternative's original needs tags
-                if original_path not in originals_needing_tags:
-                    continue
-
-                # Get result for alternative
                 result = file_entry.get("result")
                 if not result:
                     continue
 
-                city, country, date = originals_needing_tags[original_path]
+                file_path = file_entry.get("file_path", "")
+                custom_id = file_entry.get("custom_id", "")
+
+                basename = os.path.basename(file_path)
+                name_without_ext = os.path.splitext(basename)[0]
+
+                # Check if this is an original or edited version
+                if "_" in name_without_ext:
+                    # Edited version: extract original basename
+                    # DSC01234_bw -> DSC01234
+                    parts = name_without_ext.split("_")
+                    original_basename = parts[0]
+                    edit_suffix = "_" + "_".join(parts[1:])  # Reconstruct full suffix
+                else:
+                    # Original file
+                    original_basename = name_without_ext
+                    edit_suffix = None
+
+                # Check if this file belongs to an editorial original
+                if original_basename not in editorial_originals:
+                    continue  # Not an editorial photo
+
+                city, country, date = editorial_originals[original_basename]
 
                 current_description = result.get("description", "")
 
-                # Check if editorial tag is already correct for alternative
+                # Check if editorial tag is already correct
                 if has_editorial_tag(current_description, city):
-                    continue
+                    continue  # Already has correct tag
 
-                # Add alternative to candidates
-                file_path = file_entry.get("file_path", "")
-                custom_id = file_entry.get("custom_id", "")
-                edit_tag = file_entry.get("edit_tag", "")
-
+                # Add to candidates
                 candidates.append({
                     "file_path": file_path,
                     "batch_id": batch_id,
@@ -240,14 +250,21 @@ def scan_completed_batches(registry: BatchRegistry) -> List[Dict]:
                     "date": date,
                     "current_description": current_description,
                     "current_title": result.get("title", ""),
-                    "is_alternative": True,
-                    "edit_tag": edit_tag,
-                    "original_file_path": original_path,
+                    "is_alternative": edit_suffix is not None,
+                    "edit_tag": edit_suffix,
+                    "original_basename": original_basename,
                 })
 
+                if edit_suffix:
+                    edited_fixed += 1
+                else:
+                    originals_fixed += 1
+
         except Exception as e:
-            print(f"  Warning: Error scanning batch {batch_id}: {e}")
+            print(f"  Warning: Error scanning batch {batch_id} in Phase 2: {e}")
             continue
+
+    print(f"  Found {originals_fixed} originals + {edited_fixed} edited versions needing tags")
 
     return candidates, cities_found
 
@@ -256,45 +273,92 @@ def interactive_confirmation(candidates: List[Dict], cities_found: Set[str]) -> 
     """
     Show each candidate photo to user for confirmation.
 
+    Logic:
+    - Originals needing tags: ask user for confirmation
+    - Edited versions whose original also needs tag: auto-confirm when original is confirmed
+    - Edited versions whose original already has correct tag: auto-confirm immediately (no user interaction)
+
     Args:
-        candidates: List of candidate photos
+        candidates: List of candidate photos (originals + alternatives)
         cities_found: Set of unique cities found
 
     Returns:
-        List of confirmed photos
+        List of confirmed photos (user-confirmed originals + auto-confirmed alternatives)
     """
     if not candidates:
         return []
 
+    # Separate originals and alternatives
+    originals = [c for c in candidates if not c.get('is_alternative')]
+    alternatives = [c for c in candidates if c.get('is_alternative')]
+
+    # Group alternatives by original basename
+    alternatives_by_original = {}
+    for alt in alternatives:
+        original_basename = alt.get('original_basename', '')
+        if original_basename not in alternatives_by_original:
+            alternatives_by_original[original_basename] = []
+        alternatives_by_original[original_basename].append(alt)
+
+    # Find which originals are in the candidates (i.e., also need fixing)
+    originals_needing_fix = set(c.get('original_basename', '') for c in originals)
+
+    # Separate alternatives into two groups:
+    # 1. Those whose original also needs fixing (wait for user confirmation)
+    # 2. Those whose original already has correct tag (auto-confirm immediately)
+    alternatives_waiting = []  # Wait for original confirmation
+    alternatives_auto = []     # Auto-confirm immediately
+
+    for alt in alternatives:
+        original_basename = alt.get('original_basename', '')
+        if original_basename in originals_needing_fix:
+            alternatives_waiting.append(alt)
+        else:
+            alternatives_auto.append(alt)
+
     confirmed = []
-    total = len(candidates)
+    confirmed_originals = set()  # Track which originals were confirmed
+    total_originals = len(originals)
+    total_alternatives_waiting = len(alternatives_waiting)
+    total_alternatives_auto = len(alternatives_auto)
 
     # Show detected cities
     print(f"\n{'='*70}")
     print(f"Detected {len(cities_found)} unique cities in completed batches:")
     for city in sorted(cities_found):
         print(f"  - {city}")
-    print(f"\nFound {total} photos with editorial_data.city but missing proper tag")
+    print(f"\nFound photos missing editorial tags:")
+    print(f"  - {total_originals} originals (will ask for confirmation)")
+    print(f"  - {total_alternatives_waiting} edited versions (auto-confirm with their originals)")
+    print(f"  - {total_alternatives_auto} edited versions (auto-confirm, original already correct)")
     print(f"{'='*70}\n")
 
-    for i, candidate in enumerate(candidates, 1):
+    # Auto-confirm alternatives whose originals already have correct tags
+    if total_alternatives_auto > 0:
+        print(f"Auto-confirming {total_alternatives_auto} edited versions whose originals already have correct tags...")
+        for alt in alternatives_auto:
+            confirmed.append(alt)
+        print(f"  ✓ Auto-confirmed {total_alternatives_auto} edited versions\n")
+
+    # Ask only about originals
+    for i, candidate in enumerate(originals, 1):
+        original_basename = candidate.get('original_basename', '')
+
+        # Count how many alternatives are waiting for this original
+        num_alternatives = len([a for a in alternatives_waiting
+                               if a.get('original_basename') == original_basename])
+
         print(f"\n{'='*70}")
-        print(f"Photo {i}/{total}:")
+        print(f"ORIGINAL Photo {i}/{total_originals}:")
         print(f"  File: {os.path.basename(candidate['file_path'])}")
-
-        # Show if it's an edited version
-        if candidate.get('is_alternative'):
-            edit_tag = candidate.get('edit_tag', '')
-            edit_name = edit_tag.replace('_', '').upper() if edit_tag else 'EDITED'
-            print(f"  Type: {edit_name} version (alternative)")
-            print(f"  Original: {os.path.basename(candidate.get('original_file_path', ''))}")
-        else:
-            print(f"  Type: ORIGINAL")
-
         print(f"  Batch: {candidate['batch_id']}")
         print(f"  City (from editorial_data): {candidate['city']}")
         print(f"  Country: {candidate['country']}")
         print(f"  Date from EXIF: {candidate['date']}")
+
+        if num_alternatives > 0:
+            print(f"  → This photo has {num_alternatives} edited version(s) that will also be updated")
+
         print(f"\n  Current title: {candidate['current_title']}")
         print(f"  Current description: {candidate['current_description'][:100]}...")
 
@@ -307,18 +371,78 @@ def interactive_confirmation(candidates: List[Dict], cities_found: Set[str]) -> 
 
             if response == "y":
                 confirmed.append(candidate)
+                confirmed_originals.add(original_basename)
                 print("  ✓ Confirmed")
+                if num_alternatives > 0:
+                    print(f"  ✓ Auto-confirming {num_alternatives} edited version(s)")
                 break
             elif response == "skip" or response == "n":
                 print("  ⊘ Skipped")
+                if num_alternatives > 0:
+                    print(f"  ⊘ Also skipping {num_alternatives} edited version(s)")
                 break
             else:
                 print("  Invalid input. Please enter y/n/skip")
 
+    # Auto-confirm waiting alternatives whose originals were confirmed
+    auto_confirmed_waiting = 0
+    for original_basename in confirmed_originals:
+        for alt in alternatives_waiting:
+            if alt.get('original_basename') == original_basename:
+                confirmed.append(alt)
+                auto_confirmed_waiting += 1
+
     print(f"\n{'='*70}")
-    print(f"Summary: Confirmed {len(confirmed)}/{total} photos")
+    print(f"Summary:")
+    print(f"  Originals confirmed: {len(confirmed_originals)}/{total_originals}")
+    print(f"  Edited versions auto-confirmed (waiting for original): {auto_confirmed_waiting}/{total_alternatives_waiting}")
+    print(f"  Edited versions auto-confirmed (original already correct): {total_alternatives_auto}")
+    print(f"  Total photos to update: {len(confirmed)}")
 
     return confirmed
+
+
+def truncate_to_sentence(text: str, max_length: int) -> str:
+    """
+    Truncate text to complete sentences within max_length.
+
+    Finds the last sentence-ending punctuation (. ! ?) before max_length
+    and truncates there. If no sentence ending found, falls back to last word.
+
+    Args:
+        text: Text to truncate
+        max_length: Maximum character length
+
+    Returns:
+        Truncated text ending with complete sentence or word boundary
+    """
+    if len(text) <= max_length:
+        return text
+
+    # Find last sentence-ending punctuation before max_length
+    truncated = text[:max_length]
+
+    # Look for sentence endings (. ! ?)
+    last_period = truncated.rfind('.')
+    last_exclamation = truncated.rfind('!')
+    last_question = truncated.rfind('?')
+
+    # Find the latest sentence ending
+    last_sentence_end = max(last_period, last_exclamation, last_question)
+
+    if last_sentence_end > 0:
+        # Truncate at sentence ending (include the punctuation)
+        return text[:last_sentence_end + 1].strip()
+
+    # No sentence ending found - truncate at last word boundary
+    import logging
+    logging.warning("No sentence ending found in description, truncating at word boundary")
+    last_space = truncated.rfind(' ')
+    if last_space > 0:
+        return text[:last_space].strip() + "..."
+
+    # Absolute fallback: hard truncate
+    return truncated.strip() + "..."
 
 
 def regenerate_description_with_ai(photo: Dict, model_key: str) -> Optional[str]:
@@ -376,13 +500,13 @@ def regenerate_description_with_ai(photo: Dict, model_key: str) -> Optional[str]
 
 def bulk_update_batches(confirmed_photos: List[Dict], registry: BatchRegistry, media_csv_path: str, dry_run: bool = False):
     """
-    Bulk update batch state files and PhotoMedia.csv with editorial tags.
+    Bulk update batch state files with editorial tags.
     Uses AI to regenerate descriptions to fit within character limit.
 
     Args:
         confirmed_photos: List of confirmed photos to update
         registry: Batch registry instance
-        media_csv_path: Path to PhotoMedia.csv
+        media_csv_path: Path to PhotoMedia.csv (unused but kept for compatibility)
         dry_run: If True, preview changes without writing
     """
     if not confirmed_photos:
@@ -477,12 +601,22 @@ def bulk_update_batches(confirmed_photos: List[Dict], registry: BatchRegistry, m
                     result["description"] = new_description
                     file_entry["result"] = result
                 else:
-                    # Fallback: just prepend editorial tag (may exceed limit)
-                    print(f"    Warning: AI generation failed, using simple prepend (may exceed {MAX_DESCRIPTION_LENGTH} chars)")
+                    # Fallback: Truncate current description and prepend editorial tag
+                    print(f"    Warning: AI generation failed, using fallback with sentence truncation")
                     editorial_prefix = f"{city}, {country} - {date}: "
-                    result["description"] = editorial_prefix + current_description
+                    available_chars = MAX_DESCRIPTION_LENGTH - len(editorial_prefix)
+
+                    if available_chars <= 20:
+                        print(f"    Error: Editorial tag too long, cannot create valid description")
+                        continue
+
+                    # Truncate current description to fit, ending on sentence boundary
+                    truncated_description = truncate_to_sentence(current_description, available_chars)
+                    new_description = editorial_prefix + truncated_description
+
+                    result["description"] = new_description
                     file_entry["result"] = result
-                    new_description = result["description"]
+                    print(f"    ✓ Fallback description: {len(new_description)} chars (truncated at sentence boundary)")
 
                 # Log change
                 log_entries.append({
@@ -511,32 +645,7 @@ def bulk_update_batches(confirmed_photos: List[Dict], registry: BatchRegistry, m
             traceback.print_exc()
             continue
 
-    # Update PhotoMedia.csv
-    if not dry_run:
-        print("\nUpdating PhotoMedia.csv...")
-        try:
-            # Load CSV
-            records = load_csv(media_csv_path)
-
-            # Update records
-            updates_applied = 0
-            for log_entry in log_entries:
-                file_path = log_entry["file_path"]
-                new_description = log_entry["new_description"]
-
-                for record in records:
-                    record_path = record.get(COL_FILE, "")
-                    if os.path.normpath(record_path).lower() == os.path.normpath(file_path).lower():
-                        record[COL_DESCRIPTION] = new_description
-                        updates_applied += 1
-                        break
-
-            # Save with backup
-            save_csv_with_backup(records, media_csv_path)
-            print(f"  ✓ Applied {updates_applied} updates to PhotoMedia.csv")
-
-        except Exception as e:
-            print(f"  Error updating PhotoMedia.csv: {e}")
+    # NOTE: PhotoMedia.csv update intentionally skipped - requires separate handling
 
     # Save log file
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
