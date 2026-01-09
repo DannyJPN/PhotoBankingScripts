@@ -44,7 +44,7 @@ from givephotobankreadymediafileslib.constants import (
     DEFAULT_MEDIA_CSV_PATH,
     MAX_DESCRIPTION_LENGTH,
 )
-from shared.config import Config
+from shared.config import get_config
 from shared.file_operations import load_csv, save_csv_with_backup
 from shared.logging_config import setup_logging
 
@@ -680,7 +680,7 @@ def main():
     ai_generator = None
     if not args.dry_run:
         try:
-            config = Config()
+            config = get_config()
             provider, model = config.get_default_ai_model()
             logger.info(f"Initializing AI generator: {provider}/{model}")
             model_key = f"{provider}/{model}"
