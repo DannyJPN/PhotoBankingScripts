@@ -127,7 +127,8 @@ def collect_editorial_cities(csv_path: str) -> Set[str]:
                 continue
 
             # Extract city from editorial tag pattern: "CITY, Czech - DD MM YYYY: "
-            match = re.match(r'^([A-Za-z]+),\s*Czech\s*-\s*\d{2}\s+\d{2}\s+\d{4}:\s*', description)
+            # Pattern supports multi-word cities: "Cesky Krumlov", "New York", etc.
+            match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*Czech\s*-\s*\d{2}\s+\d{2}\s+\d{4}:\s*', description)
             if match:
                 city = match.group(1).strip()
                 if city:
@@ -214,7 +215,7 @@ def extract_exif_date(file_path: str) -> Optional[str]:
     """
     try:
         with Image.open(file_path) as img:
-            exif_data = img._getexif()
+            exif_data = img.getexif()
             if not exif_data:
                 return None
 

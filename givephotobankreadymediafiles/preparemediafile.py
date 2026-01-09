@@ -281,7 +281,8 @@ def main():
                 if is_editorial and original_description:
                     import re
                     # Pattern: "CITY, COUNTRY - DD MM YYYY: "
-                    match = re.match(r'^([A-Z\s]+),\s*([A-Z\s]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*', original_description)
+                    # City can be multi-word (e.g., "Cesky Krumlov")
+                    match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z][a-z]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*', original_description)
                     if match:
                         editorial_data = {
                             'city': match.group(1).strip(),

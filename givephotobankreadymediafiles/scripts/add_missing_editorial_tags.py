@@ -45,6 +45,7 @@ from givephotobankreadymediafileslib.constants import (
     MAX_DESCRIPTION_LENGTH,
 )
 from shared.config import get_config
+from shared.file_operations import save_json_with_backup
 from givephotobankreadymediafileslib.metadata_generator import create_metadata_generator
 
 
@@ -67,7 +68,7 @@ def extract_date_from_exif(file_path: str) -> Optional[str]:
         from PIL.ExifTags import TAGS
 
         with Image.open(file_path) as img:
-            exif_data = img._getexif()
+            exif_data = img.getexif()
 
             if exif_data:
                 # Try to extract date from DateTime tag
@@ -654,8 +655,7 @@ def bulk_update_batches(confirmed_photos: List[Dict], registry: BatchRegistry, m
 
     if not dry_run:
         try:
-            with open(log_path, "w", encoding="utf-8") as f:
-                json.dump(log_entries, f, indent=2, ensure_ascii=False)
+            save_json_with_backup(log_entries, log_path, indent=2)
             print(f"  ✓ Log saved to: {log_path}")
         except Exception as e:
             print(f"  Warning: Could not save log file: {e}")
