@@ -14,9 +14,8 @@ import sys
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Set, Optional
 from datetime import datetime
-from collections import defaultdict
 
 # Progress bar
 try:
