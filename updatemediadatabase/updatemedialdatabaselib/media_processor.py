@@ -36,6 +36,13 @@ from updatemedialdatabaselib.constants import (
     COLUMN_DREAMSTIME_STATUS,
     COLUMN_CANSTOCKPHOTO_STATUS,
     COLUMN_POND5_STATUS,
+    COLUMN_PIXTA_STATUS,
+    COLUMN_FREEPIK_STATUS,
+    COLUMN_VECTEEZY_STATUS,
+    COLUMN_STORYBLOCKS_STATUS,
+    COLUMN_ENVATO_STATUS,
+    COLUMN_500PX_STATUS,
+    COLUMN_MOSTPHOTOS_STATUS,
     COLUMN_SHUTTERSTOCK_CATEGORY,
     COLUMN_BIGSTOCKPHOTO_CATEGORY,
     COLUMN_ADOBESTOCK_CATEGORY,
@@ -46,7 +53,14 @@ from updatemedialdatabaselib.constants import (
     COLUMN_COLOURBOX_CATEGORY,
     COLUMN_DREAMSTIME_CATEGORY,
     COLUMN_CANSTOCKPHOTO_CATEGORY,
-    COLUMN_POND5_CATEGORY
+    COLUMN_POND5_CATEGORY,
+    COLUMN_PIXTA_CATEGORY,
+    COLUMN_FREEPIK_CATEGORY,
+    COLUMN_VECTEEZY_CATEGORY,
+    COLUMN_STORYBLOCKS_CATEGORY,
+    COLUMN_ENVATO_CATEGORY,
+    COLUMN_500PX_CATEGORY,
+    COLUMN_MOSTPHOTOS_CATEGORY
 )
 from updatemedialdatabaselib.edit_utils import (
     is_edited_file,
@@ -172,6 +186,14 @@ def create_database_record(metadata: Dict[str, Any], validation_results: Dict[st
         (COLUMN_DREAMSTIME_STATUS, get_bank_status("Dreamstime", validation_results.get("Dreamstime", True), metadata)),
         (COLUMN_CANSTOCKPHOTO_STATUS, get_bank_status("CanStockPhoto", validation_results.get("CanStockPhoto", True), metadata)),
         (COLUMN_POND5_STATUS, get_bank_status("Pond5", validation_results.get("Pond5", True), metadata)),
+        # New banks
+        (COLUMN_PIXTA_STATUS, get_bank_status("Pixta", validation_results.get("Pixta", True), metadata)),
+        (COLUMN_FREEPIK_STATUS, get_bank_status("Freepik", validation_results.get("Freepik", True), metadata)),
+        (COLUMN_VECTEEZY_STATUS, get_bank_status("Vecteezy", validation_results.get("Vecteezy", True), metadata)),
+        (COLUMN_STORYBLOCKS_STATUS, get_bank_status("StoryBlocks", validation_results.get("StoryBlocks", True), metadata)),
+        (COLUMN_ENVATO_STATUS, get_bank_status("Envato", validation_results.get("Envato", True), metadata)),
+        (COLUMN_500PX_STATUS, get_bank_status("500px", validation_results.get("500px", True), metadata)),
+        (COLUMN_MOSTPHOTOS_STATUS, get_bank_status("MostPhotos", validation_results.get("MostPhotos", True), metadata)),
         (COLUMN_SHUTTERSTOCK_CATEGORY, ""),
         (COLUMN_BIGSTOCKPHOTO_CATEGORY, ""),
         (COLUMN_ADOBESTOCK_CATEGORY, ""),
@@ -183,6 +205,14 @@ def create_database_record(metadata: Dict[str, Any], validation_results: Dict[st
         (COLUMN_DREAMSTIME_CATEGORY, ""),
         (COLUMN_CANSTOCKPHOTO_CATEGORY, ""),
         (COLUMN_POND5_CATEGORY, ""),
+        # New banks
+        (COLUMN_PIXTA_CATEGORY, ""),
+        (COLUMN_FREEPIK_CATEGORY, ""),
+        (COLUMN_VECTEEZY_CATEGORY, ""),
+        (COLUMN_STORYBLOCKS_CATEGORY, ""),
+        (COLUMN_ENVATO_CATEGORY, ""),
+        (COLUMN_500PX_CATEGORY, ""),
+        (COLUMN_MOSTPHOTOS_CATEGORY, ""),
         (COLUMN_ORIGINAL, metadata.get("Original", "")),
         (COLUMN_PATH, metadata.get("Path", ""))
     ])

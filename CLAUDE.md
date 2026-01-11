@@ -172,7 +172,9 @@ Claude must maintain a dedicated status file (e.g., `IMPLEMENTATION_STATUS.md`) 
 
 * **Python**: docs.python.org, PyPI, pip docs.
 * **Libraries**: NumPy, Pandas, Pillow, OpenCV, ImageIO, ExifTool, FFmpeg, libvips, ImageMagick.
-* **Photobanks**: Shutterstock, Adobe Stock, 123RF, Depositphotos, Getty Images ESP, Alamy, Bigstock, CanStockPhoto, Dreamstime, Pond5.
+* **Photobanks**:
+  * **Active**: ShutterStock, AdobeStock, Dreamstime, DepositPhotos, GettyImages, Pond5, Alamy, 123RF, Pixta, Freepik, Vecteezy, StoryBlocks, Envato, 500px, MostPhotos
+  * **Deprecated**: BigStockPhoto, CanStockPhoto
 * **AI providers**: OpenAI, Anthropic, Google AI, Mistral, Meta (Llama), Hugging Face.
 * **Protocols**: FTP (RFC 959), FTPS (RFC 4217), SFTP (RFC 4253/4254).
 
