@@ -168,6 +168,7 @@ DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_PROCESSED_MEDIA_FOLDER = r"L:\Můj disk\PhotoBankMedia"  # Where createbatch copies files
 DEFAULT_EXPORT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
 DEFAULT_LOG_DIR = r"H:\Logs"
+DEFAULT_UPLOAD_LOG_DIR = r"H:\Logs\UploadToPhotobanks"
 
 # Credentials configuration paths
 DEFAULT_CREDENTIALS_FILE = os.path.join(BASE_DIR, "config", "credentials.json")
