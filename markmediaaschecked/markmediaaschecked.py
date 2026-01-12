@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """
 MarkMediaAsChecked - Script to mark media as checked in CSV files.
 
@@ -14,12 +14,13 @@ from shared.utils import get_log_filename
 from shared.file_operations import ensure_directory, load_csv, save_csv, move_file
 from shared.logging_config import setup_logging
 
-from markmediaascheckedlib.constants import DEFAULT_PHOTO_CSV_FILE, STATUS_READY, STATUS_CHECKED
+from markmediaascheckedlib.constants import DEFAULT_PHOTO_CSV_FILE, STATUS_READY, STATUS_CHECKED, DEFAULT_REPORT_DIR
 from markmediaascheckedlib.mark_handler import (
     extract_status_columns,
     filter_ready_records,
     filter_records_by_edit_type,
-    update_statuses
+    update_statuses,
+    update_statuses_with_report
 )
 
 
@@ -53,7 +54,7 @@ def parse_arguments():
     parser.add_argument(
         "--include-edited",
         action="store_true",
-        help="Include edited photos from 'upravené' folders (default: only original photos)"
+        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
     )
     return parser.parse_args()
 
@@ -95,7 +96,12 @@ def main():
         return
 
     # 5. Update statuses from STATUS_READY to STATUS_CHECKED (only in ready_records, which are references to all_records)
-    changes_count = update_statuses(ready_records, status_columns)
+    changes_report = []
+    if args.export_report:
+        changes_report = update_statuses_with_report(ready_records, status_columns)
+        changes_count = len(changes_report)
+    else:
+        changes_count = update_statuses(ready_records, status_columns)
     logging.info(f"Updated {changes_count} status values in {len(ready_records)} records")
 
     # 6. Backup original file
@@ -108,8 +114,23 @@ def main():
     logging.info(f"Saving updated CSV to {args.photo_csv_file}")
     save_csv(all_records, args.photo_csv_file)
 
+    if args.export_report and changes_report:
+        report_path = _build_report_path(args.report_dir)
+        save_csv(changes_report, report_path, ["file", "status_column", "old_status", "new_status"])
+        logging.info("Changes report saved to %s", report_path)
+
     logging.info("MarkMediaAsChecked process completed successfully")
+
+
+def _build_report_path(report_dir: str) -> str:
+    """
+    Build report path with timestamp.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"MarkMediaAsCheckedReport_{timestamp}.csv"
+    return os.path.join(report_dir, filename)
 
 
 if __name__ == "__main__":
     main()
+
