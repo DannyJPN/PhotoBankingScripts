@@ -30,6 +30,7 @@ def test_calculate_resolution_mpx():
 def test_determine_media_type():
     assert media_processor.determine_media_type("file.jpg", False) == media_processor.TYPE_PHOTO
     assert media_processor.determine_media_type("file.mp4", True) == media_processor.TYPE_EDITED_VIDEO
+    assert media_processor.determine_media_type("file.ai", False) == media_processor.TYPE_VECTOR
 
 
 def test_is_file_in_database():

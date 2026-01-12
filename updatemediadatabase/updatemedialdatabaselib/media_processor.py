@@ -9,10 +9,13 @@ from typing import Dict, List, Optional, Any
 from updatemedialdatabaselib.constants import (
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
+    VECTOR_EXTENSIONS,
     TYPE_PHOTO,
     TYPE_VIDEO,
+    TYPE_VECTOR,
     TYPE_EDITED_PHOTO,
     TYPE_EDITED_VIDEO,
+    TYPE_EDITED_VECTOR,
     COLUMN_FILENAME,
     COLUMN_PATH,
     COLUMN_ORIGINAL,
@@ -262,6 +265,8 @@ def determine_media_type(file_path: str, is_edited: bool) -> str:
         return TYPE_EDITED_PHOTO if is_edited else TYPE_PHOTO
     elif ext in VIDEO_EXTENSIONS:
         return TYPE_EDITED_VIDEO if is_edited else TYPE_VIDEO
+    elif ext in VECTOR_EXTENSIONS:
+        return TYPE_EDITED_VECTOR if is_edited else TYPE_VECTOR
     else:
         return "Unknown"
 

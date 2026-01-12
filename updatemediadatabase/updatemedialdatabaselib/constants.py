@@ -87,14 +87,17 @@ COLUMN_MOSTPHOTOS_CATEGORY = "MostPhotos kategorie"
 # PhotoLimits.csv column names
 LIMITS_COLUMN_BANK = "Banka"
 LIMITS_COLUMN_WIDTH = "šířka"
-LIMITS_COLUMN_HEIGHT = "výška" 
+LIMITS_COLUMN_HEIGHT = "výška"
 LIMITS_COLUMN_RESOLUTION = "rozlišení"
+LIMITS_COLUMN_MEDIA_TYPE = "typ"
 
 # Media types
 TYPE_PHOTO = "Photo"
 TYPE_VIDEO = "Video"
+TYPE_VECTOR = "Vector"
 TYPE_EDITED_PHOTO = "EditedPhoto"
 TYPE_EDITED_VIDEO = "EditedVideo"
+TYPE_EDITED_VECTOR = "EditedVector"
 
 # File numbering system constants
 MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
