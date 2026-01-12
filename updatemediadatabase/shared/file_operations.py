@@ -4,6 +4,7 @@ import re
 import shutil
 import logging
 import csv
+import json
 from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
@@ -268,6 +269,48 @@ def load_csv(path: str) -> List[Dict[str, str]]:
         logging.error("Failed to load CSV file %s: %s", path, e)
         raise
     return records
+
+
+def save_csv(records: List[Dict[str, str]], path: str, fieldnames: List[str]) -> None:
+    """
+    Save records to a CSV file.
+
+    Args:
+        records: List of records to write
+        path: Destination file path
+        fieldnames: Ordered list of CSV headers
+    """
+    logging.debug("Saving CSV file to %s", path)
+    ensure_directory(os.path.dirname(path))
+    try:
+        with open(path, 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quotechar='\"')
+            writer.writeheader()
+            for row in records:
+                writer.writerow(row)
+        logging.info("Saved %d records to CSV %s", len(records), path)
+    except Exception as e:
+        logging.error("Failed to save CSV file %s: %s", path, e)
+        raise
+
+
+def save_json(data: object, path: str) -> None:
+    """
+    Save data to a JSON file.
+
+    Args:
+        data: JSON-serializable data
+        path: Destination file path
+    """
+    logging.debug("Saving JSON file to %s", path)
+    ensure_directory(os.path.dirname(path))
+    try:
+        with open(path, 'w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, indent=2, ensure_ascii=True)
+        logging.info("Saved JSON report to %s", path)
+    except Exception as e:
+        logging.error("Failed to save JSON file %s: %s", path, e)
+        raise
 
 def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
     """
