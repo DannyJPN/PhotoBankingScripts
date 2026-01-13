@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 """
 MarkMediaAsChecked - Script to mark media as checked in CSV files.
 
@@ -19,7 +19,8 @@ from markmediaascheckedlib.mark_handler import (
     extract_status_columns,
     filter_ready_records,
     filter_records_by_edit_type,
-    update_statuses
+    update_statuses,
+    count_status_updates
 )
 
 
@@ -53,7 +54,7 @@ def parse_arguments():
     parser.add_argument(
         "--include-edited",
         action="store_true",
-        help="Include edited photos from 'upravené' folders (default: only original photos)"
+        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
     )
     return parser.parse_args()
 
@@ -94,6 +95,12 @@ def main():
         logging.info(f"No records with '{STATUS_READY}' status found in processable records")
         return
 
+    if args.dry_run:
+        changes_count = count_status_updates(ready_records, status_columns)
+        logging.info("Dry-run: %d status values would be updated", changes_count)
+        print(f"Dry-run: {changes_count} status values would be updated.")
+        return
+
     # 5. Update statuses from STATUS_READY to STATUS_CHECKED (only in ready_records, which are references to all_records)
     changes_count = update_statuses(ready_records, status_columns)
     logging.info(f"Updated {changes_count} status values in {len(ready_records)} records")
@@ -113,3 +120,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
