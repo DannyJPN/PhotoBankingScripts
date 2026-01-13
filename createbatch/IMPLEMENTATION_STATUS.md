@@ -15,6 +15,11 @@ The createbatch script processes media records from PhotoMedia.csv and creates b
 
 ## Recent Changes
 
+### 2026-01-06 - Prepared Date Filter
+
+- Added `--prepared-after` and `--prepared-before` to filter records by preparation date.
+- Supports multiple input formats with logging for invalid values.
+
 ### Version 2.0 - Performance Optimization (2025-11-29)
 
 **Major Performance Improvement:**

@@ -1,8 +1,8 @@
-DEFAULT_PHOTO_CSV_FILE = "L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv"
-DEFAULT_PROCESSED_MEDIA_FOLDER = "L:/Můj disk/PhotoBankMedia"
+﻿DEFAULT_PHOTO_CSV_FILE = "L:/MĹŻj disk/XLS/Fotobanky/PhotoMedia.csv"
+DEFAULT_PROCESSED_MEDIA_FOLDER = "L:/MĹŻj disk/PhotoBankMedia"
 DEFAULT_LOG_DIR = "H:/Logs"
 STATUS_FIELD_KEYWORD = "status"
-PREPARED_STATUS_VALUE = "připraveno"
+PREPARED_STATUS_VALUE = "pĹ™ipraveno"`nPREPARED_DATE_COLUMN = "Datum přípravy"
 
 # ExifTool path
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
