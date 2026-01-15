@@ -45,6 +45,7 @@ def prepare_media_file(
     output_folder: str,
     exif_tool_path: str,
     overwrite: bool = True,
+    skip_existing: bool = False,
     bank: str = None,
     include_alternative_formats: bool = False,
     batch_number: Optional[int] = None
@@ -54,6 +55,7 @@ def prepare_media_file(
     If 'bank' is specified, only files for that photobank are processed.
     If include_alternative_formats is True, also copy alternative format versions (PNG, TIFF, RAW).
     If batch_number is specified, files are copied to output_folder/<photobank>/batch_XXX/<format>/.
+    If skip_existing is True, files that already exist in destination are skipped (faster re-runs).
 
     Returns a list of paths where the file was copied.
     """
@@ -118,9 +120,15 @@ def prepare_media_file(
                 ensure_directory(bank_folder)
                 dest = os.path.join(bank_folder, filename)
 
+                # Skip if file exists and skip_existing is enabled
+                if skip_existing and os.path.exists(dest):
+                    logging.debug(f"Skipping existing file: {dest}")
+                    processed_paths.append(dest)  # Still track as processed
+                    continue
+
                 logging.debug(
-                    "Copying %s to %s for bank %s (format: %s, overwrite=%s)",
-                    file_path, dest, bank_name, file_ext, overwrite
+                    "Copying %s to %s for bank %s (format: %s, overwrite=%s, skip_existing=%s)",
+                    file_path, dest, bank_name, file_ext, overwrite, skip_existing
                 )
 
                 try:
