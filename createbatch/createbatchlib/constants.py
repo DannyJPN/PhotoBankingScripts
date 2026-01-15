@@ -68,6 +68,18 @@ ALTERNATIVE_EDIT_TAGS = {
     "_blurred": "Gaussian blur"
 }
 
+# Editorial content detection
+EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
+
+# Banks that do NOT accept editorial content
+# Editorial files will be automatically excluded from batch creation for these banks
+BANKS_NO_EDITORIAL = {
+    'AdobeStock',   # Commercial content only
+    'GettyImages',  # Separate editorial portal
+    'Freepik',      # Commercial content only
+    'Pixta',        # Commercial content only
+}
+
 # Batch size limits for photobanks (items per batch)
 # Banks not listed here have no batch size limit
 PHOTOBANK_BATCH_SIZE_LIMITS = {

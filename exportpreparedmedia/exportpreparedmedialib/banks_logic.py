@@ -11,8 +11,43 @@ from exportpreparedmedialib.constants import (
     VALID_STATUS,
     DEFAULT_LOCATION,
     DEFAULT_USERNAME,
-    DEFAULT_COPYRIGHT_AUTHOR
+    DEFAULT_COPYRIGHT_AUTHOR,
+    BANKS_NO_EDITORIAL
 )
+
+
+def is_editorial_item(item: dict[str, str]) -> bool:
+    """
+    Check if an item is editorial content based on title or description.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+
+    Returns:
+        True if item matches editorial regex pattern
+    """
+    title = item.get('Název', item.get('title', item.get('Title', '')))
+    description = item.get('Popis', item.get('description', item.get('Description', '')))
+
+    return bool(re.search(EDITORIAL_REGEX, title)) or bool(re.search(EDITORIAL_REGEX, description))
+
+
+def should_skip_editorial(item: dict[str, str], bank_name: str) -> bool:
+    """
+    Determine if an editorial item should be skipped for a given bank.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+        bank_name: Name of the photobank
+
+    Returns:
+        True if item is editorial and bank doesn't accept editorial
+    """
+    if bank_name not in BANKS_NO_EDITORIAL:
+        return False
+
+    return is_editorial_item(item)
+
 
 def get_enabled_banks(args: Namespace) -> list[str]:
     """

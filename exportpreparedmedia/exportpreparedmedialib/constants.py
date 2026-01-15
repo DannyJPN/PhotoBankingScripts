@@ -70,6 +70,15 @@ PHOTOBANK_SUPPORTED_FORMATS = {
     'MostPhotos': set(),  # IPTC metadata only (no CSV export support)
 }
 
+# Banks that do NOT accept editorial content
+# Editorial files will be automatically excluded from export for these banks
+BANKS_NO_EDITORIAL = {
+    'AdobeStock',   # Commercial content only
+    'GettyImages',  # Separate editorial portal
+    'Freepik',      # Commercial content only
+    'Pixta',        # Commercial content only
+}
+
 # Format subdirectory names (for finding files in parallel directories)
 FORMAT_SUBDIRS = {
     '.jpg': 'JPG',

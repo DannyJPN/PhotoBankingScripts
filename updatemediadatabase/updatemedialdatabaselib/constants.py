@@ -99,6 +99,13 @@ TYPE_EDITED_PHOTO = "EditedPhoto"
 TYPE_EDITED_VIDEO = "EditedVideo"
 TYPE_EDITED_VECTOR = "EditedVector"
 
+# Status values (Czech - matching PhotoMedia.csv values)
+STATUS_PREPARED = "připraveno"
+STATUS_UNPROCESSED = "nezpracováno"
+STATUS_REJECTED_SIZE = "zamítnuto - velikost"
+STATUS_REJECTED = "zamítnuto"
+STATUS_UNAVAILABLE = "nedostupné"
+
 # File numbering system constants
 MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
