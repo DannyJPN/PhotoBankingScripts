@@ -22,7 +22,7 @@ from createbatchlib.constants import PHOTOBANK_BATCH_SIZE_LIMITS
 @pytest.fixture
 def getty_batch_limit() -> int:
     """Getty Images batch size limit from constants."""
-    return PHOTOBANK_BATCH_SIZE_LIMITS.get('Getty Images', 128)
+    return PHOTOBANK_BATCH_SIZE_LIMITS.get('GettyImages', 128)
 
 
 @pytest.fixture

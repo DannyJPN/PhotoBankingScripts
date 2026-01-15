@@ -128,7 +128,7 @@ class RecordProcessor:
             Record with:
                 "Shutterstock Status": "připraveno"
                 "Adobe Stock Status": "připraveno"
-            Returns: ["Adobe Stock", "Shutterstock"]
+            Returns: ["AdobeStock", "Shutterstock"]
         """
         banks = []
 
