@@ -48,7 +48,8 @@ RAW_FORMATS = {
 
 # Supported image formats by photobank
 PHOTOBANK_SUPPORTED_FORMATS = {
-    'DreamsTime': {'.jpg', '.png'} | RAW_FORMATS,
+    # Active banks
+    'Dreamstime': {'.jpg', '.png'} | RAW_FORMATS,
     'Pond5': {'.jpg', '.png', '.tif'},
     'ShutterStock': {'.jpg'},
     'AdobeStock': {'.jpg'},
@@ -56,8 +57,26 @@ PHOTOBANK_SUPPORTED_FORMATS = {
     '123RF': {'.jpg'},
     'DepositPhotos': {'.jpg', '.png'},
     'Alamy': {'.jpg'},
+    # Deprecated banks
     'BigStockPhoto': {'.jpg'},
     'CanStockPhoto': {'.jpg'},
+    # New banks
+    'Pixta': {'.jpg', '.png'},
+    'Freepik': {'.jpg', '.png', '.eps', '.ai'},
+    'Vecteezy': {'.jpg', '.png', '.eps', '.svg'},
+    'StoryBlocks': {'.mp4', '.mov'},
+    'Envato': set(),  # Web-only (Portfolio Manager with IPTC metadata)
+    '500px': set(),  # Web-only (API deprecated 2018)
+    'MostPhotos': set(),  # IPTC metadata only (no CSV export support)
+}
+
+# Banks that do NOT accept editorial content
+# Editorial files will be automatically excluded from export for these banks
+BANKS_NO_EDITORIAL = {
+    'AdobeStock',   # Commercial content only
+    'GettyImages',  # Separate editorial portal
+    'Freepik',      # Commercial content only
+    'Pixta',        # Commercial content only
 }
 
 # Format subdirectory names (for finding files in parallel directories)
@@ -71,7 +90,7 @@ FORMAT_SUBDIRS = {
 # Export-specific format restrictions (overrides PHOTOBANK_SUPPORTED_FORMATS for CSV export)
 # Banks not listed here use PHOTOBANK_SUPPORTED_FORMATS
 PHOTOBANK_EXPORT_FORMATS = {
-    'DreamsTime': {'.jpg'},  # DreamsTime accepts JPG, PNG, RAW in portal but only JPG in CSV import
+    'Dreamstime': {'.jpg'},  # DreamsTime accepts JPG, PNG, RAW in portal but only JPG in CSV import
 }
 
 # File numbering system constants
@@ -105,16 +124,26 @@ NA_VALUE = "NA"
 
 # Photobank names
 PHOTOBANKS = [
+    # Active banks
     "ShutterStock",
     "AdobeStock",
     "Dreamstime",
     "DepositPhotos",
-    "BigStockPhoto",
     "123RF",
-    "CanStockPhoto",
     "Pond5",
     "Alamy",
-    "GettyImages"
+    "GettyImages",
+    # Deprecated banks (kept for historical data)
+    "BigStockPhoto",
+    "CanStockPhoto",
+    # New banks
+    "Pixta",
+    "Freepik",
+    "Vecteezy",
+    "StoryBlocks",
+    "Envato",
+    "500px",
+    "MostPhotos"
 ]
 
 # Batch size limits for photobanks (items per batch)

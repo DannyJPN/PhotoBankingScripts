@@ -55,6 +55,26 @@ export ADOBESTOCK_SFTP_ID="your_numeric_sftp_id"
 export ADOBESTOCK_SFTP_PASSWORD="your_generated_sftp_password"
 ```
 
+### Freepik (SFTP - Encrypted, requires Level 3 contributor with 500+ published files)
+```bash
+export FREEPIK_FTP_ID="your_ftp_id_from_dashboard"
+export FREEPIK_FTP_PASSWORD="your_ftp_password"
+```
+
+### MostPhotos (FTP - credentials from contributor dashboard)
+```bash
+export MOSTPHOTOS_USERNAME="your_ftp_username"
+export MOSTPHOTOS_PASSWORD="your_ftp_password"
+```
+
+### Web-Only Photobanks (No FTP/SFTP Upload)
+The following photobanks use web-based upload only and do not require credentials here:
+- **Pixta**: CSV metadata upload via web interface
+- **Vecteezy**: Manual web upload
+- **StoryBlocks**: Contributor portal upload
+- **Envato**: Portfolio Manager upload (IPTC metadata only)
+- **500px**: Manual web upload (API deprecated 2018)
+
 ## Setup Methods
 
 ### Option 1: Shell Script (Recommended)

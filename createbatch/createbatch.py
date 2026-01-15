@@ -18,6 +18,7 @@ from createbatchlib.constants import (
 from createbatchlib.optimization import RecordProcessor
 from createbatchlib.media_preparation import prepare_media_file, split_into_batches
 from createbatchlib.progress_tracker import UnifiedProgressTracker
+from createbatchlib.filtering import filter_editorial_for_bank
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
@@ -109,6 +110,14 @@ def main():
         # Process each bank with unified progress tracking
         for bank in banks:
             bank_records = bank_records_map[bank]
+
+            # Filter out editorial content for banks that don't accept it
+            bank_records = filter_editorial_for_bank(bank_records, bank)
+
+            if not bank_records:
+                logging.info(f"No records to process for {bank} after editorial filtering, skipping")
+                continue
+
             progress_tracker.start_bank(bank)
 
             processed = []

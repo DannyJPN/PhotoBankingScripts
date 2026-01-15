@@ -94,7 +94,7 @@ def test_prompt_manager_keywords_and_categories(tmp_path):
     assert "Count: 5" in keywords_prompt
 
     categories_prompt = manager.get_categories_prompt(
-        photobank="Adobe Stock",
+        photobank="AdobeStock",
         categories=["A", "B"],
         title="T",
         description="D",

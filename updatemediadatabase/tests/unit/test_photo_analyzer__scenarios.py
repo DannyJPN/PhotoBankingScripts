@@ -58,9 +58,27 @@ def test_extract_metadata__parses_json(monkeypatch):
     assert metadata["Height"] == 50
 
 
-def test_validate_against_limits__video_skips():
-    metadata = {"Type": photo_analyzer.TYPE_VIDEO}
-    limits = [{"Banka": "Test"}]
+def test_validate_against_limits__video_uses_typed_limits():
+    metadata = {"Type": photo_analyzer.TYPE_VIDEO, "Width": 1920, "Height": 1080}
+    limits = [{
+        "Banka": "Test",
+        "typ": "Video",
+        "šířka": "1920",
+        "výška": "1080",
+        "rozlišení": "2"
+    }]
+    results = photo_analyzer.validate_against_limits(metadata, limits)
+    assert results["Test"] is True
+
+
+def test_validate_against_limits__vector_ignores_photo_limits():
+    metadata = {"Type": photo_analyzer.TYPE_VECTOR, "Width": 100, "Height": 100}
+    limits = [{
+        "Banka": "Test",
+        "šířka": "2000",
+        "výška": "2000",
+        "rozlišení": "4"
+    }]
     results = photo_analyzer.validate_against_limits(metadata, limits)
     assert results["Test"] is True
 

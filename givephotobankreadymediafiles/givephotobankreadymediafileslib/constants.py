@@ -183,5 +183,13 @@ PHOTOBANK_CATEGORY_COUNTS = {
     '123rf': 0,
     'canstockphoto': 0,
     'pond5': 0,
-    'gettyimages': 0
+    'gettyimages': 0,
+    # New banks
+    'pixta': 0,
+    'freepik': 0,
+    'vecteezy': 0,
+    'storyblocks': 0,
+    'envato': 0,
+    '500px': 0,
+    'mostphotos': 0
 }

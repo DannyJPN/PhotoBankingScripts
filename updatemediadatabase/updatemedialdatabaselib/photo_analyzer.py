@@ -12,14 +12,18 @@ from typing import Dict, List, Optional, Any
 from updatemedialdatabaselib.constants import (
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
+    VECTOR_EXTENSIONS,
     TYPE_PHOTO,
     TYPE_VIDEO,
+    TYPE_VECTOR,
     TYPE_EDITED_PHOTO,
     TYPE_EDITED_VIDEO,
     LIMITS_COLUMN_BANK,
     LIMITS_COLUMN_WIDTH,
     LIMITS_COLUMN_HEIGHT,
-    LIMITS_COLUMN_RESOLUTION
+    LIMITS_COLUMN_RESOLUTION,
+    LIMITS_COLUMN_MEDIA_TYPE,
+    TYPE_EDITED_VECTOR
 )
 
 def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
@@ -89,6 +93,8 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
             metadata["Type"] = TYPE_PHOTO
         elif ext in VIDEO_EXTENSIONS:
             metadata["Type"] = TYPE_VIDEO
+        elif ext in VECTOR_EXTENSIONS:
+            metadata["Type"] = TYPE_VECTOR
         else:
             metadata["Type"] = "Unknown"
         
@@ -183,11 +189,20 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
         logging.warning(f"ExifTool failed for {file_path}: {e.stderr.strip() if e.stderr else 'Unknown error'}")
         logging.debug(f"ExifTool command: {' '.join(command)}")
         # Return basic metadata even if ExifTool fails
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in IMAGE_EXTENSIONS:
+            fallback_type = TYPE_PHOTO
+        elif ext in VIDEO_EXTENSIONS:
+            fallback_type = TYPE_VIDEO
+        elif ext in VECTOR_EXTENSIONS:
+            fallback_type = TYPE_VECTOR
+        else:
+            fallback_type = "Unknown"
         return {
             "Filename": os.path.basename(file_path),
             "Path": file_path,
             "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
-            "Type": TYPE_PHOTO if os.path.splitext(file_path)[1].lower() in IMAGE_EXTENSIONS else TYPE_VIDEO,
+            "Type": fallback_type,
             "Date": datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%d.%m.%Y") if os.path.exists(file_path) else ""
         }
     except Exception as e:
@@ -198,6 +213,25 @@ def extract_metadata(file_path: str, exiftool_path: str) -> Dict[str, Any]:
             "Size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "Type": "Unknown"
         }
+
+def normalize_media_type(media_type: str) -> str:
+    """
+    Normalize edited media types to their base type.
+
+    Args:
+        media_type: Media type string from metadata
+
+    Returns:
+        Base media type for limit matching
+    """
+    if media_type == TYPE_EDITED_PHOTO:
+        return TYPE_PHOTO
+    if media_type == TYPE_EDITED_VIDEO:
+        return TYPE_VIDEO
+    if media_type == TYPE_EDITED_VECTOR:
+        return TYPE_VECTOR
+    return media_type
+
 
 def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str]]) -> Dict[str, bool]:
     """
@@ -212,13 +246,11 @@ def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str
     """
     results = {}
 
-    # Videos should not be validated against PhotoLimits (photo-only limits)
-    media_type = metadata.get("Type", "")
-    if media_type in [TYPE_VIDEO, TYPE_EDITED_VIDEO]:
-        logging.debug(f"Skipping PhotoLimits validation for video: {metadata.get('Filename', 'unknown')}")
+    media_type = normalize_media_type(metadata.get("Type", ""))
+    if not media_type:
         for limit in limits:
             bank_name = limit.get(LIMITS_COLUMN_BANK, "Unknown")
-            results[bank_name] = True  # Videos are not rejected based on photo limits
+            results[bank_name] = True
         return results
 
     # If no dimensions available, assume file meets all limits
@@ -234,58 +266,83 @@ def validate_against_limits(metadata: Dict[str, Any], limits: List[Dict[str, str
     size_bytes = int(metadata.get("Size", 0))
     size_mb = size_bytes / (1024 * 1024)  # Convert to MB
     
+    limits_by_bank: Dict[str, List[Dict[str, str]]] = {}
     for limit in limits:
         bank_name = limit.get(LIMITS_COLUMN_BANK, "Unknown")
-        
-        # Check available fields (using actual CSV column names)
-        required_fields = [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]
-        missing_fields = [field for field in required_fields if field not in limit]
-        if missing_fields:
-            available_fields = list(limit.keys())
-            logging.warning(f"PHOTOBANK '{bank_name}': Missing required limit fields {missing_fields}. Available fields: {available_fields}. Skipping validation for this bank.")
+        limits_by_bank.setdefault(bank_name, []).append(limit)
+
+    for bank_name, bank_limits in limits_by_bank.items():
+        matching_limits = []
+        for limit in bank_limits:
+            limit_type = limit.get(LIMITS_COLUMN_MEDIA_TYPE, "").strip()
+            if not limit_type:
+                limit_type = TYPE_PHOTO
+            if limit_type != media_type:
+                continue
+            matching_limits.append(limit)
+
+        if not matching_limits:
+            # Bank doesn't support this media type
+            results[bank_name] = False
             continue
         
-        # Convert limits to integers/floats
-        try:
-            min_width = int(limit[LIMITS_COLUMN_WIDTH]) if limit[LIMITS_COLUMN_WIDTH] != '0' else 0
-            min_height = int(limit[LIMITS_COLUMN_HEIGHT]) if limit[LIMITS_COLUMN_HEIGHT] != '0' else 0
-            min_resolution_mp = float(limit[LIMITS_COLUMN_RESOLUTION])
-        except (ValueError, TypeError) as e:
-            invalid_values = {}
-            for field in [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]:
-                try:
-                    if field == LIMITS_COLUMN_RESOLUTION:
-                        float(limit[field])
-                    else:
-                        int(limit[field])
-                except (ValueError, TypeError):
-                    invalid_values[field] = limit.get(field, 'missing')
+        bank_valid = True
+        for limit in matching_limits:
+            # Check available fields (using actual CSV column names)
+            required_fields = [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]
+            missing_fields = [field for field in required_fields if field not in limit]
+            if missing_fields:
+                available_fields = list(limit.keys())
+                logging.warning(
+                    f"PHOTOBANK '{bank_name}': Missing required limit fields {missing_fields}. "
+                    f"Available fields: {available_fields}. Skipping validation for this bank."
+                )
+                continue
             
-            logging.warning(f"PHOTOBANK '{bank_name}': Invalid limit values {invalid_values} - expected numeric values. Skipping validation for this bank.")
-            continue
-        
-        # Calculate actual resolution in megapixels
-        actual_resolution_mp = (width * height) / 1_000_000
-        
-        # Validate dimensions and resolution
-        width_ok = (min_width == 0) or (width >= min_width)
-        height_ok = (min_height == 0) or (height >= min_height)
-        resolution_ok = actual_resolution_mp >= min_resolution_mp
-        
-        # Overall validation result
-        valid = width_ok and height_ok and resolution_ok
-        results[bank_name] = valid
-        
-        # Log validation details
-        if not valid:
-            issues = []
-            if not width_ok:
-                issues.append(f"width {width}px < minimum {min_width}px")
-            if not height_ok:
-                issues.append(f"height {height}px < minimum {min_height}px")
-            if not resolution_ok:
-                issues.append(f"resolution {actual_resolution_mp:.2f}MP < minimum {min_resolution_mp}MP")
+            # Convert limits to integers/floats
+            try:
+                min_width = int(limit[LIMITS_COLUMN_WIDTH]) if limit[LIMITS_COLUMN_WIDTH] != '0' else 0
+                min_height = int(limit[LIMITS_COLUMN_HEIGHT]) if limit[LIMITS_COLUMN_HEIGHT] != '0' else 0
+                min_resolution_mp = float(limit[LIMITS_COLUMN_RESOLUTION])
+            except (ValueError, TypeError):
+                invalid_values = {}
+                for field in [LIMITS_COLUMN_WIDTH, LIMITS_COLUMN_HEIGHT, LIMITS_COLUMN_RESOLUTION]:
+                    try:
+                        if field == LIMITS_COLUMN_RESOLUTION:
+                            float(limit[field])
+                        else:
+                            int(limit[field])
+                    except (ValueError, TypeError):
+                        invalid_values[field] = limit.get(field, 'missing')
+                
+                logging.warning(
+                    f"PHOTOBANK '{bank_name}': Invalid limit values {invalid_values} - expected numeric values. "
+                    "Skipping validation for this bank."
+                )
+                continue
             
-            logging.debug(f"File {metadata.get('Filename', 'unknown')} invalid for {bank_name}: {', '.join(issues)}")
+            # Calculate actual resolution in megapixels
+            actual_resolution_mp = (width * height) / 1_000_000
+            
+            # Validate dimensions and resolution
+            width_ok = (min_width == 0) or (width >= min_width)
+            height_ok = (min_height == 0) or (height >= min_height)
+            resolution_ok = actual_resolution_mp >= min_resolution_mp
+            
+            # Log validation details
+            if not (width_ok and height_ok and resolution_ok):
+                issues = []
+                if not width_ok:
+                    issues.append(f"width {width}px < minimum {min_width}px")
+                if not height_ok:
+                    issues.append(f"height {height}px < minimum {min_height}px")
+                if not resolution_ok:
+                    issues.append(f"resolution {actual_resolution_mp:.2f}MP < minimum {min_resolution_mp}MP")
+                
+                logging.debug(f"File {metadata.get('Filename', 'unknown')} invalid for {bank_name}: {', '.join(issues)}")
+                bank_valid = False
+                break
+
+        results[bank_name] = bank_valid
     
     return results

@@ -37,4 +37,4 @@ def test_compare_with_legacy_approach__matches_results(monkeypatch):
     )
 
     assert optimized == legacy
-    assert set(optimized.keys()) == {"Adobe Stock", "Shutterstock"}
+    assert set(optimized.keys()) == {"AdobeStock", "Shutterstock"}

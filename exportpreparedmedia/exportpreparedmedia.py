@@ -69,8 +69,17 @@ def parse_arguments():
                         help="Export to GettyImages")
     parser.add_argument("--alamy", action="store_true",
                         help="Export to Alamy")
+    # New banks
+    parser.add_argument("--pixta", action="store_true",
+                        help="Export to Pixta")
+    parser.add_argument("--freepik", action="store_true",
+                        help="Export to Freepik")
+    parser.add_argument("--vecteezy", action="store_true",
+                        help="Export to Vecteezy")
+    parser.add_argument("--storyblocks", action="store_true",
+                        help="Export to StoryBlocks")
     parser.add_argument("--all", action="store_true",
-                        help="Export to all supported banks")
+                        help="Export to all supported banks (excluding web-only banks: Envato, 500px, MostPhotos)")
 
     # Filtering options
     parser.add_argument("--include-edited", action="store_true",
@@ -85,15 +94,16 @@ def main():
     args = parse_arguments()
 
     # Kontrola vzájemného vylučování parametrů
-    individual_banks = [args.shutterstock, args.adobestock, args.dreamstime, 
+    individual_banks = [args.shutterstock, args.adobestock, args.dreamstime,
                        args.depositphotos, args.bigstockphoto, args._123rf,
-                       args.canstockphoto, args.pond5, args.gettyimages, args.alamy]
-    
+                       args.canstockphoto, args.pond5, args.gettyimages, args.alamy,
+                       args.pixta, args.freepik, args.vecteezy, args.storyblocks]
+
     if args.all and any(individual_banks):
         logging.error("Cannot use --all together with individual bank parameters")
         return
-    
-    # Pokud je zadaný přepínač --all, aktivuj všechny banky
+
+    # Pokud je zadaný přepínač --all, aktivuj všechny banky (kromě web-only)
     if args.all:
         args.shutterstock = True
         args.adobestock = True
@@ -105,6 +115,12 @@ def main():
         args.pond5 = True
         args.gettyimages = True
         args.alamy = True
+        # New banks with CSV export support
+        args.pixta = True
+        args.freepik = True
+        args.vecteezy = True
+        args.storyblocks = True
+        # Note: Envato, 500px, MostPhotos are web-only (no CSV export)
 
     # Setup logging
     ensure_directory(args.log_dir)

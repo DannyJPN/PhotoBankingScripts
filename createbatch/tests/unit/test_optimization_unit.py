@@ -45,7 +45,7 @@ class TestRecordProcessor:
         }
 
         banks = processor._extract_prepared_banks(record)
-        assert set(banks) == {'Shutterstock', 'Adobe Stock'}
+        assert set(banks) == {'Shutterstock', 'AdobeStock'}
 
     def test_extract_prepared_banks_case_insensitive(self, processor):
         """Test that status matching is case-insensitive."""
@@ -56,7 +56,7 @@ class TestRecordProcessor:
         }
 
         banks = processor._extract_prepared_banks(record)
-        assert set(banks) == {'Shutterstock', 'Adobe Stock'}
+        assert set(banks) == {'Shutterstock', 'AdobeStock'}
 
     def test_extract_prepared_banks_no_prepared(self, processor):
         """Test that no banks are extracted when none are prepared."""
@@ -98,9 +98,9 @@ class TestRecordProcessor:
         result = processor.process_records_optimized(records)
 
         assert 'Shutterstock' in result
-        assert 'Adobe Stock' in result
+        assert 'AdobeStock' in result
         assert len(result['Shutterstock']) == 1
-        assert len(result['Adobe Stock']) == 1
+        assert len(result['AdobeStock']) == 1
 
     def test_process_records_optimized_multiple_banks_per_record(self, processor):
         """Test record belonging to multiple banks."""
@@ -115,11 +115,11 @@ class TestRecordProcessor:
         result = processor.process_records_optimized(records)
 
         assert 'Shutterstock' in result
-        assert 'Adobe Stock' in result
+        assert 'AdobeStock' in result
         # Same record should appear in both banks
         assert len(result['Shutterstock']) == 1
-        assert len(result['Adobe Stock']) == 1
-        assert result['Shutterstock'][0] is result['Adobe Stock'][0]  # Same object
+        assert len(result['AdobeStock']) == 1
+        assert result['Shutterstock'][0] is result['AdobeStock'][0]  # Same object
 
     def test_process_records_optimized_exclude_edited(self, processor):
         """Test exclusion of edited photos."""
@@ -137,7 +137,7 @@ class TestRecordProcessor:
         assert 'original' in result['Shutterstock'][0]['Cesta']
 
         # Edited photo for Adobe Stock should be excluded
-        assert 'Adobe Stock' not in result
+        assert 'AdobeStock' not in result
 
     def test_process_records_optimized_include_edited(self, processor):
         """Test inclusion of edited photos when flag is set."""
@@ -170,16 +170,16 @@ class TestRecordProcessor:
         """Test bank statistics generation."""
         bank_records_map = {
             'Shutterstock': [{'a': '1'}, {'b': '2'}, {'c': '3'}],
-            'Adobe Stock': [{'d': '4'}, {'e': '5'}],
-            'Getty Images': [{'f': '6'}]
+            'AdobeStock': [{'d': '4'}, {'e': '5'}],
+            'GettyImages': [{'f': '6'}]
         }
 
         stats = processor.get_bank_statistics(bank_records_map)
 
         assert stats == {
             'Shutterstock': 3,
-            'Adobe Stock': 2,
-            'Getty Images': 1
+            'AdobeStock': 2,
+            'GettyImages': 1
         }
 
     def test_get_bank_statistics_empty(self, processor):
@@ -197,7 +197,7 @@ class TestRecordProcessor:
 
         banks = processor._extract_prepared_banks(record)
         # Should strip whitespace correctly
-        assert 'Getty Images' in banks
+        assert 'GettyImages' in banks
         # Note: Leading spaces in column name would be unusual but should handle
 
     def test_sorted_bank_order(self, processor):

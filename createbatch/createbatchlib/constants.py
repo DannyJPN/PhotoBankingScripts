@@ -1,3 +1,4 @@
+
 DEFAULT_PHOTO_CSV_FILE = "L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv"
 DEFAULT_PROCESSED_MEDIA_FOLDER = "L:/Můj disk/PhotoBankMedia"
 DEFAULT_LOG_DIR = "H:/Logs"
@@ -26,19 +27,28 @@ RAW_FORMATS = {
     '.rw2',  # Panasonic Lumix
 }
 
-# Supported image formats by photobank
+# Supported image formats by photobank (photos, videos, vectors)
 PHOTOBANK_SUPPORTED_FORMATS = {
-    'Dreamstime': {'.jpg', '.png'} | RAW_FORMATS,
-    'Pond5': {'.jpg', '.png', '.tif'},
-    'Shutterstock': {'.jpg'},
-    'Adobe Stock': {'.jpg'},
-    'Getty Images': {'.jpg'},
-    '123RF': {'.jpg'},
-    'Depositphotos': {'.jpg', '.png'},
-    'Alamy': {'.jpg'},
-    'Bigstock': {'.jpg'},
+    # Active banks
+    'ShutterStock': {'.jpg', '.tif', '.mov', '.mp4', '.eps'},
+    'AdobeStock': {'.jpg', '.mov', '.mpg', '.mp4', '.ai', '.eps'},
+    'Dreamstime': {'.jpg', '.mov', '.avi', '.mp4', '.mpeg', '.wmv', '.cdr', '.ai', '.eps', '.png', '.svg'} | RAW_FORMATS,
+    'DepositPhotos': {'.jpg', '.png', '.asf', '.mp4', '.ai', '.eps'},
+    'GettyImages': {'.jpg', '.eps'},
+    'Pond5': {'.jpg', '.tif', '.png', '.mov', '.mp4', '.eps'},
+    'Alamy': {'.jpg', '.eps'},
+    '123RF': {'.jpg', '.mov', '.wmv', '.mp4', '.avi', '.m2ts', '.eps'},
+    # Deprecated banks
+    'BigStockPhoto': {'.jpg'},
     'CanStockPhoto': {'.jpg'},
-    'iStock': {'.jpg'},
+    # New banks
+    'Pixta': {'.jpg', '.png', '.eps'},
+    'Freepik': {'.jpg', '.eps', '.psd'},
+    'Vecteezy': {'.jpg', '.eps'},
+    'StoryBlocks': {'.mov', '.mp4'},
+    'Envato': {'.jpg'},
+    '500px': {'.jpg'},
+    'MostPhotos': {'.jpg', '.eps', '.ai'},
 }
 
 # Format subdirectory names
@@ -58,8 +68,20 @@ ALTERNATIVE_EDIT_TAGS = {
     "_blurred": "Gaussian blur"
 }
 
+# Editorial content detection
+EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
+
+# Banks that do NOT accept editorial content
+# Editorial files will be automatically excluded from batch creation for these banks
+BANKS_NO_EDITORIAL = {
+    'AdobeStock',   # Commercial content only
+    'GettyImages',  # Separate editorial portal
+    'Freepik',      # Commercial content only
+    'Pixta',        # Commercial content only
+}
+
 # Batch size limits for photobanks (items per batch)
 # Banks not listed here have no batch size limit
 PHOTOBANK_BATCH_SIZE_LIMITS = {
-    'Getty Images': 128,  # Note: Inconsistent naming with export ('GettyImages')
+    'GettyImages': 128,
 }

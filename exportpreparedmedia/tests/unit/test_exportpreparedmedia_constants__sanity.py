@@ -25,4 +25,4 @@ def test_constants__jpg_supported():
 
 
 def test_constants__export_formats_override():
-    assert "DreamsTime" in constants.PHOTOBANK_EXPORT_FORMATS
+    assert "Dreamstime" in constants.PHOTOBANK_EXPORT_FORMATS

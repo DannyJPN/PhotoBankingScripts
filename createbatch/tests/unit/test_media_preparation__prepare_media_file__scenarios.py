@@ -86,7 +86,7 @@ def test_prepare_media_file__bank_mismatch_skips(tmp_path, patched_dependencies)
         record,
         output_folder=str(tmp_path / "out"),
         exif_tool_path="exiftool",
-        bank="Adobe Stock",
+        bank="AdobeStock",
     )
 
     assert result == []

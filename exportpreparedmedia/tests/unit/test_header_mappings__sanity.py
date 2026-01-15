@@ -13,7 +13,7 @@ from exportpreparedmedialib.header_mappings import HEADER_MAPPINGS
 
 
 def test_header_mappings__banks_present():
-    for bank in ["ShutterStock", "AdobeStock", "DreamsTime", "Pond5", "Alamy", "GettyImages"]:
+    for bank in ["ShutterStock", "AdobeStock", "Dreamstime", "Pond5", "Alamy", "GettyImages"]:
         assert bank in HEADER_MAPPINGS
 
 

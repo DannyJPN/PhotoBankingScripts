@@ -11,8 +11,43 @@ from exportpreparedmedialib.constants import (
     VALID_STATUS,
     DEFAULT_LOCATION,
     DEFAULT_USERNAME,
-    DEFAULT_COPYRIGHT_AUTHOR
+    DEFAULT_COPYRIGHT_AUTHOR,
+    BANKS_NO_EDITORIAL
 )
+
+
+def is_editorial_item(item: dict[str, str]) -> bool:
+    """
+    Check if an item is editorial content based on title or description.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+
+    Returns:
+        True if item matches editorial regex pattern
+    """
+    title = item.get('Název', item.get('title', item.get('Title', '')))
+    description = item.get('Popis', item.get('description', item.get('Description', '')))
+
+    return bool(re.search(EDITORIAL_REGEX, title)) or bool(re.search(EDITORIAL_REGEX, description))
+
+
+def should_skip_editorial(item: dict[str, str], bank_name: str) -> bool:
+    """
+    Determine if an editorial item should be skipped for a given bank.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+        bank_name: Name of the photobank
+
+    Returns:
+        True if item is editorial and bank doesn't accept editorial
+    """
+    if bank_name not in BANKS_NO_EDITORIAL:
+        return False
+
+    return is_editorial_item(item)
+
 
 def get_enabled_banks(args: Namespace) -> list[str]:
     """
@@ -34,7 +69,7 @@ def get_enabled_banks(args: Namespace) -> list[str]:
         enabled_banks.append("AdobeStock")
 
     if hasattr(args, 'dreamstime') and args.dreamstime:
-        enabled_banks.append("DreamsTime")
+        enabled_banks.append("Dreamstime")
 
     if hasattr(args, 'depositphotos') and args.depositphotos:
         enabled_banks.append("DepositPhotos")
@@ -42,7 +77,7 @@ def get_enabled_banks(args: Namespace) -> list[str]:
     if hasattr(args, 'bigstockphoto') and args.bigstockphoto:
         enabled_banks.append("BigStockPhoto")
 
-    if hasattr(args, '123rf') and args._123rf:
+    if hasattr(args, '_123rf') and args._123rf:
         enabled_banks.append("123RF")
 
     if hasattr(args, 'canstockphoto') and args.canstockphoto:
@@ -56,6 +91,19 @@ def get_enabled_banks(args: Namespace) -> list[str]:
 
     if hasattr(args, 'alamy') and args.alamy:
         enabled_banks.append("Alamy")
+
+    # New banks
+    if hasattr(args, 'pixta') and args.pixta:
+        enabled_banks.append("Pixta")
+
+    if hasattr(args, 'freepik') and args.freepik:
+        enabled_banks.append("Freepik")
+
+    if hasattr(args, 'vecteezy') and args.vecteezy:
+        enabled_banks.append("Vecteezy")
+
+    if hasattr(args, 'storyblocks') and args.storyblocks:
+        enabled_banks.append("StoryBlocks")
 
     logging.info(f"Enabled banks: {', '.join(enabled_banks)}")
     return enabled_banks

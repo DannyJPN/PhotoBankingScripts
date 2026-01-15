@@ -156,7 +156,7 @@ def test_createbatch__main__no_banks_exits(common_patches, monkeypatch, caplog):
 
 def test_createbatch__main__batch_limit_uses_split(common_patches, monkeypatch):
     records = [{"Cesta": "a.jpg"}, {"Cesta": "b.jpg"}]
-    DummyProcessor.return_map = {"Getty Images": records}
+    DummyProcessor.return_map = {"GettyImages": records}
 
     def split_batches(input_records, limit):
         assert input_records == records
@@ -171,19 +171,19 @@ def test_createbatch__main__batch_limit_uses_split(common_patches, monkeypatch):
         "prepare_media_file",
         lambda rec, *_args, **_kwargs: [rec["Cesta"]],
     )
-    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Getty Images": 1})
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"GettyImages": 1})
 
     createbatch_module.main()
 
     tracker = DummyProgressTracker.last_instance
-    assert tracker.started_banks == ["Getty Images"]
+    assert tracker.started_banks == ["GettyImages"]
     assert tracker.update_calls == [1, 1]
     assert tracker.finish_all_calls == 1
 
 
 def test_createbatch__main__no_batch_limit_single_batch(common_patches, monkeypatch):
     records = [{"Cesta": "a.jpg"}]
-    DummyProcessor.return_map = {"Adobe Stock": records}
+    DummyProcessor.return_map = {"AdobeStock": records}
 
     def split_should_not_run(*_args, **_kwargs):
         raise AssertionError("split_into_batches should not be called")
@@ -196,7 +196,7 @@ def test_createbatch__main__no_batch_limit_single_batch(common_patches, monkeypa
         "prepare_media_file",
         lambda rec, *_args, **_kwargs: [rec["Cesta"]],
     )
-    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Adobe Stock": 0})
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"AdobeStock": 0})
 
     createbatch_module.main()
 
