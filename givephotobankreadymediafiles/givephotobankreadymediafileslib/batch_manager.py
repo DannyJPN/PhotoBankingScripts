@@ -18,6 +18,7 @@ from PIL import Image
 from shared.config import get_config
 from shared.ai_module import Message, ContentBlock, create_from_model_key
 from shared.file_operations import load_csv, save_csv_with_backup, read_json, write_json, read_binary
+from shared.exif_handler import get_best_creation_date
 
 from givephotobankreadymediafileslib.constants import (
     COL_FILE, COL_PATH, COL_TITLE, COL_DESCRIPTION, COL_KEYWORDS, COL_PREP_DATE,
@@ -467,7 +468,15 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
         if editorial_data:
             city = editorial_data.get("city", "").strip()
             country = editorial_data.get("country", "").strip()
-            date_str = editorial_data.get("date", "").strip()
+
+            # Get date from EXIF metadata, not from editorial_data
+            date_str = ""
+            if city and country:
+                exif_date = get_best_creation_date(file_entry["file_path"])
+                if exif_date:
+                    date_str = exif_date.strftime("%d %m %Y")
+                else:
+                    logging.warning(f"No EXIF date found for editorial file: {file_entry['file_path']}")
 
             if city and country and date_str:
                 editorial_prefix = f"{city.upper()}, {country.upper()} - {date_str}: "
