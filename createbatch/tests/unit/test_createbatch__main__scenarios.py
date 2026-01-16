@@ -69,7 +69,7 @@ def make_args(tmp_path, **overrides):
     defaults = dict(
         photo_csv=str(tmp_path / "input.csv"),
         output_folder=str(tmp_path / "out"),
-        overwrite=False,
+        skip_existing=False,
         log_dir=str(tmp_path / "logs"),
         debug=False,
         include_edited=False,
@@ -97,7 +97,7 @@ def test_createbatch__parse_arguments__defaults(monkeypatch):
     assert args.photo_csv == cb_constants.DEFAULT_PHOTO_CSV_FILE
     assert args.output_folder == cb_constants.DEFAULT_PROCESSED_MEDIA_FOLDER
     assert args.log_dir == cb_constants.DEFAULT_LOG_DIR
-    assert args.overwrite is False
+    assert args.skip_existing is False
     assert args.debug is False
     assert args.include_edited is False
     assert args.include_alternative_formats is False
@@ -115,7 +115,7 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
             str(tmp_path / "out"),
             "--log_dir",
             str(tmp_path / "logs"),
-            "--overwrite",
+            "--skip-existing",
             "--debug",
             "--include-edited",
             "--include-alternative-formats",
@@ -126,7 +126,7 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
     assert args.photo_csv.endswith("photos.csv")
     assert args.output_folder.endswith("out")
     assert args.log_dir.endswith("logs")
-    assert args.overwrite is True
+    assert args.skip_existing is True
     assert args.debug is True
     assert args.include_edited is True
     assert args.include_alternative_formats is True

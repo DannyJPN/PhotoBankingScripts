@@ -63,7 +63,7 @@ def test_prepare_media_file__copies_to_expected_folder(tmp_path, patched_depende
         record,
         output_folder=str(tmp_path / "out"),
         exif_tool_path="exiftool",
-        overwrite=False,
+        skip_existing=False,
         bank="Shutterstock",
         include_alternative_formats=False,
     )
@@ -72,7 +72,7 @@ def test_prepare_media_file__copies_to_expected_folder(tmp_path, patched_depende
     expected_dest = expected_dir / source.name
 
     assert ensure_calls == [str(expected_dir)]
-    assert copy_calls == [(str(source), str(expected_dest), False)]
+    assert copy_calls == [(str(source), str(expected_dest), True)]
     assert exif_calls and exif_calls[0][0] == str(expected_dest)
     assert result == [str(expected_dest)]
 

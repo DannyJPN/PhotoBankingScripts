@@ -35,11 +35,6 @@ def parse_arguments():
         help="Root folder where processed media will be placed"
     )
     parser.add_argument(
-        "--overwrite",
-        action='store_true',
-        help="Overwrite existing files in the output folders"
-    )
-    parser.add_argument(
         "--log_dir",
         type=str,
         default=DEFAULT_LOG_DIR,
@@ -60,6 +55,11 @@ def parse_arguments():
         action='store_true',
         help="Include alternative formats (PNG, TIFF, RAW) in batch creation (default: only JPG)"
     )
+    parser.add_argument(
+        "--skip-existing",
+        action='store_true',
+        help="Skip files that already exist in output folder (faster when re-running)"
+    )
     return parser.parse_args()
 
 
@@ -75,6 +75,9 @@ def main():
     exif_tool_path = ensure_exiftool()
     logging.debug("EXIF: %s", exif_tool_path)
     logging.info("Starting CreateBatch process")
+
+    if args.skip_existing:
+        logging.info("Skip-existing mode enabled: Files already in output folder will be skipped")
 
     # Load CSV and process with optimized single-pass algorithm
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
@@ -144,7 +147,7 @@ def main():
                             rec,
                             args.output_folder,
                             exif_tool_path,
-                            overwrite=args.overwrite,
+                            skip_existing=args.skip_existing,
                             bank=bank,
                             include_alternative_formats=args.include_alternative_formats,
                             batch_number=batch_num
