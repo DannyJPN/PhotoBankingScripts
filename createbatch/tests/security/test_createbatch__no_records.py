@@ -25,7 +25,7 @@ def test_main_exits_when_no_records(monkeypatch):
     args = types.SimpleNamespace(
         photo_csv="X:/photo.csv",
         output_folder="X:/out",
-        overwrite=False,
+        skip_existing=False,
         log_dir="X:/logs",
         debug=False,
         include_edited=False,

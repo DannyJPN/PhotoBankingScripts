@@ -108,7 +108,6 @@ def main():
 
     all_processed: List[str] = []
     error_count = 0
-    skipped_count = 0
 
     try:
         # Process each bank with unified progress tracking
