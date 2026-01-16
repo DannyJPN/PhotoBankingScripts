@@ -35,11 +35,6 @@ def parse_arguments():
         help="Root folder where processed media will be placed"
     )
     parser.add_argument(
-        "--overwrite",
-        action='store_true',
-        help="Overwrite existing files in the output folders"
-    )
-    parser.add_argument(
         "--log_dir",
         type=str,
         default=DEFAULT_LOG_DIR,
@@ -153,7 +148,6 @@ def main():
                             rec,
                             args.output_folder,
                             exif_tool_path,
-                            overwrite=args.overwrite,
                             skip_existing=args.skip_existing,
                             bank=bank,
                             include_alternative_formats=args.include_alternative_formats,
