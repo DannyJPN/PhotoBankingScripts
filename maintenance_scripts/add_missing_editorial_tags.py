@@ -24,16 +24,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-# Add parent directories to path
-script_dir = Path(__file__).parent  # givephotobankreadymediafiles/scripts/
-module_dir = script_dir.parent  # givephotobankreadymediafiles/
-root_dir = module_dir.parent  # Fotobanking/
+# Add parent directories to path (script is in maintenance_scripts/)
+project_root = Path(__file__).resolve().parent.parent  # Fotobanking/
 
 # Add both paths:
-# - module_dir for importing givephotobankreadymediafileslib
-# - root_dir for importing shared
-sys.path.insert(0, str(module_dir))
-sys.path.insert(0, str(root_dir))
+# - project_root for importing shared
+# - givephotobankreadymediafiles for importing givephotobankreadymediafileslib
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "givephotobankreadymediafiles"))
 
 from givephotobankreadymediafileslib.batch_state import (
     BatchRegistry,

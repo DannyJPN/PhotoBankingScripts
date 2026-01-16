@@ -26,12 +26,10 @@ except ImportError:
     def tqdm(iterable, **kwargs):
         return iterable
 
-# Add paths for imports
-script_dir = Path(__file__).parent
-module_dir = script_dir.parent
-root_dir = module_dir.parent
-sys.path.insert(0, str(module_dir))
-sys.path.insert(0, str(root_dir))
+# Add paths for imports (script is in maintenance_scripts/)
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "givephotobankreadymediafiles"))
 
 from givephotobankreadymediafileslib.batch_state import BatchState, BatchRegistry
 from givephotobankreadymediafileslib.metadata_generator import MetadataGenerator, create_metadata_generator

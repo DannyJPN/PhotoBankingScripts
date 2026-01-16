@@ -8,13 +8,19 @@ will have their status updated to:
 - 'nezpracováno' if they meet the limits
 
 Usage:
-    python updatemediadatabase/fix_invalid_prepared_statuses.py --dry-run
-    python updatemediadatabase/fix_invalid_prepared_statuses.py
+    python maintenance_scripts/fix_invalid_prepared_statuses.py --dry-run
+    python maintenance_scripts/fix_invalid_prepared_statuses.py
 """
 import argparse
 import logging
 import sys
+from pathlib import Path
 from typing import Dict, List, Set
+
+# Add project root and updatemediadatabase to path
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "updatemediadatabase"))
 
 from shared.file_operations import load_csv, save_csv_with_backup
 
