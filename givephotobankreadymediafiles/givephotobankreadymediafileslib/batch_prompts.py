@@ -5,6 +5,13 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List
 
+from .constants import (
+    SOFT_TITLE_LIMIT,
+    SOFT_DESCRIPTION_LIMIT,
+    SOFT_DESCRIPTION_BUFFER,
+    SOFT_KEYWORDS_LIMIT,
+)
+
 
 def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str, str]] = None,
                        categories: Optional[Dict[str, List[str]]] = None) -> str:
@@ -17,15 +24,19 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         categories: Optional dict mapping photobank names to lists of valid categories
     """
     editorial_block = ""
+    editorial_prefix_length = 0
     if editorial_data:
         city = editorial_data.get("city", "").strip()
         country = editorial_data.get("country", "").strip()
         date_str = editorial_data.get("date", "").strip()
         if city and country and date_str:
+            editorial_prefix = f"{city.upper()}, {country.upper()} - {date_str}: "
+            editorial_prefix_length = len(editorial_prefix)
             editorial_block = (
                 "EDITORIAL REQUIREMENT:\n"
                 f"- This is editorial content.\n"
-                f"- The description MUST start with: {city.upper()}, {country.upper()} - {date_str}: \n"
+                f"- The description MUST start with: {editorial_prefix}\n"
+                f"- The editorial prefix is {editorial_prefix_length} characters long.\n"
                 "\n"
             )
 
@@ -103,7 +114,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         f"{editorial_block}"
         "===== TITLE REQUIREMENTS =====\n"
         "- **CRITICAL**: DO NOT infer information from the image filename. Analyze only the visual content.\n"
-        "- Maximum 80 characters\n"
+        f"- Maximum {SOFT_TITLE_LIMIT} characters (strict limit, do not exceed)\n"
         "- Start with the main subject (e.g., \"Silhouette of Arabian horse\", \"Granite mountain landscape\", \"Woman practicing yoga\")\n"
         "- Add specific context: location, time, setting, or key characteristics\n"
         "- Be concrete and factual, not abstract or poetic\n"
@@ -113,7 +124,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         "\n"
         "===== DESCRIPTION REQUIREMENTS =====\n"
         "- **CRITICAL**: DO NOT infer information from the image filename. Analyze only the visual content.\n"
-        "- Maximum 200 characters\n"
+        f"- Maximum {SOFT_DESCRIPTION_LIMIT - editorial_prefix_length} characters (strict limit, do not exceed)\n"
         "- CRITICAL: Always end with complete sentences - NEVER cut off mid-sentence or mid-phrase\n"
         "- If approaching character limit, finish the current sentence and stop\n"
         "- DO NOT just copy the title - provide NEW factual details\n"
@@ -130,8 +141,8 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
         "- Be factual and literal - describe what IS there\n"
         "\n"
         "===== KEYWORDS REQUIREMENTS =====\n"
-        "- Generate MAXIMUM 50 keywords - no more than 50 allowed (minimum 30 if absolutely necessary)\n"
-        "- CRITICAL: If you generate more than 50, only the first 50 will be used\n"
+        f"- Generate MAXIMUM {SOFT_KEYWORDS_LIMIT} keywords (strict limit, do not exceed)\n"
+        f"- CRITICAL: If you generate more than {SOFT_KEYWORDS_LIMIT}, excess will be discarded\n"
         "- STRONGLY PREFER single-word keywords (~80% of total): \"sunset\", \"mountain\", \"horse\", \"forest\"\n"
         "- Multi-word keywords ONLY when absolutely necessary (~20% of total): \"golden hour\", \"aerial view\"\n"
         "- **CRITICAL ANTI-DUPLICATION RULE**: If single words are already present (e.g., \"blue\", \"pond\"), do NOT create multi-word combinations (\"blue pond\"). Each word should appear only once.\n"
@@ -245,7 +256,7 @@ def build_alternative_prompt(edit_tag: str, original_title: str, original_descri
         f"Now generate metadata for the {edit_meta['description']} version of the same image.\n"
         "\n"
         "===== TITLE REQUIREMENTS =====\n"
-        "- Maximum 80 characters\n"
+        f"- Maximum {SOFT_TITLE_LIMIT} characters (strict limit, do not exceed)\n"
         "- Keep the same subject and context as the original title\n"
         f"- Add '{edit_meta['hint']}' naturally to describe this edited version\n"
         "- Start with the main subject, then add the edit characteristic\n"
@@ -256,7 +267,7 @@ def build_alternative_prompt(edit_tag: str, original_title: str, original_descri
         f"{edit_meta['title_instructions']}\n"
         "\n"
         "===== DESCRIPTION REQUIREMENTS =====\n"
-        "- Maximum 200 characters\n"
+        f"- Maximum {SOFT_DESCRIPTION_LIMIT} characters (strict limit, do not exceed)\n"
         "- Keep the same factual details as the original\n"
         f"- Adjust for the {edit_tag} edit effect as specified below\n"
         "- Use natural, flowing prose\n"
@@ -267,8 +278,8 @@ def build_alternative_prompt(edit_tag: str, original_title: str, original_descri
         f"{edit_meta['description_instructions']}\n"
         "\n"
         "===== KEYWORDS REQUIREMENTS =====\n"
-        "- Generate MAXIMUM 50 keywords - no more than 50 allowed (minimum 30 if absolutely necessary)\n"
-        "- CRITICAL: If you generate more than 50, only the first 50 will be used\n"
+        f"- Generate MAXIMUM {SOFT_KEYWORDS_LIMIT} keywords (strict limit, do not exceed)\n"
+        f"- CRITICAL: If you generate more than {SOFT_KEYWORDS_LIMIT}, excess will be discarded\n"
         "- Keep most keywords from the original\n"
         f"- Apply the adjustments specified below for {edit_tag}\n"
         "- PREFER single-word keywords (~80% of total)\n"

@@ -276,20 +276,17 @@ class PromptManager:
     
     def get_character_limits(self) -> Dict[str, int]:
         """
-        Get character limits from configuration.
-        
+        Get character limits for metadata fields.
+
+        Note: These are hard limits from constants.py. For soft limits used
+        in AI prompts, see SOFT_* constants in givephotobankreadymediafileslib/constants.py.
+
         Returns:
-            Dictionary of character limits
+            Dictionary of character limits (title: 80, description: 200, keywords_max: 50)
         """
-        try:
-            return self.config.get("character_limits", {
-                "title": 100,
-                "description": 200,
-                "keywords_max": 50
-            })
-        except Exception as e:
-            logging.error(f"Failed to get character limits: {e}")
-            return {"title": 100, "description": 200, "keywords_max": 50}
+        # Hard limits - single source of truth is constants.py
+        # This method exists for backward compatibility
+        return {"title": 80, "description": 200, "keywords_max": 50}
     
     def get_photobank_limits(self) -> Dict[str, int]:
         """

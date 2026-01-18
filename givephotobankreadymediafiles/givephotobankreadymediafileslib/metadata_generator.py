@@ -20,7 +20,13 @@ from shared.ai_module import (
 from shared.prompt_manager import get_prompt_manager
 
 # Import constants
-from .constants import ALTERNATIVE_EDIT_TAGS, AI_MAX_RETRY_ATTEMPTS
+from .constants import (
+    ALTERNATIVE_EDIT_TAGS,
+    AI_MAX_RETRY_ATTEMPTS,
+    MAX_TITLE_LENGTH,
+    MAX_DESCRIPTION_LENGTH,
+    MAX_KEYWORDS_COUNT,
+)
 
 
 @dataclass
@@ -51,12 +57,11 @@ class MetadataGenerator:
         """
         self.ai_provider = ai_provider
         self.prompt_manager = get_prompt_manager()
-        
-        # Load generation settings from configuration
-        limits = self.prompt_manager.get_character_limits()
-        self.max_title_length = limits.get('title', 100)
-        self.max_description_length = limits.get('description', 200)
-        self.max_keywords = limits.get('keywords_max', 50)
+
+        # Use constants directly as single source of truth
+        self.max_title_length = MAX_TITLE_LENGTH
+        self.max_description_length = MAX_DESCRIPTION_LENGTH
+        self.max_keywords = MAX_KEYWORDS_COUNT
         
         # Photobank category mappings (loaded separately)
         self.photobank_categories: Dict[str, List[str]] = {}
@@ -81,7 +86,7 @@ class MetadataGenerator:
             user_description: Optional user input (description, commands, or notes)
 
         Returns:
-            Title string (max 100 characters)
+            Title string (max 80 characters)
 
         Raises:
             ValueError: If AI provider doesn't support images
@@ -334,7 +339,7 @@ class MetadataGenerator:
             original_title: Title of original image for context
 
         Returns:
-            Title string for this alternative version (max 100 characters)
+            Title string for this alternative version (max 80 characters)
 
         Raises:
             ValueError: If AI provider doesn't support images or edit_tag invalid

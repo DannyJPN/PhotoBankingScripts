@@ -135,7 +135,7 @@ def test_prompt_manager_limits_and_fallbacks(tmp_path):
     title_prompt = manager.get_title_prompt()
     assert "Return ONLY the title" in title_prompt
 
-    assert manager.get_character_limits()["title"] == 100
+    assert manager.get_character_limits()["title"] == 80
     assert manager.get_photobank_limits()["adobestock"] == 1
 
 

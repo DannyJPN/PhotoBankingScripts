@@ -33,7 +33,7 @@
       "user_input_template": "NOTE: User input may include descriptions, specific instructions (e.g., 'identify species', 'determine exact type'), notes about uncertainty, or contextual explanations. Interpret and apply this information appropriately.\n\nUSER INPUT:\n{user_description}\n\n",
       "context_template": "Context/existing title to improve: {context}\n\n",
       "variables": {
-        "max_length": 80,
+        "max_length": 70,
         "context": null
       }
     },
@@ -79,7 +79,7 @@
       "title_template": "Title: {title}\n",
       "context_template": "Context/existing description to improve: {context}\n",
       "variables": {
-        "max_length": 200,
+        "max_length": 180,
         "title": null,
         "context": null
       }
@@ -180,7 +180,7 @@
         "edit_description": null,
         "edit_hint": null,
         "edit_instructions": null,
-        "max_length": 80
+        "max_length": 70
       }
     },
     "description_alternative": {
@@ -209,7 +209,7 @@
         "edit_tag": null,
         "edit_description": null,
         "edit_instructions": null,
-        "max_length": 200
+        "max_length": 180
       }
     },
     "keywords_alternative": {
@@ -251,10 +251,5 @@
     "adobestock": 1,
     "dreamstime": 3,
     "alamy": 2
-  },
-  "character_limits": {
-    "title": 100,
-    "description": 200,
-    "keywords_max": 50
   }
 }

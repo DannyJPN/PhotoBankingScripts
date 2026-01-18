@@ -15,10 +15,17 @@ IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.
 VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
 VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
 
-# Metadata constraints
+# Metadata constraints - hard limits (photobank requirements)
 MAX_TITLE_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 200
 MAX_KEYWORDS_COUNT = 50
+
+# Soft limits for AI prompts (with buffer to minimize truncation)
+# AI is instructed to stay within these; truncation is fallback only
+SOFT_TITLE_LIMIT = 70  # Buffer: 10 chars
+SOFT_DESCRIPTION_LIMIT = 180  # Buffer: 20 chars
+SOFT_KEYWORDS_LIMIT = 45  # Buffer: 5 keywords
+SOFT_DESCRIPTION_BUFFER = 20  # Buffer for editorial prefix calculations
 
 # AI generation settings
 AI_MAX_RETRY_ATTEMPTS = 10
