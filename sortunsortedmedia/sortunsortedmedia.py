@@ -103,6 +103,11 @@ def write_summary_report(
 ) -> None:
     """
     Write summary report for unmatched files.
+
+    Args:
+        unmatched_categories: Mapping of category name to list of file paths.
+        report_dir: Directory where the report will be saved.
+        report_format: Output format, either 'csv' or 'json'.
     """
     summary_records = build_summary_records(unmatched_categories)
     summary_name = build_report_filename("SortUnsortedMediaSummary", report_format)
