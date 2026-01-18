@@ -103,6 +103,11 @@ def main():
 def write_reports(unmatched_categories: dict[str, list[str]], report_dir: str, report_format: str) -> None:
     """
     Write dry-run detail report.
+
+    Args:
+        unmatched_categories: Mapping of category name to list of file paths.
+        report_dir: Directory where the report will be saved.
+        report_format: Output format, either 'csv' or 'json'.
     """
     detail_records = build_detail_records(unmatched_categories)
     detail_name = build_report_filename("SortUnsortedMediaDryRun", report_format)
