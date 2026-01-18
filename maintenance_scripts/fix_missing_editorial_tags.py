@@ -22,10 +22,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    print("WARNING: tqdm not installed. Install with: pip install tqdm")
+    def tqdm(iterable, **kwargs):
+        return iterable
+
 # Add paths for imports (script is in maintenance_scripts/)
 project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "sortunsortedmedia"))
 sys.path.insert(0, str(project_root / "givephotobankreadymediafiles"))
+sys.path.insert(0, str(project_root))
 
 from givephotobankreadymediafileslib.batch_state import BatchRegistry, BatchState
 from givephotobankreadymediafileslib.constants import (
@@ -327,31 +335,72 @@ def fix_editorial_tags(
         else:
             all_files_to_fix[key] = {"batch": False, "csv": True, "info": f}
 
+    # Build filename -> path mapping for finding originals
+    filename_to_path = {}
+    for record in photomedia_records:
+        fname = record.get(COL_FILE, "")
+        fpath = record.get(COL_PATH, "")
+        if fname and fpath:
+            filename_to_path[fname] = fpath
+
+    # Edit suffixes that indicate edited versions
+    EDIT_SUFFIXES = ["_bw", "_negative", "_sharpen", "_misty", "_blurred"]
+
     total = len(all_files_to_fix)
-    for i, (file_path, fix_info) in enumerate(all_files_to_fix.items(), 1):
+    pbar = tqdm(all_files_to_fix.items(), total=total, desc="Fixing editorial tags", unit="file")
+    for file_path, fix_info in pbar:
         info = fix_info["info"]
         filename = os.path.basename(file_path)
         city = info["city"]
         country = info["country"]
 
-        logger.info(f"[{i}/{total}] Processing: {filename}")
+        # Update progress bar with current file
+        pbar.set_postfix_str(filename[:40])
 
-        # Get EXIF date
-        date_str = extract_date_from_exif(file_path)
+        # Check if this is an edited file
+        name_without_ext = os.path.splitext(filename)[0]
+        ext = os.path.splitext(filename)[1]
+        is_edited = any(suffix in name_without_ext for suffix in EDIT_SUFFIXES)
+
+        # Get EXIF date - for edited files, try to get from original
+        date_str = None
+        if is_edited:
+            # Find original filename by removing edit suffix
+            original_name = name_without_ext
+            for suffix in EDIT_SUFFIXES:
+                original_name = original_name.replace(suffix, "")
+            original_filename = original_name + ext
+
+            # Try to get date from original file
+            original_path = filename_to_path.get(original_filename)
+            if original_path and os.path.exists(original_path):
+                date_str = extract_date_from_exif(original_path)
+
+        # If no date yet, try from the file itself
         if not date_str:
-            logger.warning(f"  No EXIF date found, skipping")
+            date_str = extract_date_from_exif(file_path)
+
+        if not date_str:
+            logger.debug(f"No EXIF date for {filename}, skipping")
             continue
 
         # Get current data
         title = info.get("batch_title", "") or info.get("csv_record", {}).get(COL_TITLE, "")
         original_description = info.get("batch_description", "") or info.get("csv_description", "")
 
-        # Remove existing broken tag if present
+        # Remove existing broken/partial editorial tags if present
+        # Pattern matches: "CITY, COUNTRY - DD MM YYYY:" or partial versions
         original_description = re.sub(
-            rf"^{re.escape(city)},?\s*{re.escape(country)}?\s*-?\s*:?\s*",
+            rf"^{re.escape(city)},?\s*{re.escape(country)}?\s*-?\s*(\d{{2}}\s+\d{{2}}\s+\d{{4}})?\s*:?\s*",
             "",
             original_description,
             flags=re.IGNORECASE
+        ).strip()
+        # Also remove any standalone date prefix like "04 08 2016:"
+        original_description = re.sub(
+            r"^\d{2}\s+\d{2}\s+\d{4}\s*:\s*",
+            "",
+            original_description
         ).strip()
 
         # Generate new description with AI
@@ -363,12 +412,12 @@ def fix_editorial_tags(
 
         # Fallback if AI failed
         if not new_description:
-            logger.info(f"  Using fallback description generation")
+            logger.debug(f"Using fallback for {filename}")
             new_description = create_fallback_description(
                 original_description, city, country, date_str
             )
 
-        logger.info(f"  New description ({len(new_description)} chars): {new_description[:80]}...")
+        logger.debug(f"New description ({len(new_description)} chars): {new_description[:80]}...")
 
         if dry_run:
             if fix_info["batch"]:
@@ -429,7 +478,7 @@ def main() -> int:
     parser.add_argument(
         "--media-csv",
         type=str,
-        default="L:/Muj disk/XLS/Fotobanky/PhotoMedia.csv",
+        default="L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv",
         help="Path to PhotoMedia.csv"
     )
 
