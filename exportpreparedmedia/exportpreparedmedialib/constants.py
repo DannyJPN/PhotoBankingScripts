@@ -51,7 +51,7 @@ PHOTOBANK_SUPPORTED_FORMATS = {
     # Active banks
     'Dreamstime': {'.jpg', '.png'} | RAW_FORMATS,
     'Pond5': {'.jpg', '.png', '.tif'},
-    'ShutterStock': {'.jpg'},
+    'ShutterStock': {'.jpg', '.tif'},
     'AdobeStock': {'.jpg'},
     'GettyImages': {'.jpg'},
     '123RF': {'.jpg'},
