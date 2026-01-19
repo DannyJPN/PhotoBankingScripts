@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List
 
+from givephotobankreadymediafileslib.mediainfo_loader import parse_dreamstime_hierarchy
+
 
 def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str, str]] = None,
                        categories: Optional[Dict[str, List[str]]] = None) -> str:
@@ -48,19 +50,31 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             categories_block += "ADOBESTOCK (select UP TO 1):\n"
             categories_block += ", ".join(adobestock_cats) + "\n\n"
 
-        # Dreamstime (lots of categories, so abbreviate)
+        # Dreamstime - use hierarchical format for better AI comprehension
         dreamstime_cats = categories.get("Dreamstime", [])
         if dreamstime_cats:
-            categories_block += "DREAMSTIME (select UP TO 3):\n"
-            # Show all categories, but they will be long
-            categories_block += ", ".join(dreamstime_cats) + "\n\n"
+            categories_block += "DREAMSTIME (select UP TO 3 categories):\n"
+            categories_block += "You may select from ANY main category - not limited to one.\n"
+            categories_block += "Output format MUST be exactly: \"MainCategory -> SubCategory\"\n\n"
 
-        categories_block += "IMPORTANT:\n"
-        categories_block += "- Choose categories that best match the image content and theme\n"
-        categories_block += "- If multiple categories are clearly relevant, select the maximum allowed\n"
-        categories_block += "- Never choose unrelated categories just to reach the maximum\n"
-        categories_block += "- Categories MUST be based on VISUAL CONTENT, not word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
-        categories_block += "- If only one category is truly appropriate, select only that one\n\n"
+            # Parse into hierarchy for structured display
+            hierarchy = parse_dreamstime_hierarchy(dreamstime_cats)
+            if hierarchy:
+                for main_cat, sub_cats in hierarchy.items():
+                    categories_block += f"{main_cat.upper()}: {', '.join(sub_cats)}\n"
+                categories_block += "\n"
+            else:
+                # Fallback to flat list if parsing fails
+                categories_block += ", ".join(dreamstime_cats) + "\n\n"
+
+        categories_block += "IMPORTANT CATEGORY SELECTION RULES:\n"
+        categories_block += "- Choose categories based on VISUAL CONTENT of the image\n"
+        categories_block += "- DO NOT select categories based on word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
+        categories_block += "- Animal photo → look in ANIMALS section first\n"
+        categories_block += "- Landscape photo → look in NATURE or TRAVEL sections first\n"
+        categories_block += "- Person photo → look in PEOPLE section first\n"
+        categories_block += "- If only 1-2 categories truly fit, select only those - do not force 3\n"
+        categories_block += "- Category strings must match EXACTLY as listed above\n\n"
     else:
         # Fallback if no categories provided
         categories_block = (
