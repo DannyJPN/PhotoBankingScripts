@@ -34,11 +34,21 @@ pip install -r requirements.txt
 python markphotomediaapprovalstatus.py [--csv_path CSV_PATH] [--log_dir LOG_DIR] [--debug]
 ```
 
+Public portfolio mode (no GUI, no login):
+
+```
+python markphotomediaapprovalstatus.py --public-portfolio-approval [--public-portfolio-config PATH] [--public-visible]
+```
+
 ### Arguments
 
 - `--csv_path`: Path to the CSV file with photo media data (default: "L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv")
 - `--log_dir`: Directory for log files (default: "H:/Logs")
 - `--debug`: Enable debug logging
+- `--public-portfolio-approval`: Enable public-portfolio detection mode (updates only "schváleno")
+- `--public-portfolio-config`: Path to JSON config for discovered portfolio URLs/identities
+- `--public-visible`: Show browser UI (default: headless)
+- `--public-discover-only`: Only discover portfolio URLs/identities and save config
 
 ## Functionality
 
@@ -87,6 +97,11 @@ The application provides a graphical user interface for reviewing media files:
    - **S**: Select Skip option
 
 The application processes all media files for one photobank before moving to the next one.
+
+## Public portfolio mode
+
+Public portfolio mode uses Playwright (headless Chromium) to scan publicly accessible pages.
+It only marks items as "schváleno" when the match is deterministic and the contributor identity matches.
 
 6. Window behavior:
    - If you close the window using the X button, the entire application will exit

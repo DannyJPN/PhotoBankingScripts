@@ -2,3 +2,4 @@ tqdm
 PyQt5
 colorlog
 xxhash
+playwright

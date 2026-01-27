@@ -2,7 +2,7 @@
 
 ## Status: FUNCTIONAL ✅
 
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-01-19
 
 ---
 
@@ -80,6 +80,12 @@ markphotomediaapprovalstatus/
 python markphotomediaapprovalstatus.py [--csv_path PATH] [--log_dir DIR] [--debug]
 ```
 
+Public portfolio mode:
+
+```bash
+python markphotomediaapprovalstatus.py --public-portfolio-approval [--public-portfolio-config PATH] [--public-visible]
+```
+
 ### Workflow (v2.0 - Bank-First)
 1. Script loads PhotoMedia.csv and filters for "kontrolováno" status
 2. **FOR EACH PHOTOBANK** (outer loop):
@@ -99,6 +105,7 @@ python markphotomediaapprovalstatus.py [--csv_path PATH] [--log_dir DIR] [--debu
 - tkinter (GUI framework)
 - PIL/Pillow (image processing)
 - pygame (video playback support)
+- playwright (public portfolio mode)
 - Standard CSV processing libraries
 
 ### Performance
@@ -114,6 +121,11 @@ python markphotomediaapprovalstatus.py [--csv_path PATH] [--log_dir DIR] [--debu
 ---
 
 ## Version History
+
+### v2.1 (2026-01-19)
+- Added optional public-portfolio approval detection mode (no GUI, no login)
+- Deterministic matching using contributor identity + title/description
+- Playwright-based crawling for consistent public access
 
 ### v2.0 (2025-12-31) 🚨 BREAKING CHANGES
 - **Bank-first iteration**: Changed from file-first to bank-first processing order

@@ -29,6 +29,8 @@ from markphotomediaapprovalstatuslib.status_handler import (
     filter_records_by_edit_type
 )
 from markphotomediaapprovalstatuslib.media_helper import process_approval_records
+from markphotomediaapprovalstatuslib.public_portfolio.runner import process_public_portfolio_approval
+from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PUBLIC_PORTFOLIO_CONFIG
 
 
 def parse_arguments():
@@ -49,6 +51,14 @@ def parse_arguments():
                         help="Enable debug logging")
     parser.add_argument("--include-edited", action="store_true",
                         help="Include edited photos from 'upravené' folders (default: only original photos)")
+    parser.add_argument("--public-portfolio-approval", action="store_true",
+                        help="Enable public-portfolio approval detection mode (no GUI, no login)")
+    parser.add_argument("--public-portfolio-config", type=str, default=DEFAULT_PUBLIC_PORTFOLIO_CONFIG,
+                        help="Path to public portfolio config JSON")
+    parser.add_argument("--public-visible", action="store_true",
+                        help="Run browser with visible UI for public-portfolio detection")
+    parser.add_argument("--public-discover-only", action="store_true",
+                        help="Only discover portfolio URLs/identities and save config (no status updates)")
     return parser.parse_args()
 
 
@@ -86,9 +96,19 @@ def main():
         logging.info(f"No entries with '{STATUS_CHECKED}' status found in processable records. Nothing to process.")
         return
 
-    # Process approval records using GUI (saves after each file)
-    # Pass all_data so changes are made to the complete dataset
-    changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
+    if args.public_portfolio_approval:
+        changes_made = process_public_portfolio_approval(
+            all_data,
+            filtered_data,
+            args.csv_path,
+            config_path=args.public_portfolio_config,
+            headless=not args.public_visible,
+            discover_only=args.public_discover_only,
+        )
+    else:
+        # Process approval records using GUI (saves after each file)
+        # Pass all_data so changes are made to the complete dataset
+        changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
 
     # Final summary (individual saves are done during processing)
     if changes_made:
