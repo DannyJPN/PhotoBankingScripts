@@ -12,7 +12,6 @@ from markphotomediaapprovalstatuslib.public_portfolio.utils import (
     extract_meta_content,
     extract_title,
 )
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
 
 
 class BaseBankAdapter:
@@ -68,7 +67,6 @@ class BaseBankAdapter:
                     contributor_id=contributor_id,
                     title=title,
                     description="",
-                    xid=extract_xid(title),
                 ))
         return assets
 
@@ -141,7 +139,6 @@ class BaseBankAdapter:
             contributor_id=contributor,
             title=title,
             description=description,
-            xid=extract_xid(f"{title} {description}"),
         )
 
 

@@ -20,22 +20,19 @@ from typing import Optional
 
 from playwright.sync_api import sync_playwright
 
+from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PORTFOLIO_URLS
+from shared.file_operations import ensure_directory
+
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-BANK_URLS = {
-    "ShutterStock": "https://www.shutterstock.com/cs/g/Danny+JP?sort=newest",
-    "Pond5": "https://www.pond5.com/artist/dannyjpn?tab=photo&pp=1&sb=6",
-    "BigStockPhoto": "https://www.bigstockphoto.com/cs/search/?contributor=DannyJPN&order=new",
-    "Dreamstime": "https://www.dreamstime.com/dannjp_info",
-}
-
+BLOCKED_BANKS = ["ShutterStock", "Pond5", "BigStockPhoto", "Dreamstime"]
 COOKIES_DIR = Path(__file__).parent / "cookies"
 
 
 def get_cookies_path(bank: str) -> Path:
     """Get path to cookies file for a bank."""
-    COOKIES_DIR.mkdir(exist_ok=True)
+    ensure_directory(COOKIES_DIR)
     return COOKIES_DIR / f"{bank.lower()}_cookies.json"
 
 
@@ -78,9 +75,9 @@ def check_page_loaded(page, bank: str) -> bool:
 
 def run_session_saver(bank: str, timeout_sec: int = 300) -> bool:
     """Open browser and wait for user to solve CAPTCHA."""
-    url = BANK_URLS.get(bank)
+    url = DEFAULT_PORTFOLIO_URLS.get(bank)
     if not url:
-        logger.error("Unknown bank: %s", bank)
+        logger.error("Unknown bank or no portfolio URL: %s", bank)
         return False
 
     logger.info("=" * 60)
@@ -138,7 +135,7 @@ def main():
     parser = argparse.ArgumentParser(description="Save browser session cookies for photobanks")
     parser.add_argument(
         "--bank",
-        choices=list(BANK_URLS.keys()) + ["all"],
+        choices=BLOCKED_BANKS + ["all"],
         default="all",
         help="Bank to save session for (default: all)",
     )
@@ -150,7 +147,7 @@ def main():
     )
     args = parser.parse_args()
 
-    banks = list(BANK_URLS.keys()) if args.bank == "all" else [args.bank]
+    banks = BLOCKED_BANKS if args.bank == "all" else [args.bank]
 
     results = {}
     for bank in banks:

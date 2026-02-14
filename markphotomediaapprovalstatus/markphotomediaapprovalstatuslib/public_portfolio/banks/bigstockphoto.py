@@ -7,7 +7,6 @@ from typing import List
 
 from markphotomediaapprovalstatuslib.public_portfolio.banks.base import BaseBankAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
 
 
 class BigStockPhotoAdapter(BaseBankAdapter):
@@ -39,6 +38,5 @@ class BigStockPhotoAdapter(BaseBankAdapter):
                 contributor_id=contributor_id,
                 title=self._clean_title(title.capitalize()),
                 description="",
-                xid=extract_xid(title),
             ))
         return assets

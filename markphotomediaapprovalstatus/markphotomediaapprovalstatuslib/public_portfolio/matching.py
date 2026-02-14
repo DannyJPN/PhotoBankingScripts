@@ -1,24 +1,11 @@
-"""Deterministic matching for public portfolio approval detection."""
+"""Title-based matching for public portfolio approval detection."""
 
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset, MatchResult
-
-
-XID_PATTERN = re.compile(r"(?:\\b|\\s)(xid[:_\\-]?[a-f0-9]{6,32})\\b", re.IGNORECASE)
-
-
-def extract_xid(text: str) -> Optional[str]:
-    if not text:
-        return None
-    match = XID_PATTERN.search(text)
-    if not match:
-        return None
-    xid = match.group(1).lower()
-    return xid
 
 
 def _normalize_separators(text: str) -> str:
@@ -42,13 +29,14 @@ def _normalize_separators(text: str) -> str:
 
 
 def normalize_text(text: str) -> str:
+    """Normalize text for comparison by lowercasing and removing special characters."""
     if not text:
         return ""
     value = text.lower().strip()
     value = _normalize_separators(value)
-    value = re.sub(r"\\s+", " ", value)
-    value = re.sub(r"[\\s\\-\\|_/]+$", "", value)
-    value = value.strip(" .,:;!?)\"'\\n\\t")
+    value = re.sub(r"\s+", " ", value)
+    value = re.sub(r"[\s\-\|_/]+$", "", value)
+    value = value.strip(" .,:;!?)\"'\n\t")
     return value
 
 
@@ -70,23 +58,26 @@ def match_record_to_public_assets(
     description: str,
     assets: List[PublicAsset],
 ) -> MatchResult:
+    """Match a CSV record to public portfolio assets by title.
+
+    :param bank: Bank name.
+    :param contributor_id: Contributor identifier.
+    :param title: Title from CSV record.
+    :param description: Description from CSV record (used as secondary match).
+    :param assets: List of assets from public portfolio.
+    :return: MatchResult indicating approval status.
+    """
     if not assets:
         return MatchResult(approved=False, matched_by="NONE")
 
     normalized_title = normalize_text(title)
     normalized_description = normalize_text(description)
-    local_xid = extract_xid(f"{title} {description}")
 
     candidates = [a for a in assets if a.contributor_id == contributor_id]
     if not candidates:
         return MatchResult(approved=False, matched_by="NONE")
 
-    if local_xid:
-        for asset in candidates:
-            if asset.xid and asset.xid == local_xid:
-                return MatchResult(approved=True, matched_by="XID", public_url=asset.url)
-
-    if not normalized_title and not normalized_description:
+    if not normalized_title:
         return MatchResult(approved=False, matched_by="NONE")
 
     matches = []
@@ -100,7 +91,7 @@ def match_record_to_public_assets(
         matches.append(asset)
 
     if len(matches) == 1:
-        return MatchResult(approved=True, matched_by="TEXT", public_url=matches[0].url)
+        return MatchResult(approved=True, matched_by="TITLE", public_url=matches[0].url)
     if len(matches) > 1:
         return MatchResult(approved=False, matched_by="AMBIGUOUS")
 

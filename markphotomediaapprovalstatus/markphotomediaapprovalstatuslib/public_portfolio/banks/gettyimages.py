@@ -7,7 +7,6 @@ from typing import List
 
 from markphotomediaapprovalstatuslib.public_portfolio.banks.base import BaseBankAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
 
 
 class GettyImagesAdapter(BaseBankAdapter):
@@ -43,7 +42,6 @@ class GettyImagesAdapter(BaseBankAdapter):
                 contributor_id=contributor_id,
                 title=self._clean_title(title.capitalize()),
                 description="",
-                xid=extract_xid(title),
             ))
         alt_pattern = r'<img[^>]*alt="([^"]{15,})"'
         alt_matches = re.findall(alt_pattern, html, re.IGNORECASE)
@@ -61,6 +59,5 @@ class GettyImagesAdapter(BaseBankAdapter):
                 contributor_id=contributor_id,
                 title=clean_alt,
                 description="",
-                xid=extract_xid(clean_alt),
             ))
         return assets

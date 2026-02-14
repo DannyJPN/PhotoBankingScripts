@@ -8,7 +8,6 @@ from urllib.parse import urljoin
 
 from markphotomediaapprovalstatuslib.public_portfolio.banks.base import BaseBankAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
 
 
 class DepositPhotosAdapter(BaseBankAdapter):
@@ -56,6 +55,5 @@ class DepositPhotosAdapter(BaseBankAdapter):
                 contributor_id=contributor_id,
                 title=title,
                 description="",
-                xid=extract_xid(title),
             ))
         return assets

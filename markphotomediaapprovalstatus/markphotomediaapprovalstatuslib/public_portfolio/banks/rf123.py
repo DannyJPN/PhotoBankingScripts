@@ -8,7 +8,6 @@ from urllib.parse import urljoin
 
 from markphotomediaapprovalstatuslib.public_portfolio.banks.base import BaseBankAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
 
 
 class RF123Adapter(BaseBankAdapter):
@@ -56,7 +55,6 @@ class RF123Adapter(BaseBankAdapter):
                 contributor_id=contributor_id,
                 title=title_from_slug.capitalize(),
                 description="",
-                xid=extract_xid(title_from_slug),
             ))
         title_pattern = r'<img[^>]*title="([^"]{15,})"'
         title_matches = re.findall(title_pattern, html, re.IGNORECASE)
@@ -72,6 +70,5 @@ class RF123Adapter(BaseBankAdapter):
                         contributor_id=contributor_id,
                         title=clean_title,
                         description="",
-                        xid=extract_xid(clean_title),
                     ))
         return assets

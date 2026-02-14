@@ -7,9 +7,6 @@ import logging
 import re
 from typing import Dict, Optional
 
-from markphotomediaapprovalstatuslib.public_portfolio.matching import extract_xid
-
-
 def extract_json_ld(html: str) -> list[dict]:
     blocks: list[dict] = []
     for match in re.finditer(r"<script[^>]+type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>", html, re.DOTALL | re.IGNORECASE):
@@ -80,12 +77,11 @@ def extract_contributor_from_text(html: str, regex: str) -> Optional[str]:
 
 
 def build_public_asset(bank: str, url: str, contributor_id: str, title: str, description: str) -> Dict[str, str]:
-    xid = extract_xid(f"{title} {description}")
+    """Build a public asset dictionary from extracted metadata."""
     return {
         "bank": bank,
         "url": url,
         "contributor_id": contributor_id,
         "title": title or "",
         "description": description or "",
-        "xid": xid,
     }
