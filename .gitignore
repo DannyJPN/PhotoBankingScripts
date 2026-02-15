@@ -76,8 +76,17 @@ backup_*
 # Local notes
 PR_69_ISSUES.md
 .github/issues/issue_csv_backup_naming_convention_consistency.md
+WORKPLAN_public_portfolio.md
+public_portfolios.json
+
+# Local architecture/spec docs (not for git)
+specs_local/
 
 # CUDA/GPU artifacts
 
 # Batch mode runtime state
 givephotobankreadymediafiles/batch_state/
+
+# Browser session cookies (contain personal session data, never commit)
+**/cookies/*.json
+cookies/

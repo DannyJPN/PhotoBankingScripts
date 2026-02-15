@@ -9,7 +9,7 @@ from typing import Dict, Optional
 
 def extract_json_ld(html: str) -> list[dict]:
     blocks: list[dict] = []
-    for match in re.finditer(r"<script[^>]+type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>", html, re.DOTALL | re.IGNORECASE):
+    for match in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
         raw = match.group(1).strip()
         if not raw:
             continue
@@ -65,7 +65,7 @@ def extract_meta_content(html: str, name: str) -> Optional[str]:
 def extract_title(html: str) -> Optional[str]:
     match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
     if match:
-        return re.sub(r"\\s+", " ", match.group(1)).strip()
+        return re.sub(r"\s+", " ", match.group(1)).strip()
     return None
 
 
