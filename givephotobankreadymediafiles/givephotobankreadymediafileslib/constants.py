@@ -167,7 +167,16 @@ DEFAULT_OLLAMA_MODELS = [
     "bakllava:7b",
     "llama3.2-vision:11b",
     "llama3.2-vision:90b",
-    "cogvlm:17b"
+    "cogvlm:17b",
+    # Added 2026-03-24
+    "gemma3:12b",
+    "gemma3:27b",
+    "qwen2.5-vl:7b",
+    "qwen2.5-vl:72b",
+    "llama4:scout",
+    "llama4:maverick",
+    "minicpm-v:8b",
+    "moondream2",
 ]
 
 DEFAULT_OLLAMA_VISION_MODEL = "llava:7b-v1.6"

@@ -34,6 +34,48 @@
           "cost_per_1k_tokens": 0.02,
           "notes": "Improved coding and instruction following"
         },
+        "gpt-4.1-mini": {
+          "name": "GPT-4.1 Mini",
+          "max_tokens": 4000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.004,
+          "notes": "Balanced performance and cost"
+        },
+        "gpt-4o-mini": {
+          "name": "GPT-4o Mini",
+          "max_tokens": 4000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.0015,
+          "notes": "Cost-efficient vision model"
+        },
+        "o1": {
+          "name": "OpenAI o1",
+          "max_tokens": 4000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.015,
+          "notes": "Reasoning model with vision support"
+        },
+        "o1-mini": {
+          "name": "OpenAI o1 Mini",
+          "max_tokens": 4000,
+          "supports_images": false,
+          "cost_per_1k_tokens": 0.003,
+          "notes": "Fast reasoning, text only"
+        },
+        "o1-pro": {
+          "name": "OpenAI o1 Pro",
+          "max_tokens": 4000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.15,
+          "notes": "Premium reasoning with vision"
+        },
+        "o3-mini": {
+          "name": "OpenAI o3 Mini",
+          "max_tokens": 4000,
+          "supports_images": false,
+          "cost_per_1k_tokens": 0.002,
+          "notes": "Cost-efficient reasoning, text only"
+        },
         "gpt-4.1-nano": {
           "name": "GPT-4.1 Nano",
           "max_tokens": 1000000,
@@ -84,6 +126,55 @@
       "api_key_env": "ANTHROPIC_API_KEY", 
       "endpoint": "https://api.anthropic.com/v1",
       "models": {
+        "claude-opus-4-6": {
+          "name": "Claude Opus 4.6",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.015,
+          "notes": "Latest flagship model"
+        },
+        "claude-sonnet-4-6": {
+          "name": "Claude Sonnet 4.6",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.003,
+          "notes": "Latest balanced model"
+        },
+        "claude-haiku-4-5-20251001": {
+          "name": "Claude Haiku 4.5",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.0008,
+          "notes": "Fastest and most affordable"
+        },
+        "claude-sonnet-4-5-20250929": {
+          "name": "Claude Sonnet 4.5",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.003,
+          "notes": "High performance with extended thinking"
+        },
+        "claude-opus-4-5-20251101": {
+          "name": "Claude Opus 4.5",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.015,
+          "notes": "Flagship with extended thinking"
+        },
+        "claude-3-7-sonnet-20250219": {
+          "name": "Claude Sonnet 3.7",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.003,
+          "notes": "Extended thinking capability"
+        },
+        "claude-3-5-haiku-20241022": {
+          "name": "Claude Haiku 3.5",
+          "max_tokens": 8000,
+          "supports_images": true,
+          "cost_per_1k_tokens": 0.0008,
+          "notes": "Fast and intelligent"
+        },
         "claude-opus-4-1-20250805": {
           "name": "Claude Opus 4.1",
           "max_tokens": 8000,

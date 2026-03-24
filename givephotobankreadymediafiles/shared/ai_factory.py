@@ -218,23 +218,75 @@ class AIFactory:
         
         models = {
             ProviderType.OPENAI: [
-                'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'
+                # GPT-5.4 Series (2026)
+                'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano',
+                # GPT-5 Series (2025)
+                'gpt-5', 'gpt-5-mini', 'gpt-5-nano',
+                # GPT-4.1 Series (2025)
+                'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+                'gpt-4.1-2025-04-14', 'gpt-4.1-mini-2025-04-14', 'gpt-4.1-nano-2025-04-14',
+                # GPT-4o Series
+                'gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-11-20', 'gpt-4o-2024-08-06', 'gpt-4o-mini-2024-07-18',
+                # Reasoning
+                'o1', 'o1-mini', 'o1-pro', 'o1-2024-12-17',
+                'o3', 'o3-mini', 'o3-pro', 'o3-2025-04-16',
+                'o4-mini', 'o4-mini-2025-04-16',
+                # Legacy
+                'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-3.5-turbo',
             ],
             ProviderType.ANTHROPIC: [
+                # Added 2026-03-24
+                'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001',
+                'claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101',
+                'claude-opus-4-1-20250805',
+                'claude-sonnet-4-20250514', 'claude-opus-4-20250514',
+                'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022',
+                # Legacy
                 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229',
-                'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'
+                'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
             ],
             ProviderType.GOOGLE: [
-                'gemini-pro', 'gemini-pro-vision', 'gemini-ultra'
+                # Gemini 3 Series (2026)
+                'gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview',
+                # Gemini 2.5 Series
+                'gemini-2.5-pro', 'gemini-2.5-pro-exp-03-25',
+                'gemini-2.5-flash', 'gemini-2.5-flash-lite',
+                'gemini-2.5-flash-preview-09-2025',
+                # Gemini 2.0 Series
+                'gemini-2.0-flash', 'gemini-2.0-flash-001',
+                'gemini-2.0-flash-lite', 'gemini-2.0-flash-lite-001',
+                # Gemini 1.5 Series
+                'gemini-1.5-pro', 'gemini-1.5-pro-002',
+                'gemini-1.5-flash', 'gemini-1.5-flash-002',
+                'gemini-1.5-flash-8b', 'gemini-1.5-flash-8b-001',
+                # Legacy
+                'gemini-pro', 'gemini-pro-vision', 'gemini-ultra',
             ],
             ProviderType.MISTRAL: [
-                'mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'
+                # Frontier models
+                'mistral-large-3-25-12', 'mistral-medium-3-1-25-08',
+                'pixtral-large-24-11',
+                # Reasoning models
+                'magistral-medium-1-2-25-09', 'magistral-small-1-2-25-09',
+                # Small/efficient models
+                'mistral-small-4-0-26-03', 'mistral-small-3-2-25-06',
+                # Edge/on-device models
+                'ministral-3-14b-25-12', 'ministral-3-8b-25-12', 'ministral-3-3b-25-12',
+                # Code models
+                'devstral-2-25-12', 'devstral-small-2-25-12', 'codestral-2508',
+                # Legacy aliases
+                'mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest',
             ],
             ProviderType.OLLAMA: [
                 'llava:7b', 'llava:13b', 'llava:34b', 'llava:7b-v1.6',
                 'bakllava:7b', 'llama3.2-vision:11b', 'llama3.2:3b',
-                'mistral:7b', 'codellama:13b'
-            ]
+                'mistral:7b', 'codellama:13b',
+                # Added 2026-03-24
+                'gemma3:12b', 'gemma3:27b',
+                'qwen2.5-vl:7b', 'qwen2.5-vl:72b',
+                'llama4:scout', 'llama4:maverick',
+                'minicpm-v:8b', 'moondream2',
+            ],
         }
 
         return models.get(provider_type, [])
