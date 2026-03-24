@@ -50,7 +50,7 @@ def test_runner__blocked_bank_runs_session_saver_and_retries(monkeypatch):
     monkeypatch.setattr(runner, "browser_context", _fake_browser_context)
     monkeypatch.setattr(
         runner,
-        "load_config",
+        "load_effective_config",
         lambda path: {"banks": {"ShutterStock": {"portfolio_url": "https://example.com/portfolio", "contributor_id": "user1"}}},
     )
     monkeypatch.setattr(runner, "filter_records_by_bank_status", lambda data, bank, status: filtered_data)

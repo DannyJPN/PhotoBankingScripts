@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, List, Optional
 
+from markphotomediaapprovalstatuslib.public_portfolio.constants import COOKIES_DIR
 from shared.file_operations import load_json_file
-
-COOKIES_DIR = Path(__file__).parent.parent.parent / "cookies"
 
 if TYPE_CHECKING:
     from playwright.sync_api import BrowserContext
