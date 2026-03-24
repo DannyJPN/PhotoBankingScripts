@@ -8,8 +8,8 @@ from typing import List, Optional, Tuple
 
 from markphotomediaapprovalstatuslib.constants import STATUS_APPROVED, STATUS_CHECKED, STATUS_COLUMN_KEYWORD
 from markphotomediaapprovalstatuslib.public_portfolio.browser import browser_context
-from markphotomediaapprovalstatuslib.public_portfolio.config_store import load_config
-from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PUBLIC_PORTFOLIO_CONFIG, DEFAULT_PORTFOLIO_URLS
+from markphotomediaapprovalstatuslib.public_portfolio.config_store import load_effective_config
+from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PUBLIC_PORTFOLIO_CONFIG
 from markphotomediaapprovalstatuslib.public_portfolio.matching import match_record_to_public_assets
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset
 from markphotomediaapprovalstatuslib.public_portfolio.banks import BANK_ADAPTERS
@@ -162,7 +162,7 @@ def process_public_portfolio_approval(
     Creates separate browser contexts per bank to support bank-specific cookies.
     """
     config_path = config_path or DEFAULT_PUBLIC_PORTFOLIO_CONFIG
-    config = load_config(config_path)
+    config = load_effective_config(config_path)
     config.setdefault("banks", {})
     changes_made = False
     summary = {
@@ -184,7 +184,7 @@ def process_public_portfolio_approval(
             continue
 
         bank_config = config["banks"].get(bank, {})
-        portfolio_url = bank_config.get("portfolio_url") or DEFAULT_PORTFOLIO_URLS.get(bank)
+        portfolio_url = bank_config.get("portfolio_url")
 
         if not portfolio_url:
             logging.warning("%s: no portfolio URL configured, skipping.", bank)

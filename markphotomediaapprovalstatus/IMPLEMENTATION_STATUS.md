@@ -66,8 +66,9 @@ These banks don't have public portfolio pages or are deprecated:
 
 ### Configuration
 
-Portfolio URLs are defined in:
-- `markphotomediaapprovalstatuslib/public_portfolio/constants.py`
+Portfolio URLs are loaded from:
+- `public_portfolios.defaults.json` for committed defaults
+- `public_portfolios.json` for local overrides
 
 ### Usage
 

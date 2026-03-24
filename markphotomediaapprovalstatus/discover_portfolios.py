@@ -1,7 +1,7 @@
 """One-time discovery script for finding contributor portfolio URLs on photobanks.
 
 Run this script locally to automatically discover your portfolio URLs.
-Results are written to public_portfolios.json and can be copied to constants.
+Results are written to JSON and can be merged into public_portfolios.json.
 
 Usage:
     python discover_portfolios.py [--csv_path PATH] [--headless] [--banks BANK1,BANK2,...]
@@ -14,8 +14,6 @@ Requirements:
 from __future__ import annotations
 
 import argparse
-import csv
-import json
 import logging
 import re
 import sys
@@ -26,19 +24,17 @@ from urllib.parse import quote_plus
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from markphotomediaapprovalstatuslib.constants import DEFAULT_PHOTO_CSV_PATH, STATUS_COLUMN_KEYWORD
+from markphotomediaapprovalstatuslib.constants import DEFAULT_LOG_DIR, DEFAULT_PHOTO_CSV_PATH, STATUS_APPROVED, STATUS_COLUMN_KEYWORD
 from markphotomediaapprovalstatuslib.public_portfolio.browser import browser_context
-from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PORTFOLIO_URLS
 from markphotomediaapprovalstatuslib.public_portfolio.utils import (
     extract_from_json_ld,
     extract_meta_content,
     extract_title,
 )
 from markphotomediaapprovalstatuslib.public_portfolio.matching import normalize_text
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-STATUS_APPROVED = "schváleno"
+from shared.file_operations import ensure_directory, load_csv, save_json_file
+from shared.logging_config import setup_logging
+from shared.utils import get_log_filename
 
 PORTFOLIO_LINK_PATTERNS: Dict[str, str] = {
     "ShutterStock": r'https?://(?:www\.)?shutterstock\.com/g/[^"\'\s>]+',
@@ -103,11 +99,12 @@ MAX_SEARCH_RESULTS = 10
 MAX_DISCOVERY_ATTEMPTS = 3
 
 
-def load_csv(csv_path: str) -> List[dict]:
-    """Load PhotoMedia.csv."""
-    with open(csv_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        return list(reader)
+def _ensure_logging() -> None:
+    """Initialize shared logging for the standalone discovery script."""
+    if logging.getLogger().handlers:
+        return
+    ensure_directory(DEFAULT_LOG_DIR)
+    setup_logging(debug=False, log_file=get_log_filename(DEFAULT_LOG_DIR))
 
 
 def get_approved_records(data: List[dict], bank: str) -> List[dict]:
@@ -238,6 +235,7 @@ def discover_portfolio_for_bank(
 
 def main() -> None:
     """Run portfolio discovery for all supported banks."""
+    _ensure_logging()
     parser = argparse.ArgumentParser(description="Discover contributor portfolio URLs on photobanks")
     parser.add_argument("--csv_path", default=DEFAULT_PHOTO_CSV_PATH, help="Path to PhotoMedia.csv")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
@@ -294,14 +292,11 @@ def main() -> None:
             contributor = info.get("contributor", "N/A")
             logging.info("  %s: %s (contributor: %s)", bank, url, contributor)
 
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
+        save_json_file(args.output, results, indent=2, ensure_ascii=False)
         logging.info("")
         logging.info("Results saved to: %s", args.output)
         logging.info("")
-        logging.info("Copy the portfolio URLs to:")
-        logging.info("  markphotomediaapprovalstatuslib/public_portfolio/constants.py")
-        logging.info("  -> DEFAULT_PORTFOLIO_URLS dict")
+        logging.info("Merge the discovered URLs into your local public_portfolios.json if needed.")
     else:
         logging.info("  No portfolios discovered.")
 

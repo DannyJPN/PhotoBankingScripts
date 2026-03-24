@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import logging
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import TYPE_CHECKING, Iterator, List, Optional
+
+from shared.file_operations import load_json_file
 
 COOKIES_DIR = Path(__file__).parent.parent.parent / "cookies"
+
+if TYPE_CHECKING:
+    from playwright.sync_api import BrowserContext
 
 
 def load_cookies_for_bank(bank: str) -> Optional[List[dict]]:
@@ -21,10 +25,9 @@ def load_cookies_for_bank(bank: str) -> Optional[List[dict]]:
     if not cookies_file.exists():
         return None
     try:
-        with open(cookies_file, "r", encoding="utf-8") as f:
-            cookies = json.load(f)
-            logging.debug("Loaded %d cookies for %s", len(cookies), bank)
-            return cookies
+        cookies = load_json_file(str(cookies_file))
+        logging.debug("Loaded %d cookies for %s", len(cookies), bank)
+        return cookies
     except Exception as exc:
         logging.warning("Failed to load cookies for %s: %s", bank, exc)
         return None
@@ -57,13 +60,9 @@ def browser_context(headless: bool = True, bank: Optional[str] = None) -> Iterat
             viewport={"width": 1920, "height": 1080},
             locale="cs-CZ",
         )
-
-        # Add script to mask automation
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
         """)
-
-        # Load saved cookies if available
         if bank:
             cookies = load_cookies_for_bank(bank)
             if cookies:
@@ -78,7 +77,3 @@ def browser_context(headless: bool = True, bank: Optional[str] = None) -> Iterat
         finally:
             context.close()
             browser.close()
-
-
-class BrowserContext:
-    pass  # typing placeholder

@@ -4,6 +4,7 @@ import re
 import shutil
 import logging
 import csv
+import json
 from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
@@ -310,3 +311,36 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
     except Exception as e:
         logging.error("Failed to save CSV file %s: %s", path, e)
         raise
+
+
+def load_json_file(path: str):
+    """
+    Load a JSON file and return the parsed object.
+
+    Args:
+        path: Path to the JSON file
+
+    Returns:
+        Parsed JSON data
+    """
+    logging.debug("Loading JSON file from %s", path)
+    with open(path, "r", encoding="utf-8") as jsonfile:
+        return json.load(jsonfile)
+
+
+def save_json_file(path: str, data, ensure_ascii: bool = True, indent: int = 2) -> None:
+    """
+    Save JSON data to a file, creating the destination directory if needed.
+
+    Args:
+        path: Path to the JSON file
+        data: Serializable JSON data
+        ensure_ascii: Whether to escape non-ASCII characters
+        indent: Indentation level for pretty printing
+    """
+    logging.debug("Saving JSON file to %s", path)
+    folder = os.path.dirname(path)
+    if folder:
+        ensure_directory(folder)
+    with open(path, "w", encoding="utf-8") as jsonfile:
+        json.dump(data, jsonfile, indent=indent, ensure_ascii=ensure_ascii)
