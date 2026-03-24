@@ -102,6 +102,8 @@ The application processes all media files for one photobank before moving to the
 
 Public portfolio mode uses Playwright (headless Chromium) to scan publicly accessible pages.
 It only marks items as "schváleno" when the match is deterministic and the contributor identity matches.
+If a supported bank is blocked by CAPTCHA or anti-bot protection, the script automatically opens
+the interactive session saver so cookies can be stored and the bank retried.
 
 6. Window behavior:
    - If you close the window using the X button, the entire application will exit

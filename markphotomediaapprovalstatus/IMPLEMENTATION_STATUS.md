@@ -18,6 +18,7 @@ When a photo appears in the contributor's public portfolio, it means the bank ha
 ### Blocked Banks - Need Cookie Session (4)
 
 These banks use DataDome anti-bot protection. Manual CAPTCHA solving is required.
+The main public-portfolio run now triggers the session saver automatically when it hits one of these banks and gets blocked.
 
 | Bank | Solution |
 |------|----------|

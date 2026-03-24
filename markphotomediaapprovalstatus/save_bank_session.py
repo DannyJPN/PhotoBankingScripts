@@ -18,8 +18,6 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from playwright.sync_api import sync_playwright
-
 from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PORTFOLIO_URLS
 from shared.file_operations import ensure_directory
 
@@ -75,6 +73,12 @@ def check_page_loaded(page, bank: str) -> bool:
 
 def run_session_saver(bank: str, timeout_sec: int = 300) -> bool:
     """Open browser and wait for user to solve CAPTCHA."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        logger.error("Playwright is required to save bank session cookies: %s", exc)
+        return False
+
     url = DEFAULT_PORTFOLIO_URLS.get(bank)
     if not url:
         logger.error("Unknown bank or no portfolio URL: %s", bank)
