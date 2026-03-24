@@ -36,28 +36,13 @@ class GettyImagesAdapter(BaseBankAdapter):
             if len(title) < 5:
                 continue
             url = f"https://www.istockphoto.com/en/photo/{title_slug}-gm{photo_id}"
-            assets.append(PublicAsset(
+            asset = PublicAsset(
                 bank=self.bank,
                 url=url,
                 contributor_id=contributor_id,
                 title=self._clean_title(title.capitalize()),
                 description="",
-            ))
-        alt_pattern = r'<img[^>]*alt="([^"]{15,})"'
-        alt_matches = re.findall(alt_pattern, html, re.IGNORECASE)
-        for alt in alt_matches:
-            clean_alt = self._clean_title(alt)
-            if len(clean_alt) < 10:
-                continue
-            if any(clean_alt.lower() in a.title.lower() or a.title.lower() in clean_alt.lower() for a in assets):
-                continue
-            if "logo" in clean_alt.lower() or "icon" in clean_alt.lower():
-                continue
-            assets.append(PublicAsset(
-                bank=self.bank,
-                url="",
-                contributor_id=contributor_id,
-                title=clean_alt,
-                description="",
-            ))
+            )
+            assets.append(asset)
+            self._log_discovered_asset(asset)
         return assets

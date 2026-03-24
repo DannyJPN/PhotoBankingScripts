@@ -49,26 +49,13 @@ class RF123Adapter(BaseBankAdapter):
             if len(title_from_slug) < 5:
                 continue
             url = f"https://www.123rf.com/photo_{photo_id}_{title_slug}.html"
-            assets.append(PublicAsset(
+            asset = PublicAsset(
                 bank=self.bank,
                 url=url,
                 contributor_id=contributor_id,
                 title=title_from_slug.capitalize(),
                 description="",
-            ))
-        title_pattern = r'<img[^>]*title="([^"]{15,})"'
-        title_matches = re.findall(title_pattern, html, re.IGNORECASE)
-        for title in title_matches:
-            if any(a.title.lower() in title.lower() or title.lower() in a.title.lower() for a in assets):
-                continue
-            if not any(word in title.lower() for word in ["photo", "image", "stock", "vector"]):
-                clean_title = self._clean_title(title)
-                if len(clean_title) >= 10:
-                    assets.append(PublicAsset(
-                        bank=self.bank,
-                        url="",
-                        contributor_id=contributor_id,
-                        title=clean_title,
-                        description="",
-                    ))
+            )
+            assets.append(asset)
+            self._log_discovered_asset(asset)
         return assets

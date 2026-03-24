@@ -32,11 +32,13 @@ class BigStockPhotoAdapter(BaseBankAdapter):
             if len(title) < 5:
                 continue
             url = f"https://www.bigstockphoto.com/image-{photo_id}/{title_slug}"
-            assets.append(PublicAsset(
+            asset = PublicAsset(
                 bank=self.bank,
                 url=url,
                 contributor_id=contributor_id,
                 title=self._clean_title(title.capitalize()),
                 description="",
-            ))
+            )
+            assets.append(asset)
+            self._log_discovered_asset(asset)
         return assets

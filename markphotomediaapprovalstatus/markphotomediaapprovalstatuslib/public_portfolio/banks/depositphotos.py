@@ -49,11 +49,13 @@ class DepositPhotosAdapter(BaseBankAdapter):
             if len(title) < 5:
                 continue
             url = f"https://depositphotos.com/photo/{title_slug}-{photo_id}.html"
-            assets.append(PublicAsset(
+            asset = PublicAsset(
                 bank=self.bank,
                 url=url,
                 contributor_id=contributor_id,
                 title=title,
                 description="",
-            ))
+            )
+            assets.append(asset)
+            self._log_discovered_asset(asset)
         return assets

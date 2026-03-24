@@ -61,14 +61,23 @@ class BaseBankAdapter:
         for url in links:
             title = self._extract_title_near_link(html, url)
             if title:
-                assets.append(PublicAsset(
+                asset = PublicAsset(
                     bank=self.bank,
                     url=url,
                     contributor_id=contributor_id,
                     title=title,
                     description="",
-                ))
+                )
+                assets.append(asset)
+                self._log_discovered_asset(asset)
         return assets
+
+    def _log_discovered_asset(self, asset: PublicAsset) -> None:
+        """Log a discovered portfolio asset for debug runs."""
+        if asset.url:
+            logging.debug("%s: discovered portfolio asset %s", self.bank, asset.url)
+        else:
+            logging.debug("%s: discovered portfolio asset without URL (title=%s)", self.bank, asset.title)
 
     def _extract_title_near_link(self, html: str, url: str) -> str:
         """Extract title from alt or aria-label near a link in the HTML.

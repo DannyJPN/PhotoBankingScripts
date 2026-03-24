@@ -89,7 +89,8 @@ changes_made = process_public_portfolio_approval(
 - Page load timeout: 120 seconds
 - Initial wait after load: 10 seconds
 - Scroll wait: 5 seconds per scroll
-- Max scrolls: 30 (for infinite scroll pages)
+- Max scrolls: 250 (for very large infinite-scroll portfolios)
+- Stop condition: 3 consecutive scrolls without page height growth
 
 ---
 Last updated: 2026-01-27
