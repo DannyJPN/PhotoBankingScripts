@@ -2,6 +2,7 @@
 
 import sys
 from contextlib import contextmanager
+from collections.abc import Iterator
 from pathlib import Path
 
 project_root = Path(__file__).resolve().parents[3]
@@ -18,20 +19,29 @@ from markphotomediaapprovalstatuslib.public_portfolio.models import MatchResult,
 
 
 class _DummyAdapter:
-    def __init__(self, browser_context):
+    """Minimal bank adapter stub that always reports itself as supported."""
+
+    def __init__(self, browser_context: object) -> None:
+        """Initialise with a browser context placeholder.
+
+        :param browser_context: Opaque browser context object provided by the context manager.
+        """
         self.browser_context = browser_context
         self.bank = "ShutterStock"
 
     def is_supported(self) -> bool:
+        """Return ``True`` unconditionally to satisfy the adapter interface."""
         return True
 
 
 @contextmanager
-def _fake_browser_context(headless=True, bank=None):
+def _fake_browser_context(headless: bool = True, bank: str | None = None) -> Iterator[object]:
+    """Context manager stub that yields a plain object instead of a real browser context."""
     yield object()
 
 
 def test_runner__blocked_bank_runs_session_saver_and_retries(monkeypatch):
+    """Blocked bank triggers session saver on first empty crawl then succeeds on retry."""
     status_column = f"ShutterStock {STATUS_COLUMN_KEYWORD}"
     record = {
         "Název": "Forest trail at sunrise",
@@ -63,6 +73,7 @@ def test_runner__blocked_bank_runs_session_saver_and_retries(monkeypatch):
     monkeypatch.setattr(runner, "save_csv_with_backup", lambda data, path: calls.__setitem__("save", calls["save"] + 1))
 
     def _fake_run_session_saver(bank: str) -> bool:
+        """Record the session saver call and assert it targets the expected bank."""
         calls["session"] += 1
         assert bank == "ShutterStock"
         return True

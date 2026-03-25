@@ -1,3 +1,4 @@
+"""Centralised file and data I/O helpers for all photobank scripts."""
 
 import os
 import re
@@ -5,7 +6,7 @@ import shutil
 import logging
 import csv
 import json
-from typing import List, Dict
+from typing import Any, Dict, List
 from collections import defaultdict
 from tqdm import tqdm
 
@@ -13,10 +14,13 @@ from shared.hash_utils import compute_file_hash
 from shared.csv_sanitizer import sanitize_field, sanitize_record, sanitize_records, is_dangerous
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
-    """
-    Vrátí seznam souborů ve složce `folder`.
-    Pokud je zadán `pattern` (regex), vrátí jen soubory, jejichž jméno odpovídá výrazu.
-    Rekurzivní prohledávání lze ovládat parametrem `recursive`.
+    """Return a list of file paths inside *folder*.
+
+    :param folder: Root directory to search.
+    :param pattern: Optional regex applied to each filename (basename only). When ``None``
+        or empty, all files are included.
+    :param recursive: When ``True`` (default) the search descends into sub-directories.
+    :return: List of absolute file paths matching the given criteria.
     """
     logging.debug("Listing files in folder: %s (pattern=%s, recursive=%s)", folder, pattern, recursive)
     matched: list[str] = []
@@ -31,7 +35,6 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
             return []
     for root, _, files in iterator:
         for name in files:
-            # pokud není zadán pattern, nebo odpovídá regexu, přidej
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
@@ -68,8 +71,10 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
         raise
 
 def delete_folder(path: str) -> None:
-    """
-    Smaže celou složku a její obsah.
+    """Delete an entire directory tree.
+
+    :param path: Path to the directory to remove.
+    :raises Exception: Re-raises any OS-level error after logging it.
     """
     logging.debug("Deleting folder: %s", path)
     try:
@@ -115,16 +120,19 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
-    """
-    Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.copy2 pro zachování metadat a ensure_directory pro vytvoření chybějící cesty.
+    """Copy *src* to *dest*, preserving file metadata.
+
+    :param src: Source file path.
+    :param dest: Destination file path.
+    :param overwrite: When ``False`` and *dest* already exists the copy is skipped. Defaults to ``True``.
+    :raises Exception: Re-raises any OS-level error after logging it.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping: %s", dest)
         return
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Ensure destination directory exists
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -137,13 +145,16 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
         raise
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
-    """
-    Přesune soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.move a ensure_directory pro vytvoření chybějící cesty.
+    """Move *src* to *dest*, creating the destination directory if needed.
+
+    :param src: Source file path.
+    :param dest: Destination file path.
+    :param overwrite: When ``False`` (default) and *dest* already exists the move is skipped.
+    :raises Exception: Re-raises any OS-level error after logging it.
     """
     logging.debug("Moving file from %s to %s (overwrite=%s)", src, dest, overwrite)
 
-    # Vytvoří cílovou složku, pokud neexistuje
+    # Ensure destination directory exists
     dest_folder = os.path.dirname(dest)
     if dest_folder:
         ensure_directory(dest_folder)
@@ -198,20 +209,22 @@ def load_csv(path: str) -> List[Dict[str, str]]:
     return records
 
 def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
-    """
-    V dané složce (a volitelně jejích podsložkách) sjednotí
-    soubory se stejným obsahem tak, že všechny budou mít
-    stejný basename podle toho, jehož basename je nejkratší.
+    """Rename duplicate files in *folder* so they all share the shortest basename.
+
+    Files with identical content (same SHA-256 hash) are considered duplicates.
+    Among each group the file whose basename is shortest is chosen as canonical;
+    all other copies are renamed to that basename.
+
+    :param folder: Directory to scan for duplicates.
+    :param recursive: When ``True`` (default) sub-directories are also scanned.
     """
     logging.info("Unifying duplicates in %s (recursive=%s)", folder, recursive)
 
-    # 1) Mapa path->hash pro všechny soubory
     path_hash_map = get_hash_map_from_folder(folder, pattern="", recursive=recursive)
     if not path_hash_map:
         logging.info("No files found in %s, skipping unification.", folder)
         return
 
-    # 2) Seskup cesty podle hashů
     hash_groups: dict[str, list[str]] = defaultdict(list)
     for path, h in path_hash_map.items():
         hash_groups[h].append(path)
@@ -223,12 +236,10 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
         return
 
     renamed_count = 0
-    # 3) Pro každou skupinu ≥2 souborů zvol canonical podle délky názvu
     for h, group in hash_groups.items():
         if len(group) < 2:
             continue
 
-        # Najdi cestu s nejkratším basename, potom z ní vezmi basename
         canonical_path = min(group, key=lambda p: len(os.path.basename(p)))
         canonical_basename = os.path.basename(canonical_path)
         logging.debug("Hash %s has %d duplicates, canonical = %s", h, len(group), canonical_basename)
@@ -248,19 +259,20 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
 
-def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
-    """
-    Projde složku `folder` rekurzivně (podle patternu) a vrátí slovník
-    {full_path: hash} pro každý nalezený soubor.
+def get_hash_map_from_folder(folder: str, pattern: str = "PICT", recursive: bool = True) -> Dict[str, str]:
+    """Build a mapping of file paths to their SHA-256 hashes.
+
+    :param folder: Directory to scan.
+    :param pattern: Regex filter applied to filenames. Defaults to ``"PICT"``.
+    :param recursive: When ``True`` (default) sub-directories are included.
+    :return: Dict mapping absolute file path → hash string.
     """
     logging.info("Building hash map from folder: %s (pattern=%s)", folder, pattern)
-    # 1) Seber všechny soubory podle patternu
     paths = list_files(folder, pattern, recursive=recursive)
     if not paths:
         logging.info("No files matching pattern '%s' in %s, skipping.", pattern, folder)
         return {}
     result: Dict[str, str] = {}
-    # 2) Pro každý soubor spočti hash a ulož ho pod klíč cesty
     for path in tqdm(paths, desc="Hashing files", unit="files"):
         try:
             file_hash = compute_file_hash(path)
@@ -272,12 +284,11 @@ def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool 
 
 
 def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
-    """
-    Creates a backup of the original CSV and saves the new data.
+    """Write *data* to a CSV file, first creating a timestamped backup of the original.
 
-    Args:
-        data: List of dictionaries representing CSV rows
-        path: Path to the CSV file
+    :param data: List of dicts representing CSV rows; keys become column headers.
+    :param path: Destination CSV file path.
+    :raises Exception: Re-raises any write error after logging it.
     """
     from datetime import datetime
 
@@ -313,30 +324,24 @@ def save_csv_with_backup(data: List[Dict[str, str]], path: str) -> None:
         raise
 
 
-def load_json_file(path: str):
-    """
-    Load a JSON file and return the parsed object.
+def load_json_file(path: str) -> Any:
+    """Load and parse a JSON file.
 
-    Args:
-        path: Path to the JSON file
-
-    Returns:
-        Parsed JSON data
+    :param path: Path to the JSON file.
+    :return: Parsed JSON value (dict, list, or scalar).
     """
     logging.debug("Loading JSON file from %s", path)
     with open(path, "r", encoding="utf-8") as jsonfile:
         return json.load(jsonfile)
 
 
-def save_json_file(path: str, data, ensure_ascii: bool = True, indent: int = 2) -> None:
-    """
-    Save JSON data to a file, creating the destination directory if needed.
+def save_json_file(path: str, data: Any, ensure_ascii: bool = True, indent: int = 2) -> None:
+    """Serialise *data* to a JSON file, creating any missing parent directories.
 
-    Args:
-        path: Path to the JSON file
-        data: Serializable JSON data
-        ensure_ascii: Whether to escape non-ASCII characters
-        indent: Indentation level for pretty printing
+    :param path: Destination file path.
+    :param data: JSON-serialisable value to write.
+    :param ensure_ascii: When ``True`` (default) non-ASCII characters are escaped.
+    :param indent: Pretty-print indentation level.
     """
     logging.debug("Saving JSON file to %s", path)
     folder = os.path.dirname(path)

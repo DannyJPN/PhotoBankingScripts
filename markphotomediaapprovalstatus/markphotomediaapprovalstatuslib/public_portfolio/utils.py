@@ -8,6 +8,11 @@ import re
 from typing import Dict, Optional
 
 def extract_json_ld(html: str) -> list[dict]:
+    """Extract all JSON-LD blocks from an HTML page.
+
+    :param html: Raw HTML content of the page.
+    :return: List of parsed JSON-LD objects (dicts only).
+    """
     blocks: list[dict] = []
     for match in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
         raw = match.group(1).strip()
@@ -25,6 +30,11 @@ def extract_json_ld(html: str) -> list[dict]:
 
 
 def extract_from_json_ld(html: str) -> Dict[str, Optional[str]]:
+    """Extract title, description and author from the first matching JSON-LD block.
+
+    :param html: Raw HTML content of the page.
+    :return: Dict with keys ``title``, ``description``, ``author`` (all nullable).
+    """
     result: Dict[str, Optional[str]] = {
         "title": None,
         "description": None,
@@ -55,6 +65,12 @@ def extract_from_json_ld(html: str) -> Dict[str, Optional[str]]:
 
 
 def extract_meta_content(html: str, name: str) -> Optional[str]:
+    """Extract the ``content`` attribute of a ``<meta>`` tag by its name or property.
+
+    :param html: Raw HTML content of the page.
+    :param name: Value of the ``name`` or ``property`` attribute to search for.
+    :return: Stripped content string, or ``None`` if not found.
+    """
     pattern = rf"<meta[^>]+(?:property|name)=[\"']{re.escape(name)}[\"'][^>]+content=[\"']([^\"']+)[\"']"
     match = re.search(pattern, html, re.IGNORECASE)
     if match:
@@ -63,16 +79,14 @@ def extract_meta_content(html: str, name: str) -> Optional[str]:
 
 
 def extract_title(html: str) -> Optional[str]:
+    """Extract the page title from a ``<title>`` tag.
+
+    :param html: Raw HTML content of the page.
+    :return: Normalised (whitespace-collapsed) title string, or ``None`` if not found.
+    """
     match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
     if match:
         return re.sub(r"\s+", " ", match.group(1)).strip()
-    return None
-
-
-def extract_contributor_from_text(html: str, regex: str) -> Optional[str]:
-    match = re.search(regex, html, re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
     return None
 
 

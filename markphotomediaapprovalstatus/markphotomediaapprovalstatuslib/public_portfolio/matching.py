@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Tuple
+from typing import List
 
 from markphotomediaapprovalstatuslib.public_portfolio.models import PublicAsset, MatchResult
 
 
 def _normalize_separators(text: str) -> str:
+    """Replace Unicode dashes, quotes and non-breaking spaces with ASCII equivalents.
+
+    :param text: Input string that may contain Unicode punctuation.
+    :return: String with typographic characters replaced by plain ASCII equivalents.
+    """
     replacements = {
         "\u2010": "-",  # hyphen
         "\u2011": "-",  # non-breaking hyphen
@@ -38,17 +43,6 @@ def normalize_text(text: str) -> str:
     value = re.sub(r"[\s\-\|_/]+$", "", value)
     value = value.strip(" .,:;!?)\"'\n\t")
     return value
-
-
-def build_public_index(assets: List[PublicAsset]) -> Dict[Tuple[str, str], List[PublicAsset]]:
-    index: Dict[Tuple[str, str], List[PublicAsset]] = {}
-    for asset in assets:
-        key = (
-            normalize_text(asset.title),
-            normalize_text(asset.description),
-        )
-        index.setdefault(key, []).append(asset)
-    return index
 
 
 def match_record_to_public_assets(
