@@ -85,7 +85,7 @@ def match_record_to_public_assets(
         matches.append(asset)
 
     if len(matches) == 1:
-        return MatchResult(approved=True, matched_by="TITLE", public_url=matches[0].url)
+        return MatchResult(approved=True, matched_by="TITLE", public_url=matches[0].url, asset_title=matches[0].title)
     if len(matches) > 1:
         return MatchResult(approved=False, matched_by="AMBIGUOUS")
 

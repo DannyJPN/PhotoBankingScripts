@@ -22,3 +22,4 @@ class MatchResult:
     approved: bool
     matched_by: str  # "TITLE", "NONE", "AMBIGUOUS"
     public_url: Optional[str] = None
+    asset_title: Optional[str] = None

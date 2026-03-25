@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 from html import unescape
-from typing import Dict, List, Optional, Tuple
+from io import TextIOWrapper
+from typing import Dict, IO, List, Optional, Tuple
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from markphotomediaapprovalstatuslib.constants import STATUS_APPROVED, STATUS_CHECKED, STATUS_COLUMN_KEYWORD
@@ -515,6 +517,37 @@ def _crawl_bank_portfolio(
         return _crawl_portfolio(adapter, context, portfolio_url, contributor_id)
 
 
+def _dry_log_asset(fh: IO[str], asset) -> None:
+    """Write a discovered portfolio asset line to the dry-run log file.
+
+    :param fh: Open writable file handle for the dry-run log.
+    :param asset: PublicAsset instance to record.
+    :return: None
+    """
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fh.write(f"{ts} [ASSET] {asset.bank} | {asset.url} | {asset.title}\n")
+    fh.flush()
+
+
+def _dry_log_match(fh: IO[str], bank: str, record: dict, match) -> None:
+    """Write a matched PhotoMedia record line to the dry-run log file.
+
+    :param fh: Open writable file handle for the dry-run log.
+    :param bank: Bank name.
+    :param record: CSV record dict from PhotoMedia.
+    :param match: MatchResult for this record.
+    :return: None
+    """
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    soubor = record.get("Soubor", "")
+    nazev = record.get("Název", "")
+    fh.write(
+        f"{ts} [MATCH] {bank} | Soubor={soubor} | Název={nazev}"
+        f" | url={match.public_url or ''} | asset_title={match.asset_title or ''}\n"
+    )
+    fh.flush()
+
+
 def process_public_portfolio_approval(
     all_data: List[dict],
     filtered_data: List[dict],
@@ -523,6 +556,7 @@ def process_public_portfolio_approval(
     headless: bool = True,
     discover_only: bool = False,
     dry_run: bool = False,
+    dry_run_log_path: Optional[str] = None,
 ) -> bool:
     """Process public portfolio approval detection for all supported banks.
 
@@ -535,6 +569,7 @@ def process_public_portfolio_approval(
     :param headless: When ``True`` (default) runs Chromium without a visible window.
     :param discover_only: When ``True`` only crawls and logs assets, skips matching.
     :param dry_run: When ``True`` runs full matching but does not write to PhotoMedia.csv.
+    :param dry_run_log_path: Path to the side log file written during dry-run. Only used when ``dry_run=True``.
     :return: ``True`` if any status changes were made (or would have been made in dry-run).
     """
     config_path = config_path or DEFAULT_PUBLIC_PORTFOLIO_CONFIG
@@ -543,6 +578,8 @@ def process_public_portfolio_approval(
     changes_made = False
     if dry_run:
         logging.info("DRY RUN mode: portfolio will be crawled but PhotoMedia.csv will NOT be modified.")
+        if dry_run_log_path:
+            logging.info("DRY RUN log: %s", dry_run_log_path)
     summary = {
         "banks_scanned": 0,
         "approved_matches": 0,
@@ -550,92 +587,106 @@ def process_public_portfolio_approval(
         "blocked": 0,
     }
 
-    for bank, adapter_cls in BANK_ADAPTERS.items():
-        adapter = adapter_cls(None)
-        if not adapter.is_supported():
-            logging.info("%s: public portfolio mode not supported, skipping", bank)
-            continue
+    dry_fh: Optional[IO[str]] = None
+    if dry_run and dry_run_log_path:
+        dry_fh = open(dry_run_log_path, "w", encoding="utf-8")
 
-        bank_records = filter_records_by_bank_status(filtered_data, bank, STATUS_CHECKED)
-        if not bank_records:
-            logging.debug("%s: no records with checked status, skipping", bank)
-            continue
+    try:
+        for bank, adapter_cls in BANK_ADAPTERS.items():
+            adapter = adapter_cls(None)
+            if not adapter.is_supported():
+                logging.info("%s: public portfolio mode not supported, skipping", bank)
+                continue
 
-        bank_config = config["banks"].get(bank, {})
-        portfolio_url = bank_config.get("portfolio_url")
+            bank_records = filter_records_by_bank_status(filtered_data, bank, STATUS_CHECKED)
+            if not bank_records:
+                logging.debug("%s: no records with checked status, skipping", bank)
+                continue
 
-        if not portfolio_url:
-            logging.warning("%s: no portfolio URL configured, skipping.", bank)
-            continue
+            bank_config = config["banks"].get(bank, {})
+            portfolio_url = bank_config.get("portfolio_url")
 
-        summary["banks_scanned"] += 1
-        bank_changes = False
+            if not portfolio_url:
+                logging.warning("%s: no portfolio URL configured, skipping.", bank)
+                continue
 
-        contributor_id = bank_config.get("contributor_id") or _contributor_from_url(portfolio_url)
-        assets, blocked = _crawl_bank_portfolio(
-            adapter_cls,
-            bank,
-            headless,
-            portfolio_url,
-            contributor_id,
-        )
+            summary["banks_scanned"] += 1
+            bank_changes = False
 
-        if blocked and bank in BLOCKED_BANKS:
-            logging.info(
-                "%s: triggering interactive session refresh to solve CAPTCHA and save cookies.",
+            contributor_id = bank_config.get("contributor_id") or _contributor_from_url(portfolio_url)
+            assets, blocked = _crawl_bank_portfolio(
+                adapter_cls,
                 bank,
+                headless,
+                portfolio_url,
+                contributor_id,
             )
-            if run_session_saver(bank):
-                assets, blocked = _crawl_bank_portfolio(
-                    adapter_cls,
+
+            if blocked and bank in BLOCKED_BANKS:
+                logging.info(
+                    "%s: triggering interactive session refresh to solve CAPTCHA and save cookies.",
                     bank,
-                    headless,
-                    portfolio_url,
-                    contributor_id,
                 )
-            else:
-                logging.warning("%s: session refresh failed or was cancelled.", bank)
+                if run_session_saver(bank):
+                    assets, blocked = _crawl_bank_portfolio(
+                        adapter_cls,
+                        bank,
+                        headless,
+                        portfolio_url,
+                        contributor_id,
+                    )
+                else:
+                    logging.warning("%s: session refresh failed or was cancelled.", bank)
 
-        if not assets:
-            logging.warning(
-                "%s: no assets found (empty portfolio, extractor mismatch, or still blocked). Run 'python save_bank_session.py --bank %s' to save cookies if this bank is protected.",
-                bank,
-                bank,
-            )
-            if blocked:
-                summary["blocked"] += 1
-            continue
+            if not assets:
+                logging.warning(
+                    "%s: no assets found (empty portfolio, extractor mismatch, or still blocked). Run 'python save_bank_session.py --bank %s' to save cookies if this bank is protected.",
+                    bank,
+                    bank,
+                )
+                if blocked:
+                    summary["blocked"] += 1
+                continue
 
-        logging.info("%s: %d total assets from portfolio", bank, len(assets))
+            logging.info("%s: %d total assets from portfolio", bank, len(assets))
 
-        if discover_only:
-            continue
+            if dry_fh:
+                for asset in assets:
+                    _dry_log_asset(dry_fh, asset)
 
-        for record in bank_records:
-            title = record.get("Název", "")
-            description = record.get("Popis", "")
-            match = match_record_to_public_assets(bank, contributor_id, title, description, assets)
+            if discover_only:
+                continue
 
-            if match.approved:
-                status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
-                if status_column in record and record[status_column] != STATUS_APPROVED:
-                    if dry_run:
-                        logging.info(
-                            "DRY RUN: would approve %s | %s | url=%s",
-                            bank,
-                            record.get("Název", ""),
-                            match.public_url or "",
-                        )
-                    else:
-                        record[status_column] = STATUS_APPROVED
-                    changes_made = True
-                    bank_changes = True
-                    summary["approved_matches"] += 1
-            elif match.matched_by == "AMBIGUOUS":
-                summary["ambiguous"] += 1
+            for record in bank_records:
+                title = record.get("Název", "")
+                description = record.get("Popis", "")
+                match = match_record_to_public_assets(bank, contributor_id, title, description, assets)
 
-        if bank_changes and not dry_run:
-            save_csv_with_backup(all_data, csv_path)
+                if match.approved:
+                    status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
+                    if status_column in record and record[status_column] != STATUS_APPROVED:
+                        if dry_run:
+                            logging.info(
+                                "DRY RUN: would approve %s | %s | url=%s",
+                                bank,
+                                record.get("Název", ""),
+                                match.public_url or "",
+                            )
+                            if dry_fh:
+                                _dry_log_match(dry_fh, bank, record, match)
+                        else:
+                            record[status_column] = STATUS_APPROVED
+                        changes_made = True
+                        bank_changes = True
+                        summary["approved_matches"] += 1
+                elif match.matched_by == "AMBIGUOUS":
+                    summary["ambiguous"] += 1
+
+            if bank_changes and not dry_run:
+                save_csv_with_backup(all_data, csv_path)
+    finally:
+        if dry_fh:
+            dry_fh.close()
 
     logging.info(
         "Public portfolio summary: banks=%s approved=%s ambiguous=%s blocked=%s",

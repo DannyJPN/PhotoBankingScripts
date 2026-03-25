@@ -6,9 +6,10 @@ It displays information about the photo, asks the user if the photo was approved
 and saves the result back to the CSV and to a log.
 """
 
-import os
 import argparse
 import logging
+import os
+from datetime import datetime
 
 from shared.utils import get_log_filename
 from shared.file_operations import ensure_directory, load_csv, save_csv_with_backup
@@ -95,6 +96,10 @@ def main() -> None:
         return
 
     if args.public_portfolio_approval:
+        dry_run_log_path = None
+        if args.public_dry_run:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dry_run_log_path = os.path.join(args.log_dir, f"dry_run_{ts}.txt")
         changes_made = process_public_portfolio_approval(
             all_data,
             filtered_data,
@@ -103,6 +108,7 @@ def main() -> None:
             headless=not args.public_visible,
             discover_only=args.public_discover_only,
             dry_run=args.public_dry_run,
+            dry_run_log_path=dry_run_log_path,
         )
     else:
         # Process approval records using GUI (saves after each file)
