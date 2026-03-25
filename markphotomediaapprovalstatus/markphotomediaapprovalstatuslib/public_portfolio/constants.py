@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-DEFAULT_PUBLIC_PORTFOLIO_CONFIG = "public_portfolios.json"
+DEFAULT_PUBLIC_PORTFOLIO_CONFIG = str(Path(__file__).resolve().parents[2] / "public_portfolios.json")
 DEFAULT_PUBLIC_PORTFOLIO_DEFAULTS = str(Path(__file__).resolve().parents[2] / "public_portfolios.defaults.json")
 
 BLOCKED_BANKS = ["ShutterStock", "Pond5", "BigStockPhoto", "Dreamstime"]
