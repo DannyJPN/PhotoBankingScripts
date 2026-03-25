@@ -34,11 +34,9 @@ from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_P
 
 
 def parse_arguments():
-    """
-    Parse command line arguments.
+    """Parse command line arguments.
 
-    Returns:
-        Parsed arguments
+    :return: Parsed argument namespace.
     """
     parser = argparse.ArgumentParser(
         description="Mark photo media approval status in CSV database."
@@ -59,13 +57,13 @@ def parse_arguments():
                         help="Run browser with visible UI for public-portfolio detection")
     parser.add_argument("--public-discover-only", action="store_true",
                         help="Only discover portfolio URLs/identities and save config (no status updates)")
+    parser.add_argument("--public-dry-run", action="store_true",
+                        help="Run portfolio approval detection but do not write any changes to PhotoMedia.csv")
     return parser.parse_args()
 
 
-def main():
-    """
-    Main function of the script.
-    """
+def main() -> None:
+    """Entry point: load CSV, run approval detection or GUI, and save results."""
     # Parse arguments
     args = parse_arguments()
 
@@ -104,6 +102,7 @@ def main():
             config_path=args.public_portfolio_config,
             headless=not args.public_visible,
             discover_only=args.public_discover_only,
+            dry_run=args.public_dry_run,
         )
     else:
         # Process approval records using GUI (saves after each file)

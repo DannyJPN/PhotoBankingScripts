@@ -522,15 +522,27 @@ def process_public_portfolio_approval(
     config_path: Optional[str] = None,
     headless: bool = True,
     discover_only: bool = False,
+    dry_run: bool = False,
 ) -> bool:
     """Process public portfolio approval detection for all supported banks.
 
     Creates separate browser contexts per bank to support bank-specific cookies.
+
+    :param all_data: Full list of CSV records (used when saving).
+    :param filtered_data: Records pre-filtered to STATUS_CHECKED only.
+    :param csv_path: Path to PhotoMedia.csv.
+    :param config_path: Path to portfolio config JSON. Uses default if ``None``.
+    :param headless: When ``True`` (default) runs Chromium without a visible window.
+    :param discover_only: When ``True`` only crawls and logs assets, skips matching.
+    :param dry_run: When ``True`` runs full matching but does not write to PhotoMedia.csv.
+    :return: ``True`` if any status changes were made (or would have been made in dry-run).
     """
     config_path = config_path or DEFAULT_PUBLIC_PORTFOLIO_CONFIG
     config = load_effective_config(config_path)
     config.setdefault("banks", {})
     changes_made = False
+    if dry_run:
+        logging.info("DRY RUN mode: portfolio will be crawled but PhotoMedia.csv will NOT be modified.")
     summary = {
         "banks_scanned": 0,
         "approved_matches": 0,
@@ -607,14 +619,22 @@ def process_public_portfolio_approval(
             if match.approved:
                 status_column = f"{bank} {STATUS_COLUMN_KEYWORD}"
                 if status_column in record and record[status_column] != STATUS_APPROVED:
-                    record[status_column] = STATUS_APPROVED
+                    if dry_run:
+                        logging.info(
+                            "DRY RUN: would approve %s | %s | url=%s",
+                            bank,
+                            record.get("Název", ""),
+                            match.public_url or "",
+                        )
+                    else:
+                        record[status_column] = STATUS_APPROVED
                     changes_made = True
                     bank_changes = True
                     summary["approved_matches"] += 1
             elif match.matched_by == "AMBIGUOUS":
                 summary["ambiguous"] += 1
 
-        if bank_changes:
+        if bank_changes and not dry_run:
             save_csv_with_backup(all_data, csv_path)
 
     logging.info(
