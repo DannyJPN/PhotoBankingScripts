@@ -32,25 +32,48 @@ class ShutterstockAdapter(BaseBankAdapter):
         return deduped
 
     def extract_assets_from_portfolio(self, html: str, contributor_id: str) -> List[PublicAsset]:
-        """Extract Shutterstock assets from clickable portfolio anchors."""
+        """Extract Shutterstock assets from clickable portfolio anchors.
+
+        Tries three title sources in order:
+        1. ``aria-label`` attribute on the opening ``<a>`` tag.
+        2. ``alt`` attribute on an ``<img>`` inside the anchor.
+        3. Visible text content inside the anchor after stripping tags.
+        """
         assets: List[PublicAsset] = []
         seen = set()
-        pattern = re.compile(
-            r'<a[^>]+href="(?P<href>(?:https?://(?:www\.)?shutterstock\.com)?/(?:[a-z]{2}/)?image-(?:photo|illustration|vector)/[^"\']+-\d+)"'
-            r'[^>]*(?:aria-label="(?P<aria>[^"]+)")?[^>]*>(?P<inner>.*?)</a>',
-            re.IGNORECASE | re.DOTALL,
+        href_re = re.compile(
+            r'href="(?P<href>(?:https?://(?:www\.)?shutterstock\.com)?/(?:[a-z]{2}/)?image-(?:photo|illustration|vector)/[^"\']+-\d+)"',
+            re.IGNORECASE,
         )
-        for match in pattern.finditer(html):
-            url = match.group("href")
+        for href_match in href_re.finditer(html):
+            url = href_match.group("href")
             if not url.startswith("http"):
                 url = urljoin("https://www.shutterstock.com", url)
             if url in seen:
                 continue
 
-            title = match.group("aria") or ""
+            pos = href_match.start()
+            tag_open_start = html.rfind("<a", 0, pos)
+            if tag_open_start == -1:
+                continue
+            tag_open_end = html.find(">", pos)
+            if tag_open_end == -1:
+                continue
+
+            opening_tag = html[tag_open_start : tag_open_end + 1]
+            aria_m = re.search(r'aria-label="([^"]+)"', opening_tag, re.IGNORECASE)
+            title = aria_m.group(1) if aria_m else ""
+
             if not title:
-                inner_text = re.sub(r"<[^>]+>", " ", match.group("inner"))
-                title = unescape(re.sub(r"\s+", " ", inner_text)).strip()
+                close_pos = html.find("</a>", tag_open_end + 1)
+                inner = html[tag_open_end + 1 : close_pos] if close_pos != -1 else ""
+                alt_m = re.search(r'alt="([^"]{5,})"', inner, re.IGNORECASE)
+                if alt_m:
+                    title = alt_m.group(1)
+                else:
+                    inner_text = re.sub(r"<[^>]+>", " ", inner)
+                    title = unescape(re.sub(r"\s+", " ", inner_text)).strip()
+
             title = self._clean_title(title)
             if len(title) < 5:
                 continue

@@ -56,7 +56,7 @@ def browser_context(headless: bool = True, bank: Optional[str] = None) -> Iterat
                 "Chrome/121.0.0.0 Safari/537.36"
             ),
             viewport={"width": 1920, "height": 1080},
-            locale="cs-CZ",
+            locale="en-US",
         )
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});

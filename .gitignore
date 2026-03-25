@@ -90,3 +90,7 @@ givephotobankreadymediafiles/batch_state/
 # Browser session cookies (contain personal session data, never commit)
 **/cookies/*.json
 cookies/
+
+# Validation helpers (local only)
+validate_detection.py
+validation_misses.txt

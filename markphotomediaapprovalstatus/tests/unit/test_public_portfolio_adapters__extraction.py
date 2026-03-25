@@ -13,6 +13,8 @@ from markphotomediaapprovalstatuslib.public_portfolio.banks.rf123 import RF123Ad
 from markphotomediaapprovalstatuslib.public_portfolio.banks.gettyimages import GettyImagesAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.banks.bigstockphoto import BigStockPhotoAdapter
 from markphotomediaapprovalstatuslib.public_portfolio.banks.adobestock import AdobeStockAdapter
+from markphotomediaapprovalstatuslib.public_portfolio.banks.shutterstock import ShutterstockAdapter
+from markphotomediaapprovalstatuslib.public_portfolio.banks.dreamstime import DreamstimeAdapter
 
 
 def _adapter(cls):
@@ -151,4 +153,99 @@ def test_bigstockphoto__extract_assets__deduplicates():
     adapter = _adapter(BigStockPhotoAdapter)
     slug = '/image-111222/test-title-here'
     assets = adapter.extract_assets_from_portfolio(slug * 3, "user1")
+    assert len(assets) == 1
+
+
+# ---------------------------------------------------------------------------
+# ShutterstockAdapter
+# ---------------------------------------------------------------------------
+
+_SS_ARIA = (
+    '<a class="x" href="/en/image-photo/skeleton-ancient-bird-12345" '
+    'aria-label="Skeleton of ancient terror bird - stock photo">'
+    '<img src="thumb.jpg"></a>'
+)
+_SS_ALT = (
+    '<a class="x" href="/en/image-photo/skeleton-ancient-bird-12345">'
+    '<img src="thumb.jpg" alt="Skeleton of ancient terror bird - stock photo"></a>'
+)
+_SS_INNER = (
+    '<a class="x" href="/en/image-photo/skeleton-ancient-bird-12345">'
+    '<img src="thumb.jpg"><div>Skeleton of ancient terror bird</div></a>'
+)
+
+
+def test_shutterstock__extract_assets__from_aria_label():
+    adapter = _adapter(ShutterstockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_SS_ARIA, "user1")
+    assert len(assets) == 1
+    assert "skeleton of ancient terror bird" in assets[0].title.lower()
+
+
+def test_shutterstock__extract_assets__from_img_alt():
+    adapter = _adapter(ShutterstockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_SS_ALT, "user1")
+    assert len(assets) == 1
+    assert "skeleton of ancient terror bird" in assets[0].title.lower()
+
+
+def test_shutterstock__extract_assets__from_inner_text():
+    adapter = _adapter(ShutterstockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_SS_INNER, "user1")
+    assert len(assets) == 1
+    assert "skeleton of ancient terror bird" in assets[0].title.lower()
+
+
+def test_shutterstock__extract_assets__deduplicates():
+    adapter = _adapter(ShutterstockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_SS_ARIA * 3, "user1")
+    assert len(assets) == 1
+
+
+# ---------------------------------------------------------------------------
+# DreamstimeAdapter
+# ---------------------------------------------------------------------------
+
+_DT_HTML = (
+    '<a href="https://www.dreamstime.com/skeleton-of-bird-image226559428" '
+    'class="item__url js-item-title-wrapper" '
+    'aria-label="Truncated title here truncated">'
+    '<figure><img class="item__thumb" '
+    'alt="Skeleton of ancient terror bird at ZOO Ostrava forests"></figure></a>'
+)
+
+
+def test_dreamstime__extract_assets__prefers_img_alt():
+    adapter = _adapter(DreamstimeAdapter)
+    assets = adapter.extract_assets_from_portfolio(_DT_HTML, "user1")
+    assert len(assets) == 1
+    assert "skeleton of ancient terror bird" in assets[0].title.lower()
+
+
+def test_dreamstime__extract_assets__deduplicates():
+    adapter = _adapter(DreamstimeAdapter)
+    assets = adapter.extract_assets_from_portfolio(_DT_HTML * 3, "user1")
+    assert len(assets) == 1
+
+
+# ---------------------------------------------------------------------------
+# AdobeStockAdapter – URL-slug based extraction
+# ---------------------------------------------------------------------------
+
+_AS_HTML = (
+    'href="https://stock.adobe.com/images/'
+    'pebbly-pattern-background-pebbles-embedded-in-concrete/123456789"'
+)
+
+
+def test_adobestock__extract_assets__from_url_slug():
+    adapter = _adapter(AdobeStockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_AS_HTML, "user1")
+    assert len(assets) == 1
+    assert "pebbly pattern background pebbles embedded in concrete" in assets[0].title.lower()
+
+
+def test_adobestock__extract_assets__deduplicates_by_id():
+    adapter = _adapter(AdobeStockAdapter)
+    assets = adapter.extract_assets_from_portfolio(_AS_HTML * 3, "user1")
     assert len(assets) == 1

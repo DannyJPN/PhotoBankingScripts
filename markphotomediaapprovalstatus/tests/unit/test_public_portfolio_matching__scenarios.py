@@ -134,3 +134,73 @@ def test_match__unicode_normalization_matches():
     asset = _make_asset("Prase\u2013les")
     result = match_record_to_public_assets("TestBank", "user1", "Prase-les", "", [asset])
     assert result.approved is True
+
+
+# ---------------------------------------------------------------------------
+# normalize_text – internal punctuation stripping (new behaviour)
+# ---------------------------------------------------------------------------
+
+def test_normalize_text__strips_internal_comma():
+    assert normalize_text("cat, dog") == "cat dog"
+
+
+def test_normalize_text__strips_internal_period():
+    assert normalize_text("meadow. forest") == "meadow forest"
+
+
+def test_normalize_text__strips_trailing_comma():
+    assert normalize_text("hello world,") == "hello world"
+
+
+def test_normalize_text__slug_matches_csv_with_punct():
+    """URL slug without comma/period should match CSV title that has them."""
+    slug_title = "vertical panoramic image of mountain meadow ski slope in beskydy in summer"
+    csv_title = "Vertical panoramic image of mountain meadow. Ski slope in Beskydy in summer."
+    assert normalize_text(slug_title) == normalize_text(csv_title)
+
+
+# ---------------------------------------------------------------------------
+# match_record_to_public_assets – pipe-split and prefix matching
+# ---------------------------------------------------------------------------
+
+def test_match__pipe_split_matches_primary_segment():
+    """Portfolio title matching only the primary CSV segment should approve."""
+    asset = _make_asset("Wooden statue of honeybee lying on grass in zoo ostrava")
+    csv_title = "Wooden statue of honeybee lying on grass in ZOO Ostrava | Giant insect sculpture"
+    result = match_record_to_public_assets("TestBank", "user1", csv_title, "", [asset])
+    assert result.approved is True
+
+
+def test_match__pipe_split_matches_secondary_segment():
+    """Portfolio title matching the secondary segment should also approve."""
+    asset = _make_asset("Giant insect sculpture")
+    csv_title = "Wooden statue of honeybee | Giant insect sculpture"
+    result = match_record_to_public_assets("TestBank", "user1", csv_title, "", [asset])
+    assert result.approved is True
+
+
+def test_match__prefix_match_approves_truncated_slug():
+    """Slug-derived title that is a word-level prefix of CSV title should match."""
+    asset = _make_asset("Skeleton of ancient terror bird phorusrhacos at zoo ostrava")
+    csv_title = "Skeleton of ancient terror bird phorusrhacos at zoo ostrava forests"
+    result = match_record_to_public_assets("TestBank", "user1", csv_title, "", [asset])
+    assert result.approved is True
+
+
+def test_match__prefix_too_short_does_not_match():
+    """A 3-word asset title must not trigger a prefix match (below 4-word minimum)."""
+    asset = _make_asset("Cat in hat")
+    csv_title = "Cat in hat and other stories from dr seuss universe"
+    result = match_record_to_public_assets("TestBank", "user1", csv_title, "", [asset])
+    assert result.approved is False
+
+
+def test_match__prefix_coverage_too_low_does_not_match():
+    """Asset title covering < 50 % of CSV words must not match via prefix."""
+    asset = _make_asset("Beautiful forest with trees")
+    csv_title = (
+        "Beautiful forest with trees and sunshine but also rivers "
+        "lakes mountains and many more geographical features"
+    )
+    result = match_record_to_public_assets("TestBank", "user1", csv_title, "", [asset])
+    assert result.approved is False
