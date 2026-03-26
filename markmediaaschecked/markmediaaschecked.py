@@ -56,6 +56,11 @@ def parse_arguments():
         action="store_true",
         help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show how many status values would be updated without modifying the CSV"
+    )
     return parser.parse_args()
 
 
