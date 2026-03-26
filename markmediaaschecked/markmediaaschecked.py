@@ -55,6 +55,12 @@ def parse_arguments():
         action="store_true",
         help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
     )
+    parser.add_argument(
+        "--banks",
+        type=str,
+        default="",
+        help="Comma-separated list of photobanks to include (default: all status columns)"
+    )
     return parser.parse_args()
 
 
