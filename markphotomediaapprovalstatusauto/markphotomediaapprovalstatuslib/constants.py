@@ -70,3 +70,14 @@ MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing f
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
 DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
 MAX_NUMBER = 999999  # Maximum number with 6 digits
+
+# Detection thresholds
+PHASH_THRESHOLD = 2  # max Hamming distance for FOUND verdict
+
+# Default paths for detection pipeline
+DEFAULT_REPORT_DIR = "H:/Logs/auto_detection"
+DEFAULT_HASH_CACHE_PATH = "L:/Můj disk/XLS/Fotobanky/.hash_cache.db"
+DEFAULT_PREVIEW_CACHE_DIR = "L:/Můj disk/XLS/Fotobanky/.preview_cache"
+
+# Contributor identity (set per-user in config)
+DEFAULT_CONTRIBUTOR_NAME = ""
