@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List
 
+from givephotobankreadymediafileslib.mediainfo_loader import parse_dreamstime_hierarchy
+
 
 def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str, str]] = None,
                        categories: Optional[Dict[str, List[str]]] = None) -> str:
@@ -48,19 +50,31 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             categories_block += "ADOBESTOCK (select UP TO 1):\n"
             categories_block += ", ".join(adobestock_cats) + "\n\n"
 
-        # Dreamstime (lots of categories, so abbreviate)
+        # Dreamstime - use hierarchical format for better AI comprehension
         dreamstime_cats = categories.get("Dreamstime", [])
         if dreamstime_cats:
-            categories_block += "DREAMSTIME (select UP TO 3):\n"
-            # Show all categories, but they will be long
-            categories_block += ", ".join(dreamstime_cats) + "\n\n"
+            categories_block += "DREAMSTIME (select UP TO 3 categories):\n"
+            categories_block += "You may select from ANY main category - not limited to one.\n"
+            categories_block += "Output format MUST be exactly: \"MainCategory -> SubCategory\"\n\n"
 
-        categories_block += "IMPORTANT:\n"
-        categories_block += "- STRONGLY PREFER selecting the MAXIMUM number of categories when multiple relevant options exist\n"
-        categories_block += "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
-        categories_block += "- Choose categories that best match the image content and theme\n"
-        categories_block += "- Categories MUST be based on VISUAL CONTENT, not word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
-        categories_block += "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
+            # Parse into hierarchy for structured display
+            hierarchy = parse_dreamstime_hierarchy(dreamstime_cats)
+            if hierarchy:
+                for main_cat, sub_cats in hierarchy.items():
+                    categories_block += f"{main_cat.upper()}: {', '.join(sub_cats)}\n"
+                categories_block += "\n"
+            else:
+                # Fallback to flat list if parsing fails
+                categories_block += ", ".join(dreamstime_cats) + "\n\n"
+
+        categories_block += "IMPORTANT CATEGORY SELECTION RULES:\n"
+        categories_block += "- Choose categories based on VISUAL CONTENT of the image\n"
+        categories_block += "- DO NOT select categories based on word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
+        categories_block += "- Animal photo → look in ANIMALS section first\n"
+        categories_block += "- Landscape photo → look in NATURE or TRAVEL sections first\n"
+        categories_block += "- Person photo → look in PEOPLE section first\n"
+        categories_block += "- If only 1-2 categories truly fit, select only those - do not force 3\n"
+        categories_block += "- Category strings must match EXACTLY as listed above\n\n"
     else:
         # Fallback if no categories provided
         categories_block = (
@@ -68,11 +82,11 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             "- shutterstock: Select UP TO 2 most appropriate categories\n"
             "- adobestock: Select UP TO 1 most appropriate category\n"
             "- dreamstime: Select UP TO 3 most appropriate categories\n"
-            "- STRONGLY PREFER selecting the MAXIMUM number when multiple relevant options exist\n"
-            "- Make every effort to reach the maximum - consider broader or related categories if needed\n"
             "- Choose categories that best match the image content and theme\n"
+            "- If multiple categories are clearly relevant, select the maximum allowed\n"
+            "- Never choose unrelated categories just to reach the maximum\n"
             "- Categories MUST be based on VISUAL CONTENT, not word similarity (e.g., 'moth' photo ≠ 'Mothers Day')\n"
-            "- Only select fewer than the maximum if truly no other relevant categories can be found\n\n"
+            "- If only one category is truly appropriate, select only that one\n\n"
         )
 
     return (

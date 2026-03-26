@@ -4,16 +4,26 @@ Constants for the markphotomediaapprovalstatus script.
 
 # List of photobanks to check
 BANKS = [
+    # Active banks
     "ShutterStock",
     "AdobeStock",
     "Dreamstime",
     "DepositPhotos",
-    "BigStockPhoto",
     "123RF",
-    "CanStockPhoto",
     "Pond5",
     "GettyImages",
-    "Alamy"
+    "Alamy",
+    # Deprecated banks (kept for historical data)
+    "BigStockPhoto",
+    "CanStockPhoto",
+    # New banks
+    "Pixta",
+    "Freepik",
+    "Vecteezy",
+    "StoryBlocks",
+    "Envato",
+    "500px",
+    "MostPhotos"
 ]
 
 # Default paths
