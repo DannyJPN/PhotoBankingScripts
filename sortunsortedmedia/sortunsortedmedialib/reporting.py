@@ -5,10 +5,9 @@ Reporting helpers for SortUnsortedMedia.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List
 
 
-def build_detail_records(unmatched_categories: Dict[str, List[str]]) -> List[Dict[str, str]]:
+def build_detail_records(unmatched_categories: dict[str, list[str]]) -> list[dict[str, str]]:
     """
     Build detailed report records for unmatched files.
 
@@ -18,14 +17,14 @@ def build_detail_records(unmatched_categories: Dict[str, List[str]]) -> List[Dic
     Returns:
         List of dicts with category and file path
     """
-    records: List[Dict[str, str]] = []
+    records: list[dict[str, str]] = []
     for category, files in unmatched_categories.items():
         for file_path in files:
             records.append({"category": category, "file_path": file_path})
     return records
 
 
-def build_summary_records(unmatched_categories: Dict[str, List[str]]) -> List[Dict[str, str]]:
+def build_summary_records(unmatched_categories: dict[str, list[str]]) -> list[dict[str, str]]:
     """
     Build summary records for unmatched files.
 
@@ -35,7 +34,7 @@ def build_summary_records(unmatched_categories: Dict[str, List[str]]) -> List[Di
     Returns:
         List of dicts with category and count
     """
-    summary: List[Dict[str, str]] = []
+    summary: list[dict[str, str]] = []
     total_count = 0
     for category, files in unmatched_categories.items():
         count = len(files)
