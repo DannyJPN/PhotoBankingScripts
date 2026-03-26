@@ -1,0 +1,304 @@
+﻿Komplexní analytická zpráva o metodikách automatizované verifikace veřejné dostupnosti digitálních aktiv v globálních fotobankách
+Tato expertní zpráva předkládá vysoce detailní a technicky orientovanou analýzu procesů, které umožňují nezávislé a spolehlivé ověření veřejné viditelnosti fotografií v sedmnácti klíčových světových fotobankách. Hlavním imperativem analýzy je striktní zaměření na realitu na straně koncového zákazníka (customer-side reality), čímž dochází k eliminaci nespolehlivých interních indikátorů v rozhraních pro přispěvatele. V kontextu správy rozsáhlého archivu provázaného s databází PhotoMedia.csv jsou v dokumentu rozpracovány metody založené na oficiálních API, simulaci klientských dotazů a pokročilém percepčním matchingu, které společně tvoří robustní základ pro plnou automatizaci rozhodovacích procesů bez nutnosti manuální intervence.
+Exekutivní souhrn
+Současný ekosystém stock fotografie prochází turbulentním obdobím, kdy asynchronní indexace, nasazování algoritmů strojového učení pro vyhledávání a dynamické změny v licenčních modelech činí z pouhého sledování statusu "schváleno" (approved) nedostatečný mechanismus pro správu distribuce.1 Pro profesionálního správce archivu je klíčové vědět, zda je aktivum skutečně dohledatelné kupujícím. Tato zpráva identifikuje Adobe Stock a Shutterstock jako technologické lídry s nejvíce predikovatelnými API rozhraními, zatímco u platforem jako Getty Images nebo iStock upozorňuje na komplexnost "enhanced search" algoritmů, které vyžadují sofistikovanější verifikační logiku.3
+Analýza potvrzuje, že pro spolehlivou automatizaci je nezbytné opustit matching založený na názvech souborů a titulech, které podléhají lokalizaci a SEO optimalizaci ze strany fotobank.5 Jako technologický standard pro verifikaci je navrženo využití percepčního hašování (pHash), které umožňuje identifikovat vizuální shodu s přesností přesahující 95 % i u náhledů opatřených vodoznakem nebo sníženým rozlišením.7 Zpráva rovněž mapuje rizika spojená s anti-bot ochranami (Cloudflare, Akamai), které v letech 2024 a 2025 tvoří hlavní překážku pro neoficiální metody sběru dat, a navrhuje strategie pro jejich bezpečné obcházení prostřednictvím emulace klientského chování a využití API.10
+Srovnávací analýza verifikačních možností fotobank
+Následující tabulka syntetizuje technické parametry a přístupové cesty pro sedmnáct analyzovaných subjektů. Hodnocení reflektuje spolehlivost detekce z pohledu automatizovaného systému.
+Fotobanka
+	Primární zdroj pravdy
+	Metoda přístupu
+	Klíčový identifikátor
+	Spolehlivost detekce
+	Shutterstock
+	Search API v2
+	OAuth 2.0 / Basic
+	contributor ID
+	Extrémně vysoká
+	Adobe Stock
+	Search/Files API
+	API Key / OAuth
+	creator_id
+	Extrémně vysoká
+	Getty Images
+	API v3 (Connect)
+	API Key + Secret
+	artist metadata
+	Vysoká
+	iStock
+	API v3 (Integrated)
+	API Key + Secret
+	collection_id
+	Vysoká
+	Alamy
+	Search API v3
+	API Key / OAuth
+	by (artist name)
+	Velmi vysoká
+	DepositPhotos
+	API Suite
+	Partner API
+	username / keywords
+	Vysoká
+	Pond5
+	Visually Similar API
+	API / Public Endpoint
+	contributor name
+	Vysoká
+	Dreamstime
+	Partner / Search API
+	API Key (Approved)
+	Only from contributor
+	Středně vysoká
+	123RF
+	Commercial API
+	API Key / Secret
+	contributor name
+	Střední
+	BigStockPhoto
+	Official API
+	API ID / Secret
+	account_id
+	Středně vysoká
+	Freepik
+	Stock Content API
+	API Key
+	query / id
+	Vysoká
+	Vecteezy
+	API v2
+	API Key / OAuth
+	account_id
+	Vysoká
+	StoryBlocks
+	API v2
+	HMAC / Private Key
+	keywords / categories
+	Střední
+	Envato
+	Market API
+	Personal Token
+	username
+	Středně vysoká
+	PIXTA
+	Public Search
+	Web Scrape (Advanced)
+	author No.
+	Nízká (Anti-bot)
+	MostPhotos
+	Public Search
+	Web Scrape (Advanced)
+	contributor name
+	Nízká (Anti-bot)
+	500px
+	Legacy/Sales API
+	Uzavřené API
+	user_id
+	Velmi nízká
+	CanStockPhoto
+	Žádný (Closed)
+	Služba ukončena
+	-
+	Nulová
+	Teoretický rámec: Od interních statusů k zákaznické realitě
+V systémech pro správu fotografií často dochází k sémantickému nedorozumění mezi pojmem "publikováno" v backendu přispěvatele a reálnou viditelností aktiva v zákaznickém indexu. Analýza chování velkých platforem jako Shutterstock nebo Adobe Stock ukazuje, že po schválení fotografie následuje proces asynchronní indexace, který zahrnuje generování náhledů v různých rozlišeních, extrakci vizuálních rysů pro podobnostní vyhledávání a distribuci metadat do globálních CDN uzlů.3 Tento proces může trvat od desítek minut až po několik dní.1
+Spolehlivá automatizace vyžaduje simulaci dotazu, který by provedl reálný zákazník. To znamená vyhledávání nikoliv podle interního ID (které může být přispěvateli známé, ale v zákaznickém rozhraní dosud neaktivní), nýbrž podle kombinace unikátních metadat nebo vizuálního otisku.5 Pokud vyhledávání v rámci portfolia konkrétního autora (např. pomocí creator_id u Adobe Stock) nevrátí daný výsledek, aktivum z pohledu trhu neexistuje, bez ohledu na to, co indikuje status v contributorském rozhraní.3
+Detailní technický rozbor verifikačních mechanismů
+1. Adobe Stock: Zlatý standard verifikace přes Creator ID
+Adobe Stock poskytuje nejpropracovanější vyhledávací API pro verifikaci veřejného obsahu. Klíčovým mechanismem je endpoint https://stock.adobe.io/Rest/Media/1/Search/Files, který umožňuje kombinovat vyhledávání podle klíčových slov s explicitním filtrem na ID tvůrce přes parametr search_parameters[creator_id].3
+Pro spolehlivou detekci se doporučuje následující implementační postup:
+* Dotazování: Systém vygeneruje dotaz obsahující ID autora a podmnožinu unikátních klíčových slov z PhotoMedia.csv.
+* Response: API vrací pole nb_results, které slouží jako primární binární indikátor přítomnosti.13
+* Validace přes Metadata: Sloupec result_columns umožňuje vyžádat si specifická pole jako title, keywords a is_gentech (indikující AI původ).3 Porovnáním těchto polí s lokální databází lze potvrdit identitu s vysokou jistotou.
+* Vizuální verifikace: Adobe Stock vrací pole thumbnail_url (typicky velikosti 110, 160, 220, 240, 500 a 1000 pixelů). Náhledy o velikosti 500 a 1000 pixelů jsou opatřeny vodoznakem, ale jsou ideální pro percepční matching.3
+Výjimečnou funkcí Adobe Stock je možnost vyhledávání podle podobnosti pomocí search_parameters[similar_url]. V automatizovaném workflow může systém nahrát náhled z lokálního disku na dočasné úložiště a dotázat se API, zda se tento obraz (nebo vizuálně identický) nachází v katalogu. Pokud první výsledek vyhledávání podle podobnosti vykazuje Hammingovu vzdálenost blízkou nule, je existence potvrzena bez ohledu na textová metadata.3
+2. Shutterstock: Robustní filtrace a Computer Vision
+Shutterstock API v2 nabízí podobně silné nástroje jako Adobe. Endpoint GET /v2/images/search podporuje parametr contributor, který přijímá pole jmen nebo ID přispěvatelů.12
+Klíčové aspekty detekce u Shutterstocku:
+* Bulk Search: API umožňuje provádět až 5 vyhledávání v jediném požadavku POST přes v2/bulk_search/images, což dramaticky zvyšuje propustnost pipeline při verifikaci tisíců fotografií.14
+* Result Detail: Použití parametru view=full zajistí, že response bude obsahovat kompletní sadu metadat včetně všech kategorií, což je nezbytné pro scoring model.14
+* Computer Vision Search: Shutterstock disponuje specializovanými endpointy pro vizuální vyhledávání (POST /v2/cv/images), které umožňují nahrát base64 kódovaný obraz.14 Toto je nejspolehlivější "customer-side" metoda, protože simuluje funkci "Search by image", kterou využívají zákazníci.
+Technické riziko u Shutterstocku spočívá v lokalizaci. API mění pořadí výsledků i dostupnost metadat na základě lokality dotazu (parametr region nebo IP adresa).14 Pro konzistentní výsledky v automatizaci je nutné v hlavičkách fixovat region (např. en-US).
+3. Getty Images a iStock: Výzvy v éře "Enhanced Search"
+Getty Images a její dceřiná společnost iStock využívají API v3, které je vysoce restriktivní, ale technicky vyspělé.16 V roce 2024 byl plošně nasazen systém "enhanced search", který využívá strojové učení k interpretaci konverzačního jazyka v dotazech.4 To znamená, že tradiční vyhledávání podle přesných klíčových slov může vracet širší (a tedy méně přesnou) sadu výsledků.
+Strategie pro Getty/iStock:
+* Identifikace přes Artist: Pro verifikaci je nutné sledovat pole artist v metadatovém objektu.18
+* Filtrování: Použití parametru phrase v kombinaci s filtrem asset_family=creative.4
+* Náhledy pro Matching: Getty vrací v poli display_sizes náhledy s unikátními URI, které obsahují hashový klíč (např. h=0oucmO...).16 Tyto náhledy jsou bez vodoznaku v nízkém rozlišení, což je činí ideálními pro rychlou generaci pHash otisků bez nutnosti náročného preprocessingu.18
+* Status ověření: Na rozdíl od jiných bank Getty umožňuje explicitně vypnout "enhanced search" pomocí parametru enhanced_search=false pro získání precizních výsledků odpovídajících přesně zadaným klíčovým slovům.4
+4. Alamy: Transparentní metadata a limity indexu
+Alamy API v3 je považováno za jedno z nejvíce "developersky přívětivých" díky podpoře standardu IPTC NinJS 2.0.19 Vyhledávání lze efektivně omezit na konkrétního autora pomocí parametru by.20
+Klíčové faktory pro Alamy:
+* Index Gap: Existuje známé riziko, že obrázek je dohledatelný na Alamy.com, ale nikoliv přes API, pokud není součástí konkrétní smlouvy nebo partnerského balíčku.21 Pro absolutní jistotu je nutné v pipeline implementovat fallback na veřejný search endpoint Alamy s emulací prohlížeče.
+* Item Metadata: Po získání item_id z vyhledávání je nezbytné volat endpoint /v3/item/{id} pro získání kompletního popisu a ověření shody s archivem.19
+* Pagination: Alamy limituje stránkování na 100 000 položek. Pro velmi rozsáhlá portfolia je nutné dotazy segmentovat podle data vytvoření (dateCreatedSince, dateCreatedBefore).19
+5. Pond5: Leader v oblasti vizuální inteligence
+Pond5 integruje pokročilé neuronové sítě přímo do svého vyhledávacího rozhraní.22 Pro verifikaci veřejné dostupnosti nabízí unikátní metodu "Visually Similar Search", která umožňuje nahrát lokální soubor a najít shody v katalogu čítajícím přes 70 milionů aktiv.23
+Implementace u Pond5:
+* Visual Search: Na rozdíl od textového API, které vyžaduje schválení klíče, lze veřejný endpoint pro vizuální vyhledávání využít pro automatizované dotazy simulující drag-and-drop akci.24
+* Neural Matching: Algoritmus rozpoznává tvary, barvy a kompozici, což je extrémně odolné vůči změnám metadat přispěvatelem po nahrání.22
+* API Parametry: Standardní API podporuje filtr contributor, který vrací pole výsledků přímo vázaných na identitu autora v rámci marketplace.25
+6. DepositPhotos: Custom řešení přes API Suite
+DepositPhotos se zaměřuje na "white-label" integrace a nabízí robustní API Suite.26 Pro potřeby verifikace je klíčový přístup k metadatům, který je v placených nebo partnerských plánech plně otevřený.28
+Strategie pro DepositPhotos:
+* Username Lookup: Vyhledávání lze omezit na konkrétního uživatele v rámci parametrů dotazu.27
+* JSON Preload: Veřejné vyhledávací stránky DepositPhotos často obsahují JSON data v __NEXT_DATA__ nebo podobných blocích, což umožňuje extrahovat ID a statusy bez náročného parsování HTML.29
+* AI Upscaling: DepositPhotos využívá AI pro upscaling náhledů, což může mírně deformovat pHash, pokud se porovnává s originálem s nízkým rozlišením. Doporučuje se normalizace na $1024 \times 1024$ před hašováním.27
+7. Dreamstime a 123RF: Tradiční přístupy s restrikcemi
+Tyto banky vyžadují individuální schválení pro přístup k API.30
+* Dreamstime: Pokročilé vyhledávání obsahuje pole Only from contributor, které je klíčem k automatizaci. Pokud skript zná uživatelské jméno na Dreamstime, může v rámci dotazu verifikovat přítomnost v "Management Area".32
+* 123RF: Nabízí komerční API s unikátními klíči SecretKey a AccessKey. Verifikace probíhá přes parametr contributor, který vrací metadata včetně jména a popisu.31 Pro testování je nutné mít v API klíči nabité kredity, i když se aktivum jen vyhledává.31
+8. Freepik a Vecteezy: Moderní AI-first platformy
+Obě platformy procházejí transformací na AI-driven editory a vyhledávače.33
+* Freepik: API pro stock obsah (api.freepik.com/v1/resources) vrací detailní informace včetně pole url, které vede přímo na veřejnou stránku aktiva. Verifikace identity autora probíhá přes pole author v JSON response.34
+* Vecteezy: API v2 umožňuje přístup k metadatům zdrojů a vizuálně podobným obrázkům přes endpoint /v2/{account_id}/resources.28
+9. Envato a StoryBlocks: Subscription-based modely
+* Envato: Market API je velmi stabilní. Endpoint pro vyhledávání podporuje parametr username, který vrací výsledky z konkrétního portfolia (např. na webech PhotoDune nebo VideoHive).37
+* StoryBlocks: Vyžaduje HMAC autentizaci s využitím privátního klíče. Vyhledávání probíhá přes v2/images/search, kde je pro verifikaci nutné parsovat pole description a keywords, protože API ne vždy vrací explicitní ID autora v základním pohledu.38
+10. Specifické případy: PIXTA, MostPhotos, 500px, CanStockPhoto
+* PIXTA: Neexistuje veřejně dostupné otevřené API pro běžné přispěvatele. Verifikace vyžaduje simulaci dotazu na pixtastock.com a hledání textového řetězce "The author of this item is [Name] (No.)" v HTML kódu.40
+* MostPhotos: Podobně jako u PIXTA je nutné spoléhat na web scraping veřejného vyhledávání s rizikem zablokování IP adresy.
+* 500px: Od roku 2018 je API uzavřeno pro volný přístup. Jakákoliv automatizace je nyní možná pouze přes individuální dohodu se sales týmem nebo přes náročné obcházení anti-bot systémů na jejich webu.42
+* CanStockPhoto: Tato fotobanka definitivně ukončila provoz 1. října 2023. Jakákoliv snaha o detekci v této síti by měla být v pipeline nahrazena automatickým smazáním záznamu nebo označením za zaniklý.44
+Metodika robustního matchingu: Překonání titulků
+Matching založený pouze na polích title nebo description je v profesionálním workflow nepřípustný, protože tyto řetězce jsou fotobankami dynamicky upravovány pro potřeby vyhledávačů (SEO) nebo lokalizovány do desítek jazyků.5 Jako řešení se navrhuje vícestupňový vizuální matching.
+Percepční hašování (pHash) jako základ identifikace
+Na rozdíl od kryptografických hašů (MD5, SHA), kde malá změna bitu vede k totální změně výsledku, percepční haše zůstávají stabilní, pokud se obraz vizuálně příliš neliší.7
+* Mechanismus: Obraz je zmenšen (např. na $32 \times 32$), převeden do barevného prostoru stupňů šedi a následně je na něj aplikována diskrétní kosinová transformace (DCT). Výsledkem je 64-bitový otisk reprezentující nízké frekvence obrazu.9
+* Hammingova vzdálenost: Rozdíl mezi hašem lokálního souboru z archivu a hašem náhledu staženého z fotobanky udává počet odlišných bitů. Pro identické fotografie s přidaným vodoznankem se tato vzdálenost pohybuje mezi 0 a 8 bity.8
+Diferenční hašování (dHash) pro gradientní stabilitu
+Algoritmus dHash se ukazuje jako vysoce efektivní pro stock fotografie, protože sleduje gradienty jasnosti mezi sousedními pixely.48 Je extrémně rychlý a odolný vůči změnám v poměru stran, které některé fotobanky aplikují při generování náhledů. Implementace v Pythonu přes knihovnu imagehash umožňuje porovnat tisíce dvojic za sekundu.9
+Barevné hašování (ColorHash)
+Doplňkový mechanismus, který analyzuje distribuci barev v obraze.9 Je užitečný pro rozlišení fotografií, které mají stejnou kompozici (např. série snímků z jednoho focení), ale liší se barevným laděním.
+Architektura automatizované pipeline
+Navržená pipeline pro zpracování PhotoMedia.csv a lokálního archivu se skládá ze čtyř fází:
+1. Ingeste a Preprocessing
+* Systém načte záznam z CSV a cestu k lokálnímu souboru.
+* Pro lokální soubor vygeneruje sadu hašů (pHash, dHash, ColorHash) a uloží je do cache.
+* Extrahuje unikátní klíčová slova, která mají vysokou informační hodnotu (vyřazuje obecné termíny jako "man", "blue", "background").49
+2. Generování a distribuce dotazů
+* Pipeline využívá asynchronní HTTP klienty (aiohttp) pro paralelní dotazování více fotobank současně.
+* Pro každou banku volí nejvhodnější endpoint (např. Adobe Stock Creator ID search, Shutterstock Bulk search).3
+3. Sběr kandidátů a stahování náhledů
+* Z response každé banky se vybere prvních $N$ kandidátů (typicky $N=3$).
+* Pro každého kandidáta systém stáhne náhledový obrázek. Zde dochází k riziku anti-bot blokace, proto je nutné využívat rotující rezidenční proxy a emulaci hlaviček prohlížeče.10
+4. Finální validace a zápis
+* Provede se vizuální matching kandidátů proti lokálnímu originálu.
+* Vypočítá se finální skóre shody.
+* Výsledek se zapíše zpět do databáze ve formátu: Site_Name, Is_Public, Public_URL, Match_Confidence.
+Scoring model pro rozhodovací logiku
+Pro dosažení maximální spolehlivosti bez manuální kontroly je nutné použít vážený scoring model, který kombinuje vizuální a metadatové faktory.
+Váhy indikátorů shody
+Indikátor
+	Váha
+	Výpočet
+	Vizuální (dHash)
+	50 %
+	$1 - (\text{HammingDistance} / \text{HashSize})$
+	Vizuální (Color)
+	10 %
+	$1 - (\text{ColorDistance} / \text{Threshold})$
+	Identita autora
+	20 %
+	Binární shoda (1.0 při shodě jména/ID)
+	Klíčová slova
+	15 %
+	Jaccardův index shody setu tagů
+	Název (Title)
+	5 %
+	Levenshteinova vzdálenost řetězců
+	Rozhodovací pravidla
+* Skóre > 0.92: Automatické potvrzení (Public: YES). Spolehlivost je dostatečná pro produkční systémy.
+* Skóre 0.70 - 0.91: Označit pro "Deep Verify". Systém spustí dodatečné vyhledávání podle podobnosti (Similarity Search API) pro potvrzení.3
+* Skóre < 0.70: Aktivum nepovažováno za nalezené na dané platformě (Public: NO).
+Implementační doporučení pro Python
+Pro vývoj robustního řešení je doporučeno následující prostředí a knihovny:
+* Zpracování obrazu: Knihovna Pillow pro načítání a imagehash pro generování percepčních otisků.9
+* Asynchronní operace: asyncio a aiohttp pro souběžné dotazování fotobank. Pro paralelní výpočty hašů na CPU využít multiprocessing k obejití limitů GIL.47
+* Analýza metadat: scikit-learn pro výpočet podobnosti textových vektorů a Jaccardova indexu.
+* Obcházení ochran: curl_cffi pro simulaci TLS handshake reálných prohlížečů (vhodné proti Cloudflare/Akamai).11
+Příklad asynchronního workflow (pseudo-logika)
+
+
+Python
+
+
+
+
+async def check_visibility(photo_id, agency):
+   query = build_query(photo_id, agency)
+   results = await agency.api_search(query)
+   
+   for candidate in results[:3]:
+       thumb = await download_thumb(candidate.url)
+       dist = calculate_hash_distance(local_cache[photo_id].hash, thumb.hash)
+       
+       if dist < threshold:
+           metadata_score = compare_metadata(local_cache[photo_id], candidate)
+           final_score = weighted_sum(dist, metadata_score)
+           
+           if final_score > 0.92:
+               return {"status": "PUBLIC", "url": candidate.public_url}
+   return {"status": "NOT_FOUND"}
+
+Rizika a budoucí výhled
+Anti-bot mechanismy a web scraping
+S nárůstem útoků na API v roce 2024 (nárůst o 33 % dle zpráv Akamai) nasadily fotobanky extrémně přísné filtry.10 Pro neoficiální scrapování (např. u bank bez API) je nyní nezbytné používat "headless browsers" (Playwright, Selenium) s pluginy pro maskování (např. stealth), jinak dojde k okamžitému zobrazení CAPTCHA výzev.11
+Vliv generativní AI na indexaci
+Nárůst AI obsahu (např. na Adobe Stock nebo Dreamstime) způsobuje "šum" ve vyhledávání.2 Pro automatizované systémy to znamená riziko falešně pozitivních výsledků, kdy AI vygeneruje obraz velmi podobný vašemu originálu. Zde se stává kritickým pole is_gentech v API nebo vizuální matching s nízkou tolerancí Hammingovy vzdálenosti (např. max 2 bity místo 8).3
+Ekonomická konsolidace a zánik služeb
+Příklad CanStockPhoto ukazuje, že ani dvacetiletá historie není zárukou stability.44 Detekční pipeline musí být modulární, aby bylo možné snadno přidávat nové hráče (např. Stocksy, Canva) nebo odebírat zaniklé entity, čímž se předejde zbytečným API requestům a chybám v databázi.
+Závěr
+Automatizace detekce veřejné viditelnosti fotografií je realizovatelná s vysokou mírou spolehlivosti, pokud je postavena na kombinaci oficiálních API a robustního vizuálního matchingu. Klíčem k úspěchu je ignorování interních statusů přispěvatele a důsledná validace skrze zákaznická rozhraní. Navržený scoring model v kombinaci s architekturou využívající percepční hašování poskytuje řešení, které je odolné vůči změnám metadat, lokalizaci i dynamické indexaci, a umožňuje tak plnou kontrolu nad distribucí digitálních aktiv v globálním měřítku. Tento přístup nejen šetří lidské zdroje, ale poskytuje objektivní a daty podložený pohled na reálnou tržní dostupnost archivu.
+Citovaná díla
+1. I have started positing in Shutterstock, Adobe stock and getty. Is there a way to get more views on my portfolio, are there places where I can share them. : r/stockphotography - Reddit, použito března 26, 2026, https://www.reddit.com/r/stockphotography/comments/1guz1hf/i_have_started_positing_in_shutterstock_adobe/
+2. CanStockPhoto ceasing operations - News - Graphic Design Forum, použito března 26, 2026, https://www.graphicdesignforum.com/t/canstockphoto-ceasing-operations/27545
+3. Stock API reference - Adobe Developer, použito března 26, 2026, https://developer.adobe.com/stock/docs/api/11-search-reference
+4. Release Notes - Getty Images API, použito března 26, 2026, https://developers.gettyimages.com/release-notes/
+5. Getting Started - Shutterstock, použito března 26, 2026, https://www.shutterstock.com/developers/documentation/getting-started
+6. The Contributor's Guide to Understanding the SEO of Stock Images - Dreamstime.com, použito března 26, 2026, https://www.dreamstime.com/blog/contributor-s-guide-to-understanding-seo-stock-images-45577
+7. pHash.org: Home of pHash, the open source perceptual hash library, použito března 26, 2026, https://www.phash.org/
+8. pHash in Python | Hashing and Validation in Multiple Programming Languages - SSOJet, použito března 26, 2026, https://ssojet.com/hashing/phash-in-python
+9. JohannesBuchner/imagehash: A Python Perceptual Image Hashing Module - GitHub, použito března 26, 2026, https://github.com/JohannesBuchner/imagehash
+10. Akamai reports 311 billion web attacks in 2024 amid AI API flaws - Tech Monitor, použito března 26, 2026, https://www.techmonitor.ai/technology/cybersecurity/akamai-311bn-web-attacks-2024-ai-api-flaws
+11. Anti-Bot Protection and How Detect It | by Dima Kynal - Medium, použito března 26, 2026, https://medium.com/@dimakynal/anti-bot-protection-and-how-detect-it-4027a9690fb5
+12. Searching - Shutterstock, použito března 26, 2026, https://www.shutterstock.com/developers/documentation/shutterstock-ui/searching
+13. Searching for assets - Stock APIs, použito března 26, 2026, https://developer.adobe.com/stock/docs/getting-started/apps/05-search-for-assets
+14. Searching | Shutterstock, použito března 26, 2026, https://www.shutterstock.com/developers/documentation/searching
+15. Shutterstock API | Documentation | Postman API Network, použito března 26, 2026, https://www.postman.com/api-evangelist/images/documentation/wxent46/shutterstock-api
+16. Search | Getty Images API, použito března 26, 2026, https://developers.gettyimages.com/docs/search/
+17. Getty Images API | Documentation, SDK & Sample Code | Getty Images API, použito března 26, 2026, https://developers.gettyimages.com/
+18. Asset Metadata - Getty Images API, použito března 26, 2026, https://developers.gettyimages.com/asset-metadata/
+19. The Alamy API provides programmatic access to Alamy's large archive of content. The API provides three key features delivered via three appropriately named endpoints, search, item metadata retrieval and download., použito března 26, 2026, https://api-reference.alamy.com/docs/alamy-api/cbc5397aa70ae-alamy-api
+20. Search for media items | Alamy API, použito března 26, 2026, https://api-reference.alamy.com/docs/alamy-api/7f10ee56179ab-search-for-media-items
+21. Become an Alamy partner through our REST Image API, použito března 26, 2026, https://www.alamy.com/api-partnerships/
+22. Introducing Pond5's Award-Winning, Patented Visual Search - YouTube, použito března 26, 2026, https://www.youtube.com/watch?v=kVRtO7uclBQ
+23. Pond5 API - Empower Your Users With Stock Video, Music, and More, použito března 26, 2026, https://www.pond5.com/api
+24. Searching Using Pond5 Visually Similar Search | Pond5 Help Center, použito března 26, 2026, https://www.pond5.com/help/en/articles/10086049-searching-using-pond5-visually-similar-search
+25. Royalty-Free Stock Video Footage and Music Library - Pond5, použito března 26, 2026, https://www.pond5.com/sell-stock-footage
+26. Stock Content Library API: 310M+ Files and AI-Powered Search - VistaCreate, použito března 26, 2026, https://create.vista.com/suite-api/content-library/
+27. API suite: Graphic Editor, 330M+ Stock Library & Generative AI API Tools - DepositPhotos, použito března 26, 2026, https://depositphotos.com/api-suite.html
+28. Developer API for Royalty Free Content - Vecteezy, použito března 26, 2026, https://www.vecteezy.com/developers
+29. Why You Need An Image API for Content Creation - DepositPhotos Blog, použito března 26, 2026, https://blog.depositphotos.com/api-image.html
+30. Dreamstime API - Integrate a world class photo collection., použito března 26, 2026, https://www.dreamstime.com/dreamstime-api
+31. Complete Guide To 123RF Value Added Reseller API Onboarding - Blog, použito března 26, 2026, https://www.blog.123rf.com/complete-guide-to-123rf-value-added-reseller-api-onboarding
+32. How to search your own portfolio....... - Dreamstime.com, použito března 26, 2026, https://www.dreamstime.com/blog/how-to-search-your-own-portfolio-36483
+33. Welcome to Freepik API - Freepik API, použito března 26, 2026, https://docs.freepik.com/introduction
+34. Stock content API, použito března 26, 2026, https://docs.freepik.com/api-reference/resources/stock-content
+35. Search and filter resources with advanced options - Freepik API, použito března 26, 2026, https://docs.freepik.com/api-reference/resources/get-all-resources
+36. API Documentation - Vecteezy, použito března 26, 2026, https://www.vecteezy.com/api-docs
+37. API Documentation - Envato API, použito března 26, 2026, https://build.envato.com/api/
+38. Elevate your platform with an unlimited stock media API - Storyblocks, použito března 26, 2026, https://www.storyblocks.com/resources/business-solutions/api
+39. /api/v2/videos/search | Storyblocks API Reference | Postman API Network, použito března 26, 2026, https://www.postman.com/storyblocks/storyblocks-s-public-workspace/request/eneg8j8/api-v2-videos-search
+40. Business Card Template. - Stock Illustration [26950929] - PIXTA, použito března 26, 2026, https://creator-en.pixtastock.com/illustration/26950929
+41. hkhuk - Stock Illustration [100485130] - PIXTA, použito března 26, 2026, https://www.pixtastock.com/illustration/100485130
+42. API - 500px Support Center, použito března 26, 2026, https://support.500px.com/hc/en-us/articles/360002435653-API
+43. 500px/legacy-api-documentation - GitHub, použito března 26, 2026, https://github.com/500px/legacy-api-documentation
+44. Can Stock Photo, použito března 26, 2026, https://www.canstockphoto.com/
+45. Can Stock Photo - Wikipedia, použito března 26, 2026, https://en.wikipedia.org/wiki/Can_Stock_Photo
+46. September 1, 2023 Unfortunately, due to a changing business landscape, Can Stock Photo will cease operations on October 1, 2023., použito března 26, 2026, https://www.canstockphoto.com/announcement.pdf
+47. Grouping Photos with Perceptual Hashing | by Mohammad Darwish - Medium, použito března 26, 2026, https://medium.com/@mohddarwish/grouping-similar-photos-using-perceptual-hashing-a343387ec26b
+48. Duplicate image detection with perceptual hashing in Python - Ben Hoyt, použito března 26, 2026, https://benhoyt.com/writings/duplicate-image-detection/
+49. FAQ - Mostphotos, použito března 26, 2026, https://www.mostphotos.com/en-us/faq
+50. Contributor-related questions - Frequently Asked Questions - Dreamstime, použito března 26, 2026, https://www.dreamstime.com/faqs-detail-2
+51. CanStockPhoto Closed – Exciting Alternative to Buy Stock Images - Stock Photo Secrets, použito března 26, 2026, https://www.stockphotosecrets.com/news/canstockphoto-closed-exciting-alternative.html

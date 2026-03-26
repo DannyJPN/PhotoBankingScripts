@@ -1,0 +1,689 @@
+# Detekce customer‑side přítomnosti fotografií na fotobankách
+## 1. Executive summary
+Cílem je spolehlivě a automatizovaně rozhodnout, zda je konkrétní fotografie (lokální soubor + metadata v `PhotoMedia.csv`) už **veřejně dostupná zákazníkům** na dané fotobance, bez spoléhání na contributor backend a interní statusy typu "approved" či "published".
+
+Realisticky nejlépe automatizovatelné (Tier 1) jsou fotobanky, které splňují současně tři podmínky:
+
+- mají **oficiální search API** (ideálně i reverse image search),
+- poskytují **stabilní asset ID a náhledové URL** v machine‑readable podobě (JSON),
+- umožňují **filtrovat podle contributor ID** nebo jiného stabilního identifikátoru.[1][2][3][4][5][6][7][8][9][10][11][12]
+
+Do této kategorie spadají zejména Shutterstock, Adobe Stock, Getty Images / iStock, Depositphotos, 123RF, Pond5, Dreamstime, Alamy a Freepik. Většina z nich má partner / enterprise API, které ale lze (po schválení) využít i z vlastních interních nástrojů.[2][3][13][5][14][6][7][15][8][9][16][10][17][11][18][12][19]
+
+Další skupina (Tier 2) – Vecteezy, Storyblocks, Envato Market / Elements, Bigstock, 500px, Pixta, MostPhotos – nabízí buď **partner API**, nebo jen veřejné webové rozhraní bez samoobslužného API; zde dává smysl opatrná kombinace textového vyhledávání (web / API) a obrazové podobnosti (stažené thumbnaily) s vyšším podílem "NEJISTÉ" výsledků.[20][21][11][22][23][24][25][26][27][28][29][30][12][19][31][32][33][34]
+
+CanStockPhoto je de facto mimo hru, protože v roce 2023 ukončila provoz (Tier 4 – neinvestovat).[35][36]
+
+Z hlediska spolehlivosti rozhodnutí je klíčové **nespouštět se na textový matching (title, description, keywords) jako primární signál**. Místo toho je vhodné stavět decision engine na kombinaci:
+
+- contributor identity (pokud je dostupná na customer side),
+- asset ID (pokud už je známé nebo lze stabilně odvodit z URL / API),
+- rozlišení a poměru stran,
+- obrazové podobnosti (perceptuální hash, SSIM, CLIP embeddingy),
+- slabších textových signálů (popis, klíčová slova) jen jako doplněk.
+
+Výstup pro produkční workflow by měl být trojhodnotový: `PŘÍTOMNÁ`, `NEPŘÍTOMNÁ`, `NEJISTÁ`, s konzervativními prahy a bohatým audit logem (uložené odpovědi API / HTML, thumbnaily kandidátů, vypočtené hashe a skóre, použité dotazy). To umožní jednak vlídné chování k fotobankám (žádné brutální scrappingy), jednak následnou lidskou kontrolu hraničních případů.
+## 2. Srovnávací tabulka fotobank (customer‑side možnosti)
+| Banka | Bez loginu? | S contributor loginem? | API? | Veřejné search UI? | Portfolio použitelné? | Preview dostupné? | Vhodný primární přístup | Riziko false positive | Riziko false negative | Doporučená priorita |
+|-------|-------------|------------------------|------|---------------------|------------------------|--------------------|--------------------------|-----------------------|-----------------------|----------------------|
+| Shutterstock | Ano (fulltext + reverse image) [37] | Ano (navíc contributor nástroje) | Public/partner API, nutný klíč a schválení[2][13][38] | Ano | Ano, veřejný profil `/g/username`[39] | Ano, víc velikostí přes web i API[2][40] | API search + reverse image (UI) + portfolio | Nízké (při image‑based matchingu) | Nízké–střední (limit počtu výsledků, personalizace) | Tier 1 |
+| Adobe Stock | Ano (fulltext + reverse image)[37] | Ano | Oficiální Stock API (Search/Files, Files)[1][3][41] | Ano | Ano, public profile z contributor účtu[42][43] | Ano (thumbnail_size v API)[41] | API search (vč. similar_url) + reverse image UI | Nízké | Nízké–střední | Tier 1 |
+| Getty Images / iStock | Ano (fulltext + reverse image)[44][45] | Ano | Getty Images API (v3), vyžaduje Api‑Key a často partnerství[4][46][6][47] | Ano | Portfolio / author pages omezené, ale vyhledavatelné | Ano (display_sizes v API)[4] | API search + reverse image UI | Nízké–střední | Střední (často velké knihovny, omezené stránkování) | Tier 1 |
+| Depositphotos | Ano (fulltext)[48][49] | Ano | Enterprise/Creative Suite API, partner‑only[5][14][50] | Ano | Částečně (vyhledávání podle autora)[49] | Ano (na webu + přes API) | Web/partner API search, případně search by ID[49] | Nízké–střední | Střední | Tier 1–2 (podle dostupnosti API) |
+| 123RF | Ano | Ano | Non‑commercial + commercial API (search, details)[7][15][51] | Ano | Portfolio lze filtrovat přes API i affiliate integrace[52] | Ano (přes API i web)[7] | API search s filtrem na autora + preview matching | Nízké–střední | Střední | Tier 1–2 |
+| Pond5 | Ano (fulltext + Visual Search)[53][54][55][56][57] | Ano | Oficiální API (search, clip data, download) – partnerské[58][8][59] | Ano | Portfolio stránka dle autora (id / jméno)[60] | Ano (náhledy videa/fotek na webu, v API)[8] | Visual Search (reverse image) + API / web search | Nízké (při image similarity) | Střední (omezené dokumentované detaily pro foto vs. video) | Tier 1–2 |
+| Dreamstime | Ano | Ano | Dreamstime API (search, integrace do webů)[61][62][63] | Ano (vč. advanced search)[64] | Ano – advanced search umožňuje filtrovat podle contributor username[64] | Ano | Web/API search + filtrovaný contributor search + preview matching | Nízké–střední | Střední | Tier 1–2 |
+| Bigstockphoto | Ano | Ano | Partner API (např. bigstock-node-client)[20][21] | Ano | Portfolio přes query `?contributor=Name` (dle ukázek)[60] | Ano | Web search (příp. partner API) + contributor filter | Střední | Střední | Tier 2 |
+| Alamy | Ano (pokročilé vyhledávání)[65][66] | Ano | Oficiální Alamy API (search, media items)[10][17][67] | Ano | Portfolio / search omezený, portfolia nedávno zrušena a nahrazena přesměrováním na search podle autora[68][69] | Ano | API search + reverse image (UI) + author‑only search | Střední | Střední | Tier 1–2 |
+| Freepik | Ano | Není potřeba pro search | Oficiální Freepik API (resources, images, templates)[9][16][70] | Ano | Contributor profily méně centrální | Ano (thumbnail a různé formáty přes API)[9][16] | API search + preview matching (pokud API přístupné) | Střední | Střední | Tier 1–2 (pokud schválí API), jinak 2–3 |
+| Vecteezy | Ano | Ano | API pro partnery / developery, přístup omezen na "trusted aggregators"[11][18][24][71] | Ano | Portfolio existuje, ale bez garance kompletnosti | Ano | Web search + případné partner API; preview matching | Střední | Střední–vyšší | Tier 2–3 |
+| Storyblocks | Ano (web search)[72][73] | Ano | Storyblocks/Videoblocks API pro partnery (search, stock‑items)[74][12][19] | Ano | Contributor dashboard, ale ne klasická public portfolio galerie[75] | Ano | API search (pokud partnerství) + web search + preview matching | Střední | Střední–vyšší | Tier 2 |
+| Envato (Market / Elements) | Ano | Ano | Envato Market API (katalog, search items); Elements nemá oficiální veřejné API[22][23][25][26][27] | Ano (Elements photos search)[76][77][78][79] | Autoři mají stránky, ale portfolio struktura je složitější | Ano | Web search (Elements) + Envato Market API jen pro část obsahu | Střední–vyšší | Střední–vyšší | Tier 2–3 |
+| PIXTA | Ano (fulltext)[29][30] | Ano | Veřejná dokumentace API pro library nenalezena (pouze Pixta AI apod.)[80] | Ano | Portfolio podle autora, ale bez machine‑readable API | Ano | Web search + portfolio + preview matching | Střední | Vyšší | Tier 2–3 |
+| MostPhotos | Ano | Ano | Neveřejné API; používá se interně (např. korporátní přístupy), ale bez otevřené dokumentace[81] | Ano | Contributor portfolio existuje, ale není API | Ano | Web search (příp. profil) + preview matching | Střední | Vyšší | Tier 2–3 |
+| 500px | Ano (community search)[82] | Ano | Legacy API zrušeno, public access ukončen v roce 2018[28][33][34][83] | Ano | Autor stránky a kolekce | Ano | Web search + scraping (vyšší riziko) | Střední | Vyšší | Tier 2–3 |
+| CanStockPhoto | Ne (web je vypnutý) | Ne | API nedává smysl – agentura skončila v 2023[35][36] | Ne | Ne | Ne | Nelze – historická data pouze z archivu | N/A | N/A | Tier 4 |
+
+Poznámka: tabulka shrnuje customer‑side realitu. Skutečná použitelnost API vždy závisí na obchodní dohodě a ToS jednotlivé fotobanky; integraci založenou na scrapingu je vždy potřeba zvažovat právně i eticky.
+## 3. Detailní rozbor po jednotlivých bankách
+### 3.1 Shutterstock
+**A. Přístupové možnosti**
+
+- Veřejný web umožňuje fulltextové vyhledávání bez přihlášení; k dispozici jsou náhledy a detailní stránky assetů.[84][37]
+- Existuje oficiální Shutterstock Public API (`/v2/images/search`, `getImage`, atd.), dokumentované v JS SDK a starší dokumentaci; vyžaduje API klíč a schválenou aplikaci.[2][40][13][38]
+- Contributor účet není pro customer‑side detekci nutný, ale zpřístupní veřejný profil (portfolio) pod URL typu `https://www.shutterstock.com/g/{username}` nebo starší `gallery-<id>.html`.[39]
+- ToS API typicky zakazuje masivní scrapování webu; pro robustní nasazení je vhodné spolehnout se na API nebo na relativně nízký objem dotazů přes veřejný web.
+
+**B. Nejlepší zdroje pravdy**
+
+Seřazení podle spolehlivosti (pro otázku „je fotka veřejně live?“):
+
+1. **Oficiální Search API (`/v2/images/search`, `getImage`)** – vrací explicitně seznam assetů, včetně `id`, náhledových URL, rozměrů a dalších metadat. Pokud je obrázek dohledatelný podle rozumného dotazu (klíčová slova, contributor ID, podobnost), je to silný indikátor, že je live. (Nevýhoda: API přístup nemusí být self‑service pro všechny.)[40][13][2]
+2. **Veřejné search UI** – de facto front‑end nad stejnými indexy jako API; navíc umožňuje reverse image search (drag&drop) jako vizuální vstup, což je pro tvůj use‑case velmi vhodné.[37]
+3. **Přímá detail stránka itemu** – pokud už znáš ID, lze přímo navštívit `https://www.shutterstock.com/image-photo/...-id{ID}` a zkontrolovat, že se zobrazí náhled (404 nebo „not available“ znamená, že není veřejně dostupný). Toto je dobrý sekundární check poté, co kandidáta najdeš jiným způsobem.
+4. **Contributor portfolio page** – portfolio může být filtrované / řazené a nemusí obsahovat vše (A/B testy, limity na počet zobrazených položek); nelze jej použít jako jediný zdroj pravdy pro "není tam".
+
+**C. Identifikace konkrétní fotografie**
+
+Dostupné identifikátory na customer side:
+
+- **Asset ID** – na detail stránce a v API `id`; to je ideální jednoznačný klíč.[2][40]
+- **Náhledové URL** – různé velikosti náhledů, ale se stabilním `id` v query; lze využít pro mapování.[2]
+- **Contributor name / ID** – dostupné na detailu i v API (`contributor` objekt).[13][2]
+- **Rozlišení / aspect ratio** – `width`, `height` v API, případně v HTML/JSON.[2]
+- **Title / description / keywords** – dostupné všude, ale slabší signál (často lokalizované, modifikované editory).[84]
+
+Doporučené rozdělení signálů:
+
+- **Strong match**:
+  - Shoda asset ID (znáš‑li ho z jiného workflow) + potvrzení, že náhled odpovídá lokálnímu souboru obrazově.
+  - Vysoká obrazová podobnost (pHash / CLIP ≥ 0,95) mezi lokálním souborem a náhledem + shoda contributor ID + velmi podobné rozměry (±1–2% v šířce i výšce).
+- **Weak match**:
+  - Podobná obrazová podoba bez contributor match (např. generická scéna – složité rozlišit klony).
+  - Pouhá shoda title/description/keywords bez obrazové kontroly.
+- **Příliš riskantní pro auto‑schválení**:
+  - Rozhodnutí postavené jen na textu (title/keywords), i když sedí contributor – title může být změněný, recyklovaný, nebo generický.
+
+**D. Praktická implementace (Shutterstock)**
+
+- **Query generation**:
+  - Pokud máš přístup k API: generovat dotaz `query` z tematicky očištěného popisu (vybrat podstatná jména a klíčová slova), doplnit filtr `contributor_id` (pokud znáš).[40][2]
+  - Bez API: použít reverse image search v UI jako primární nástroj (drag&drop lokálního JPEG / PNG), případně zkombinovat s textovým dotazem.
+- **Candidate retrieval**:
+  - Z API: stránkovaný dotaz (např. až 100 výsledků), seřadit podle relevance nebo „newest“ podle potřeby.[40]
+  - Z webu: headless browser (Playwright) pro reverse image search stránku, extrakce JSON/HTML položek.
+- **Candidate scoring**:
+  - Pro každý kandidát stáhnout thumbnail (nejlépe menší velikost, pro hashování) a spočítat pHash/dHash + CLIP embedding.
+  - Spočítat metriky: obrazová podobnost, rozdíl rozlišení, Jaccard/TF‑IDF podobnost keywordů, shoda contributor ID.
+- **Final decision**:
+  - `PŘÍTOMNÁ`, pokud nejlepší kandidát dosáhne vysokého skóre (viz kapitola 5) a není žádný jiný s podobným skóre.
+  - `NEPŘÍTOMNÁ`, pokud reverse image search nenajde nic dostatečně podobného a (u API) textový search přes contributor ID + klíčová slova na několika stránkách selže.
+  - `NEJISTÁ` ve všech hraničních případech (více podobných kandidátů, nízké skóre, příliš obecný motiv).
+- **Anti‑bot a provoz**:
+  - Preferovat API před scrapováním; pokud to nejde, držet request rate velmi nízko, používat session cookies, akceptovat, že vyšší objem může spustit ochranu (Cloudflare, CAPTCHA).
+  - Logovat všechny požadavky a odpovědi (URL, query parametry, status kódy, snapshot HTML/JSON pro matchnuté assety).
+
+**E. Odolnost a rizika**
+
+- Shutterstock je výrazně chráněn proti agresivním botům; při vyšší zátěži lze čekat blokace či CAPTCHA (hypotéza na základě typické praxe velkých SaaS).[37]
+- Výsledky vyhledávání mohou být personalizované (region, jazyk, safe search) – vhodné je fixovat parametry (např. `region`, `safe=true`) přes API a jednotnou sadu cookies v UI.[40]
+- Reverse image search může dávat falešně pozitivní „podobné“ výsledky (např. generické motivy kaváren, hor), proto je nutné v pipeline ještě vlastní pHash/CLIP matching.
+
+**F. Doporučená rozhodovací logika (Shutterstock)**
+
+- `ANO, JE TAM`:
+  - existuje kandidát se skóre ≥ 0,9 (viz model v kap. 5),
+  - CLIP/pHash podobnost ≥ 0,95,
+  - contributor ID shodné a rozměry ±1–2%.
+- `NE, NENÍ TAM`:
+  - reverse image search nedal kandidáty s podobností > 0,7,
+  - textový search (s filtry na autora) nevrátil nic relevantního do limitu ~100–200 výsledků.
+- `NEJISTÉ`:
+  - kandidát se skóre 0,6–0,9, nebo více kandidátů se skóre > 0,7,
+  - nelze spolehlivě odlišit klony / near‑duplicates (série velmi podobných záběrů).
+
+**G. Prioritizace**
+
+- **Tier 1** – Shutterstock by měl být mezi prvními implementovanými bankami, protože nabízí solidní API, reverse image search a stabilní identifikátory.
+
+**H. Shrnutí strategie (Shutterstock)**
+
+- **Primární strategie:**
+  - API search (pokud máš přístup) + filtrování podle contributor ID + stažení thumbnailu a obrazová podobnost.
+- **Sekundární strategie:**
+  - Reverse image search ve veřejném UI přes headless browser + scrapnutí kandidátů + pHash/CLIP matching.
+- **Fallback:**
+  - Čistě textový search s přísnými pravidly (contributor + silná textová podobnost + rozlišení), výsledek vždy minimálně `NEJISTÉ`.
+- **Potřebné vstupy:**
+  - Lokální obrazový soubor, description/keywords z CSV, contributor identita, případně asset ID (pokud už někde eviduješ Shutterstock ID).
+- **Matching:**
+  - Kombinace pHash/CLIP + contributor + rozlišení, text jen jako slabý signál.
+- **Odhad spolehlivosti:**
+  - Při high‑confidence image matchingu lze čekat velmi nízké false positive; false negative budou hlavně tam, kde je reverse search slabší (např. silně oříznuté / upravené verze).
+- **Hlavní rizika:**
+  - Změny front‑endu a anti‑bot ochrany, změny API podmínek.
+- **Doporučení:**
+  - Pokud možno získat oficiální API přístup; jinak držet objem UI dotazů nízko a smířit se s větším podílem `NEJISTÉ`.
+
+***
+### 3.2 Adobe Stock
+**A. Přístupové možnosti**
+
+- Veřejný web: fulltextové vyhledávání bez přihlášení, včetně reverse image search ("Search by image").[1][85][41][37]
+- Adobe Stock API (`/Rest/Media/1/Search/Files`, `/Rest/Media/1/Files`) je oficiálně dokumentované a umožňuje hledat podle klíčových slov, contributor ID, asset ID, nebo podle podobnosti k jinému obrázku/assetu.[3][85][41][1]
+- API je určeno pro partnery a integrátory, ale registrace je oficiálně popsaná – není to "tajný" partner end‑point.[1]
+- Contributor účet umožňuje zobrazit veřejný profil ("See my public profile") a tím i portfolio stránku.[42][43]
+
+**B. Nejlepší zdroje pravdy**
+
+1. **Search API (Search/Files)** – vrací pole `files` se strukturou obsahující metadata (id, title, creator_name, dimensions, thumbnail URLs atd.). Je to nejstabilnější a nejlépe strojově zpracovatelný zdroj.[41][3]
+2. **Files API (Media/1/Files)** – pokud znáš konkrétní asset ID, ověříš, zda je asset stále dostupný (200 OK + validní metadata) nebo ne.[3]
+3. **Reverse image search (web UI / API similar_url)** – pro dotazy založené na lokálním souboru, případně na již známém assetu.[41][1]
+4. **Veřejná portfolio stránka contributora** – vhodná jako zdroj kandidátů pro následný image matching; ne jako jediný zdroj pravdy.
+
+**C. Identifikace konkrétní fotografie**
+
+Dostupné identifikátory:
+
+- **Asset ID** – klíčové, jednoznačný identifikátor v API i v URL.[3][41]
+- **Contributor (creator_id / creator_name)** – vráceno v API, zobrazeno v UI.[41][3]
+- **Thumbnail / preview URL** – volitelná velikost přes `thumbnail_size` parametr v Search API.[41]
+- **Dimensions** – `width`, `height` v API odpovědi.[41]
+- **Title / description / keywords** – textový signál pro sekundární scoring.
+
+Silné vs. slabé match:
+
+- **Strong:**
+  - Vysoká obrazová podobnost mezi lokálním souborem a thumbnail/download preview + shodný contributor + rozlišení v rámci tolerance.
+  - Známé asset ID → potvrzení přes Files API.
+- **Weak:**
+  - Jen textová podobnost (shodná fráze v titulku) bez obrazové kontroly.
+
+**D. Praktická implementace**
+
+- **Query generation:**
+  - Pokud je znám creator (tvůj contributor účet): používat filtr na `creator_id` / `creator_name` a relativně obecný textový dotaz z description.
+  - Pokud není: reverse image search (similar_url nebo web UI).
+- **Candidate retrieval:**
+  - Search/Files s page size 100, stránkování dokud počet výsledků nebo relevance dává smysl (např. do 300–500 výsledků).[41]
+- **Scoring:**
+  - Stáhnout thumbnail s fixní velikostí (např. 400 px delší strana) přes `thumbnail_size` a porovnat pHash + CLIP.
+  - Přidat body za shodu contributora, rozměrů, klíčových slov (viz kapitola 5).
+
+**E. Rizika a odolnost**
+
+- API je oficiálně podporované, ale může mít rate limits a licenční omezení – je potřeba se vejít do podmínek (cache, back‑off, žádné full‑dumpování celé knihovny).[3][41]
+- Výsledky search se mohou časem měnit (přidávání/mazání assetů), což ale není problém – tvůj cíl je jen zjistit, zda je konkrétní asset aktuálně dohledatelný.
+- U reverzního vyhledávání platí stejná rizika jako u Shutterstocku: generické motivy produkují spoustu podobných kandidátů.
+
+**F. Logika rozhodnutí**
+
+- `ANO`: asset nalezen se skóre ≥ 0,9 (silný obrazový match + contributor) nebo Files API potvrzuje známé ID.
+- `NE`: Search/Files s filtrem na creatora a se smysluplnými dotazy nenajde nic v rozumném rozsahu, reverse image search neukáže relevantní výsledky.
+- `NEJISTÉ`: spadá mezi prahy nebo je víc kandidátů s podobným skóre.
+
+**G. Priorita**
+
+- **Tier 1** – jedno z nejvhodnějších prostředí pro robustní automatizaci (silné API, reverse search, jasná metadata).[1][3][41]
+
+**H. Strategie**
+
+- **Primární:** Adobe Stock API Search/Files + Files + image similarity.
+- **Sekundární:** reverse image web UI přes Playwright.
+- **Fallback:** textový search + contributor filter, vždy minimálně `NEJISTÉ`.
+
+***
+### 3.3 Getty Images / iStock
+**A. Přístup**
+
+- Veřejný web: fulltext, filtry a (u Getty i iStock) možnost reverse image search přes jejich nástroje.[44][45]
+- Getty Images API v3 (`/v3/search/images/creative`) umožňuje vyhledávat podle frází a vrací JSON včetně `id`, `caption`, `display_sizes` (náhledy), `max_dimensions`, atd.; vyžaduje Api‑Key a případně OAuth token podle typu operací.[4][46][47][6]
+- API je určeno pro partnery a vývojáře; získání Api‑Key vyžaduje registraci aplikace a schválení.[46][6]
+
+**B. Zdroje pravdy**
+
+1. **Getty Images API search** – nejspolehlivější strojové rozhraní.[6][4]
+2. **Reverse image search (UI)** – rychlý způsob pro candidate discovery podle lokálního souboru.[45][44]
+3. **Detail assetu (web)** – přímo podle ID z API (např. `picture-id{ID}` v URL) ověříš, že je asset stále viditelný.[4]
+4. **Autor / collection pages** – doplňkový zdroj kandidátů.
+
+**C. Identifikace fotky**
+
+- **ID** – `id` v API a v URL; spolehlivý klíč.[4]
+- **display_sizes.uri** – náhledové URL.[4]
+- **max_dimensions.width/height** – přesné rozměry.[4]
+- **caption/title** – text, někdy silnější než generická keyvorda.
+- **collection_code / collection_name** – může pomoci odlišit různé distribuční kanály téhož obrázku.
+
+Strong match:
+
+- CLIP/pHash ≥ 0,95 mezi lokálním souborem a náhledem + rozměry v toleranci + shodný autor (pokud znám) nebo aspoň konzistentní kolekce.
+
+**D. Implementace**
+
+- **API search** s frází generovanou z description; pokud existuje možnost filtrovat podle contributor/photographer ID, využít ji.
+- **Reverse image** pro případy, kdy description není dost dobrý.
+- **Scoring** jako u Adobe Stock: image similarity + rozměry + textová podobnost; navíc lze přidat signál z `collection_name` (pokud víš, že publikuješ do konkrétních kolekcí).
+
+**E. Rizika**
+
+- API výsledky mohou být cacheované (např. 24 h pro creative image search), takže krátkodobé změny nemusí být hned vidět.[6]
+- Podmínky použití API obvykle zakazují scrapování veřejného webu; pro robustní systém je lepší být schváleným partnerem.
+
+**F. Rozhodovací logika**
+
+Stejná jako u Adobe Stock, jen s větším důrazem na image similarity (caption může být úsporný nebo odlišný od tvého popisu).
+
+**G. Priorita**
+
+- **Tier 1** – pokud máš nebo získáš API přístup; jinak **Tier 2** s reliance na reverse image UI.
+
+**H. Strategie**
+
+- **Primární:** Getty API search + preview similarity.
+- **Sekundární:** reverse image na Getty / iStock webech přes headless browser.
+- **Fallback:** textové vyhledávání + autor (pokud dostupný).
+
+***
+### 3.4 Depositphotos
+**A. Přístup**
+
+- Veřejný web: fulltext s množstvím filtrů (typ souboru, barva, orientace, model, contributor, atd.).[48][49]
+- Depositphotos nabízí enterprise / API suite pro integraci, včetně vyhledávání, filtrování, licencování a reverse image search.[5][14][50]
+
+**B. Zdroje pravdy**
+
+1. **Enterprise API `search`** – umožňuje hledat podle frází, kategorií, username, uživatelského ID a dalších parametrů.[5]
+2. **Web search** – dobře zdokumentované chování (filtry, možnost hledání podle image ID).[49][48]
+3. **Image ID search** – pokud se někde zachytí Depositphotos ID, lze podle něj přímo vyhledat.[49]
+
+**C. Identifikátory**
+
+- **ID** – číslo v URL i v API.[5][49]
+- **Autor (username/id)** – lze filtrovat i v API (`dp_search_user`, `dp_search_username`).[5]
+- **Preview URL / rozměry / keywords** – dostupné z API i UI.[48][5]
+
+Strong match: image similarity + shoda username/id + rozlišení.
+
+**D. Implementace**
+
+- Pokud máš API: `search` s `dp_search_username` a částí description; z odpovědi stáhnout náhledy a porovnat obrázky.[5]
+- Bez API: textový search na webu s filtrem "Autor" + scrapnutí prvních N stran a image matching.
+
+**E. Rizika**
+
+- Enterprise API je partner‑only; bez něj se musíš opatrně pohybovat na webu.
+- Web search má limit počtu výsledků, takže negativní výsledek není 100% důkazem nepřítomnosti.
+
+**F–H.**
+
+- Logika a scoring obdobně jako u Shutterstock/Adobe; kvůli menší transparentnosti API přístupu spíše **Tier 1–2**.
+
+***
+### 3.5 123RF
+**A. Přístup**
+
+- Veřejný web: klasický fulltext.
+- 123RF má non‑commercial i commercial API, kde `search` endpoint umožňuje hledat podle klíčových slov, filtrů, orientace, barvy, typu média atd.[7][15][51]
+- API se běžně používá v affiliate / reseller integracích.[52][15]
+
+**B. Zdroje pravdy**
+
+1. **API search** – doporučený primární zdroj.[15][7]
+2. **Web search + affiliate integrace** – sekundární.
+
+**C. Identifikace**
+
+- **Media ID**,
+- **Contributor jméno** (přes API lze filtrovat na svého autora),
+- **Preview URL**, rozměry, keywords.[86][7]
+
+**D–H.**
+
+- Implementačně velmi podobné Depositphotos; navíc API dokumentace jasně odděluje non‑commercial (vyhledávání, metadata) a commercial (download), takže pro tvůj účel je non‑commercial část ideální.[7][15]
+- **Tier 1–2** podle toho, zda získáš API klíč.
+
+***
+### 3.6 Pond5
+**A. Přístup**
+
+- Veřejný web: fulltext search, filtry + výrazně propagovaná **Visual / "Visually Similar" Search** – upload souboru nebo výběr regionu v náhledu a hledání vizuálně podobných assetů.[53][54][87][55][88][56][57]
+- API: `search`, `get_clip_data`, `download`, atd., dokumentované v partner materiálech.[58][8][59][19]
+
+**B. Zdroje pravdy**
+
+1. **Visual Search (web)** – pro tvůj případ ideální primary discovery mechanismus; umožňuje hledat podle lokálního obrázku bez znalosti jakýchkoli textových metadat.[54][56][57][53]
+2. **API search** – jako doplněk, pokud máš partner přístup.[8][12]
+3. **Autor page** – např. URL portfolia, zmiňovaná v tutoricích, kde je vidět parameter `artist`/`contributor`.
+
+**C. Identifikace**
+
+- **Stock_item_id / clip ID**, náhledové snímky, rozměry, keywords – přes API i web.[12][8]
+- Obrazová podobnost je zde přímo core business – Pond5 sám používá deep‑learning pro visual search, ale pro validaci je vhodné mít vlastní pHash/CLIP nad staženým náhledem.[87][88][57][53][54]
+
+**D. Implementace**
+
+- **Query generation:** místo textu použít přímo lokální soubor jako vstup do Visual Search (Playwright: otevřít stránku /visual-search, nahrát soubor, čekat na výsledky).[56]
+- **Candidate retrieval:** scrapnout prvních N kandidátů (např. 50–100), stáhnout náhledové snímky a spočítat image similarity.
+- **Scoring:** kvůli povaze videa preferovat CLIP / frame‑based similarity, u fotek pHash/SSIM.
+
+**E. Rizika**
+
+- Visual Search je UX funkce, její HTML/JS implementace se může často měnit; scraper musí být robustní.
+- API přístup je partner‑only a může mít přísné limity.[59][58][8]
+
+**F–H.**
+
+- Z hlediska přesnosti image‑based matchingu je Pond5 velmi silný (nižší false positive); slabší je spíš dostupnost stabilního API pro běžného contributora.
+- Proto **Tier 1–2**: vysoká kvalita technicky, ale nejistá dostupnost partner API.
+
+***
+### 3.7 Dreamstime
+**A. Přístup**
+
+- Dreamstime má veřejné vyhledávání a advanced search.
+- API umožňuje integraci knihovny do webů.[61][62][63]
+- Advanced search na webu umí filtrovat výsledky "Only from contributor: {username}", pokud do pole zadáš své uživatelské jméno; použitelný i pro vlastní portfolio.[64]
+
+**B. Zdroje pravdy**
+
+1. **Advanced search s filtrem "Only from contributor"** – výborný zdroj kandidátů pro daného autora.[64]
+2. **API search** – vhodné pro strojové zpracování (podobný rozsah jako web search).[62][61]
+
+**C. Identifikátory**
+
+- **ID**,
+- **Contributor (username)** – velmi silný signál, protože filtruje celý index jen na tvoje snímky,[64]
+- **Thumbnail / rozměry**, keywords.
+
+Strong match: autor + image similarity + rozlišení.
+
+**D–H.**
+
+- Praktické workflow: vždy nejprve použít advanced search s contributor filtrem (textově + případně zjednodušená keywords), scrapnout kandidáty, porovnat obrázky, teprve pak přecházet k `NEPŘÍTOMNÁ`.
+- Falešné negativy jsou relativně nízké, pokud hlídáš rozsah výsledků (Dreamstime vrací dost stránek).[64]
+- **Tier 1–2**.
+
+***
+### 3.8 Bigstockphoto
+**A. Přístup**
+
+- Veřejný web s vyhledáváním.
+- Partneři používají Bigstock API; existují klientské knihovny (např. `bigstock-node-client`).[20][21]
+- Portfolio lze vyhledávat přes query parametr `contributor` v URL, jak ukazují tutoriály a odkazy typu `search/?contributor=aanav+creations`.[60]
+
+**B–H.**
+
+- Primární přístup: web search filtrován na `contributor`, scrapnutí kandidátů + image similarity.
+- API: pokud bys měl partner prístup, může být přesnější.
+- Vzhledem k menšímu objemu a méně transparentnímu API: **Tier 2**.
+
+***
+### 3.9 Alamy
+**A. Přístup**
+
+- Veřejný web: pokročilé vyhledávání s podporou boolovských operátorů, filtrů (typ, velikost, počet osob, atd.).[65][66]
+- Alamy API poskytuje programatický přístup k archivu (search, fetch media items), ale dokumentace je hostovaná v interaktivním nástroji.[10][17][67]
+- Portfolio stránky byly v roce 2026 zrušeny; odkazy na portfolio nyní přesměrovávají na search výsledky omezené na daného autora.[68]
+- Alamy spustilo reverse image search pro zákazníky – nástroj umožňuje nahrát obrázek a najít vizuálně podobné stockové fotografie.[89]
+
+**B. Zdroje pravdy**
+
+1. **API search** (pokud dostupné),
+2. **Web search omezený na autora** (přes přesměrovanou portfolio URL),
+3. **Reverse image search**.
+
+**C. Identifikace**
+
+- **Image ID**,
+- **Contributor / pseudonym**, rozměry, náhledy.
+
+**D–H.**
+
+- Praktické workflow: reverse image search → pokud nic, fallback na search podle klíčových slov + autor → image similarity.
+- Kvůli nedávným změnám portfolií a častým úpravám webu: **Tier 1–2**, ale se zvýšenou mírou `NEJISTÉ`.
+
+***
+### 3.10 Freepik
+**A. Přístup**
+
+- Freepik má veřejné vyhledávání pro obrázky, vektory, PSD atd.
+- Nabízí oficiální API (`/v1/resources`, `/v1/resources/{id}`, atd.), které umožňuje listovat, filtrovat a vyhledávat assety podle různých kritérií; vyžaduje API key v hlavičce `x-freepik-api-key`.[9][16][70]
+
+**B. Zdroje pravdy**
+
+1. **API resources search** – jasně definovaný JSON s poli jako `published_at`, typ, rozměry, atd.[16][9]
+2. **Web search** – fallback.
+
+**C. Identifikátory**
+
+- **resource-id**, typ (image/template), published_at, náhledové URL, rozměry.[9][16]
+
+**D–H.**
+
+- Pokud API key získáš, Freepik může být pěkně integrovatelný (Tier 1–2); jinak jsi odkázán na web search s vyšším rizikem false negative.
+
+***
+### 3.11 Vecteezy
+**A. Přístup**
+
+- Vecteezy má veřejné vyhledávací UI pro vektory, fotky, videa.[90]
+- Nabízí developer API pro přístup k celé knihovně, ale API přístup je omezen na partnery; pro stock agregátory mají zvláštní postup generování klíčů přes contributor účet.[11][18][24][71]
+
+**B–H.**
+
+- Pokud bys získal API přístup (např. jako stock agregátor), scénář je podobný 123RF/Freepik.
+- Bez API: jen web search, portfolia nejsou tak stabilní; zvýšené riziko `NEJISTÉ`.
+- **Tier 2–3**.
+
+***
+### 3.12 Storyblocks
+**A. Přístup**
+
+- Veřejný web umožňuje vyhledávat v knihovně fotek, ilustrací, vektorů a dalšího obsahu.[72][91][73]
+- Storyblocks (dříve Videoblocks) má API `/api/v1/stock-items/search`, `stock-items/{id}`, atd., určené pro partnery; podporuje parametry jako keywords, page, num_results, content_type, quality, contributor_id.[12][19]
+
+**B–H.**
+
+- Pokud bys byl partner, `search` + `stock-items/{id}` endpointy umožní přesné dohledání assetů dle keywords + contributor_id a pak image similarity nad thumbnail.[12]
+- Jako běžný contributor budeš spíše odkázán na web UI, kde lze použít kombinaci textu a (je‑li k dispozici) vizuální podobnosti.
+- **Tier 2**.
+
+***
+### 3.13 Envato (Market / Elements)
+**A. Přístup**
+
+- Envato Elements: webové vyhledávání pro fotky, videa a další typy assetů (jeden subscription, unlimited downloads).[76][77][78][79][92]
+- Envato Market (ThemeForest, GraphicRiver atd.) má oficiální API pro search items, getItem, getCollection apod., přístupné přes personal token.[22][23][25]
+- Podle API katalogu nejsou publikované žádné Elements‑specifické API endpointy (0 Elements APIs).[26][27]
+
+**B–H.**
+
+- Pro **Envato Market** lze využít API a pracovat podobně jako s jinými bankami (ID, náhled, atd.).[23][25][22]
+- Pro **Envato Elements** zbývá jen web search; portfolia autorů zde nejsou tak striktně oddělena jako u klasických microstocků.
+- To zvyšuje nejistotu; doporučení: **Tier 2–3** a spoléhat primárně na text + image similarity; reverse image search tam není standardní.
+
+***
+### 3.14 PIXTA
+**A. Přístup**
+
+- PIXTA má veřejné webové vyhledávání; marketingové materiály (PIXTA AI) odkazují na využití velké knihovny, ale nepublikují klasické public API pro třetí strany.[80][29][30]
+
+**B–H.**
+
+- Pravděpodobně zůstaneš u kombinace web search + autor page + image similarity.
+- Kvůli absenci oficiálního, snadno získatelného API: **Tier 2–3**.
+
+***
+### 3.15 MostPhotos
+**A. Přístup**
+
+- Veřejný web, vyhledávání, contributor portfolia.[31][32]
+- Korporátní uživatelé (např. univerzita UiT) používají MostPhotos jako externí archív, ale neexistuje veřejná API dokumentace.[81]
+
+**B–H.**
+
+- Jediná realistická cesta je web search + autor portfolio + image similarity; vzhledem k menšímu objemu a méně striktnímu workflow je pravděpodobnost kolizí nižší, ale false negative relativně vyšší.
+- **Tier 2–3**.
+
+***
+### 3.16 500px
+**A. Přístup**
+
+- 500px je spíš komunitní platforma než klasická stock fotobanka, ale některé snímky lze licencovat.
+- Historický 500px API byl veřejný (`GET /photos/search` atd.), ale v roce 2018 byl veřejný API access ukončen; API je nyní nedostupné pro běžné použití.[28][83][33][34]
+- Zůstává veřejné webové vyhledávání a autor stránky.[82]
+
+**B–H.**
+
+- Bez API musíš použít web search + scraping, což u 500px (velký komunitní web) znamená výraznější anti‑bot ochranu.
+- Vzhledem k tomu, že primární užitek 500px pro stock je omezený, doporučení: **Tier 2–3** nebo i **Tier 3–4**, podle toho, jak důležité pro tebe 500px je.
+
+***
+### 3.17 CanStockPhoto
+- CanStockPhoto oficiálně ukončila provoz v říjnu 2023; web nyní zobrazuje pouze informaci o uzavření a žádný obsah.[35][36]
+- Nemá smysl budovat automatizovanou detekci přítomnosti, leda pro čistě historické potřeby (archivy, Wayback).
+- **Tier 4 – neinvestovat.**
+## 4. Návrh implementační architektury (bank‑independent + bank‑specific adaptéry)
+### 4.1 Vstupy
+Pro každý záznam v `PhotoMedia.csv`:
+
+- cestu k lokálnímu souboru (ideálně už normalizovaný JPEG/PNG),
+- filename (použitelné jako slabý signál),
+- description (hlavní textový zdroj),
+- případný title,
+- contributor identitu (přezdívka / jméno, případně mapping na různé aliasy na jednotlivých fotobankách),
+- případné již známé asset ID pro některé banky (pokud existuje, je to velmi cenný zrychlovací signál).
+### 4.2 Pipeline (high‑level)
+1. **Preprocessing lokálního obrázku**
+   - Vygenerovat několik reprezentací:
+     - zmenšený náhled (např. max 512 px delší strana),
+     - pHash/dHash,
+     - CLIP embedding,
+     - EXIF (capture time, camera, focal length atd. – jako slabší signál nebo pro kontrolu konzistence).
+
+2. **Query generation**
+   - Z description extrahovat podstatná jména a klíčové fráze (např. `nltk`, `spaCy` nebo vlastní CZ/EN slovník),
+   - odstranit příliš generické termíny ("photo", "image", "background"),
+   - vytvořit 1–3 varianty dotazu (krátké jádro, rozšířená verze s kontextem, fallback čistě podle klíčových slov).
+   - Pro banky s reverse image search: připravit form‑data payload s lokálním souborem.
+
+3. **Candidate discovery**
+   - Přes bank‑specific adaptér:
+     - rozhodnout, zda použít API, web search, reverse image, nebo kombinaci,
+     - vykonat dotazy (s respektováním rate limitů),
+     - vrátit sjednocený seznam kandidátů (max N na banku, např. 100), obsahující:
+       - asset_id,
+       - náhledové URL (1–2 velikosti),
+       - rozměry (pokud známo),
+       - contributor identitu (pokud dostupná),
+       - title, description, keywords,
+       - případné další signály (kolekce, licenční typ, atd.).
+
+4. **Metadata normalizace**
+   - Konvertovat fieldy z jednotlivých bank na jednotné interní schema, např.:
+     - `provider` (Shutterstock, Adobe, …),
+     - `asset_id` (string),
+     - `thumbnail_url`, `width`, `height`,
+     - `contributor_name`, `contributor_id`,
+     - `title`, `description`, `keywords` (`list[str]`),
+     - `extra` (bank‑specific JSON).
+
+5. **Image similarity layer**
+   - Stáhnout thumbnaily kandidátů (cacheovat per URL),
+   - Pro každý kandidát spočítat:
+     - pHash/dHash a Hammingovu vzdálenost k lokálnímu souboru,
+     - SSIM (pokud se dá rozumně spočítat na rychlo),
+     - CLIP embedding a kosinovou podobnost.
+
+6. **Feature extraction a scoring**
+   - Pro každý kandidát spočítat feature vektory:
+     - `f_image` – kombinace CLIP/pHash/SSIM,
+     - `f_text` – podobnost description/keywords (např. Jaccard + cosine v TF‑IDF space),
+     - `f_contributor` – shoda / částečná shoda jména,
+     - `f_dims` – relativní rozdíl rozměrů a poměru stran,
+     - `f_series` – pokud z datasetu znáš, že jde o sérii (např. index ve vlastní kolekci), můžeš to využít jako kontext.
+
+7. **Decision engine**
+   - Pomocí scoring modelu (viz kap. 5) přiřadit kandidátům skóre 0–100 a vybrat nejlepšího.
+   - Podle prahů určit `PŘÍTOMNÁ` / `NEPŘÍTOMNÁ` / `NEJISTÁ`.
+
+8. **Audit logging**
+   - Pro každý záznam uložit:
+     - použitá query (text + případné image‑based dotazy),
+     - seznam kandidátů (normalizovaná metadata + skóre),
+     - identifikaci vítězného kandidáta (provider, asset_id, URL),
+     - snapshot náhledu kandidáta (pro pozdější vizuální kontrolu),
+     - surové JSON/HTML odpovědi pro matched asset (uložené v komprimované podobě).
+
+9. **Manual review queue**
+   - Záznamy s výsledkem `NEJISTÁ` (nebo potenciálně ručně definované marginální případy) posílat do fronty pro lidskou kontrolu v jednoduchém UI:
+     - vlevo lokální obraz, vpravo kandidát(y) s metadata a náhledy.
+## 5. Návrh scoring modelu
+### 5.1 Feature scoring
+Navržený schematický model (čísla můžeš doladit na vlastním validačním setu):
+
+- **Contributor match**
+  - Shoda jména/ID (case‑insensitive, po normalizaci diakritiky) → +30 bodů
+  - Částečná shoda (např. alias, zkrácená verze) → +15 bodů
+- **Image similarity**
+  - CLIP cosine ≥ 0,97 → +40
+  - 0,94–0,97 → +25
+  - 0,90–0,94 → +10
+  - pHash Hamming distance ≤ 5 → +25
+  - 6–10 → +10
+  - >10 → 0 (případně i penalizace, pokud CLIP nízký)
+- **Rozměry / poměr stran**
+  - Rozdíl poměru stran < 1% a rozdíl delší strany < 5% → +15
+  - Rozdíl poměru stran 1–3% → +5
+  - Více → 0 nebo −10 (pokud CLIP < 0,9)
+- **Textová podobnost (description/keywords)**
+  - Jaccard keywords ≥ 0,6 nebo cosine TF‑IDF ≥ 0,8 → +10
+  - 0,4–0,6 → +5
+  - <0,4 → 0
+- **Stabilita URL / ID**
+  - Pokud už máš pro daný lokální soubor uložené asset ID a nyní najdeš stejný ID (např. při re‑checku) → +20
+
+Penalizace:
+
+- **Ambiguous near‑duplicates**
+  - Pokud existuje více kandidátů stejného providera s rozdílem skóre < 10 bodů, s velmi podobným CLIP a rozdílným asset ID → −20 pro všechny (příznak série; chceš poslat do `NEJISTÁ`).
+### 5.2 Prahy
+- **Auto `PŘÍTOMNÁ`**
+  - nejlepší kandidát má skóre ≥ 80,
+  - CLIP ≥ 0,95 a pHash Hamming ≤ 5,
+  - není jiný kandidát s rozdílem < 15 bodů.
+- **Auto `NEPŘÍTOMNÁ`**
+  - žádný kandidát s CLIP ≥ 0,8 a skóre ≥ 40,
+  - zároveň byly pro danou banku vyčerpány "rozumné" candidate discovery kanály (text search + contributor filter + reverse image, kde existuje).
+- **`NEJISTÁ`**
+  - cokoli mezi tím – typicky skóre 40–80 nebo víc kandidátů s malým rozdílem.
+### 5.3 Kalibrace
+- Použij reálný vzorek (např. desítky až stovky snímků) s ručně označenou ground truth pro každou banku.
+- Vypočti precision/recall pro různé prahy a podle výsledků doladíš váhy a hraniční hodnoty.
+## 6. Konkrétní doporučení pro implementaci v Pythonu
+### 6.1 HTTP klient vs. headless browser
+- **`requests` / `httpx`**
+  - použít všude tam, kde existuje **stabilní HTTP API** (Shutterstock, Adobe Stock, Getty, Depositphotos, 123RF, Freepik, Vecteezy, Storyblocks, Envato Market, Dreamstime API, Alamy API), nebo kde HTML vrací všechna data bez nutnosti JS renderingu.[1][2][3][4][5][7][9][10][11][12][61]
+  - vhodné i pro jednoduché scrapování HTML (vyhledávací výsledky), pokud stránka není výrazně JS‑těžká.
+- **Playwright / Selenium**
+  - když je nutné:
+    - provést **reverse image search v UI** (Shutterstock, Adobe, Getty/iStock, Pond5, Alamy),[53][54][37][56][89]
+    - počkat na JS‑renderované výsledky (infinite scroll, lazy‑load),
+    - zvládnout přihlášení contributora nebo simulaci složitějšího UI.
+### 6.2 Obrazové metody
+- **pHash / dHash** – jednoduché a rychlé; vhodné jako hrubý filtr (Hamming distance).
+- **SSIM** – pro přesnější posouzení velmi podobných náhledů; může být citlivý na ořez a resize.
+- **CLIP** (např. `openai/clip-vit-base-patch32` nebo ekvivalent) – vektorová reprezentace obrazu; kosinová podobnost funguje dobře i pro resizované a mírně upravené obrázky.
+- Implementačně můžeš použít knihovny:
+  - `imagehash` pro pHash/dHash,
+  - `scikit-image` pro SSIM,
+  - `sentence-transformers` nebo přímo CLIP implementaci pro embeddingy.
+### 6.3 OCR / vizuální semantika
+- OCR má smysl hlavně pro obrázky obsahující text (plakáty, infografiky); výsledek lze použít jako doplňkový textový signál.
+- Vizuální semantika (např. CLIP text‑image matching) může pomoci, když description je slabý, ale chceš zkontrolovat, zda description fotobanky zhruba odpovídá tomu, co obrázek obsahuje.
+### 6.4 Cache
+- **HTTP cache** (např. `requests-cache`) pro ukládání odpovědí API a HTML – sníží zátěž a urychlí opakované běhy.
+- **Image cache** – thumbnaily kandidátů ukládat pod klíčem `provider/asset_id/size`; při dalším běhu už jen načítat z disku.
+- **Feature cache** – pHash/CLIP embeddingy si můžeš uložit při prvním výpočtu a znovu nepřepočítávat.
+### 6.5 Ukládání důkazů
+- Každé rozhodnutí `PŘÍTOMNÁ` by mělo mít:
+  - odkaz na asset (URL),
+  - uložený snapshot thumbnailu,
+  - JSON/HTML snippety s metadaty,
+  - log se skóre a dílčími feature (pro audit).
+- Můžeš použít například strukturu:
+  - `evidence/{provider}/{local_photo_id}.json` – metadata kandidátů a skóre,
+  - `evidence/{provider}/{local_photo_id}_{asset_id}.jpg` – thumbnail.
+### 6.6 Testování
+- Připrav si malý labeled dataset (např. CSV s lokálním ID, providerem a ručně označeným stavem `present/absent`).
+- Spusť pipeline v "offline" režimu (bez psaní do produkční DB),
+- Vyhodnoť precision/recall, počet `NEJISTÁ` případů a ručně zkoumej false positive/negative.
+## 7. Odpovědi na specifické otázky (shrnutí)
+1. **Robustní generování search dotazů** – ano, kombinace:
+   - očištěných klíčových slov z description,
+   - contributor filtru (kde existuje),
+   - reverse image search tam, kde je k dispozici (Shutterstock, Adobe, Getty/iStock, Pond5, Alamy).[53][54][37][56][89]
+
+2. **Kde jsou preview/thumbnail obrázky?**
+   - Prakticky všechny jmenované banky vracejí náhled
