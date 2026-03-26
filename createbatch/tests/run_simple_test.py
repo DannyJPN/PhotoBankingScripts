@@ -59,7 +59,7 @@ def test_basic_functionality():
     }
 
     banks = processor._extract_prepared_banks(record)
-    assert set(banks) == {'Shutterstock', 'Adobe Stock'}, f"Expected 2 banks, got: {banks}"
+    assert set(banks) == {'Shutterstock', 'AdobeStock'}, f"Expected 2 banks, got: {banks}"
     print("✓ Bank extraction works correctly")
 
     # Test 2: Process multiple records
@@ -71,7 +71,7 @@ def test_basic_functionality():
 
     result = processor.process_records_optimized(records)
     assert 'Shutterstock' in result, "Shutterstock should be in results"
-    assert 'Adobe Stock' in result, "Adobe Stock should be in results"
+    assert 'AdobeStock' in result, "Adobe Stock should be in results"
     assert len(result['Shutterstock']) == 1, "Shutterstock should have 1 record"
     print("✓ Record processing works correctly")
 
