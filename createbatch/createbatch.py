@@ -20,6 +20,7 @@ from createbatchlib.optimization import RecordProcessor
 from createbatchlib.media_preparation import prepare_media_file, split_into_batches
 from createbatchlib.progress_tracker import UnifiedProgressTracker
 from createbatchlib.date_filter import parse_prepared_date, filter_records_by_prepared_date
+from createbatchlib.filtering import filter_editorial_for_bank
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
@@ -34,11 +35,6 @@ def parse_arguments():
         type=str,
         default=DEFAULT_PROCESSED_MEDIA_FOLDER,
         help="Root folder where processed media will be placed"
-    )
-    parser.add_argument(
-        "--overwrite",
-        action='store_true',
-        help="Overwrite existing files in the output folders"
     )
     parser.add_argument(
         "--log_dir",
@@ -73,6 +69,11 @@ def parse_arguments():
         default="",
         help="Include records prepared on/before this date"
     )
+    parser.add_argument(
+        "--skip-existing",
+        action='store_true',
+        help="Skip files that already exist in output folder (faster when re-running)"
+    )
     return parser.parse_args()
 
 
@@ -88,6 +89,9 @@ def main():
     exif_tool_path = ensure_exiftool()
     logging.debug("EXIF: %s", exif_tool_path)
     logging.info("Starting CreateBatch process")
+
+    if args.skip_existing:
+        logging.info("Skip-existing mode enabled: Files already in output folder will be skipped")
 
     # Load CSV and process with optimized single-pass algorithm
     records: List[Dict[str, str]] = load_csv(args.photo_csv)
@@ -124,6 +128,14 @@ def main():
         # Process each bank with unified progress tracking
         for bank in banks:
             bank_records = bank_records_map[bank]
+
+            # Filter out editorial content for banks that don't accept it
+            bank_records = filter_editorial_for_bank(bank_records, bank)
+
+            if not bank_records:
+                logging.info(f"No records to process for {bank} after editorial filtering, skipping")
+                continue
+
             progress_tracker.start_bank(bank)
 
             processed = []
@@ -150,7 +162,7 @@ def main():
                             rec,
                             args.output_folder,
                             exif_tool_path,
-                            overwrite=args.overwrite,
+                            skip_existing=args.skip_existing,
                             bank=bank,
                             include_alternative_formats=args.include_alternative_formats,
                             batch_number=batch_num

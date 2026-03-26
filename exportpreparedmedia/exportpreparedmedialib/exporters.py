@@ -8,6 +8,7 @@ from pathlib import Path
 from shared.file_operations import save_csv
 from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
+from exportpreparedmedialib.banks_logic import should_skip_editorial, extract_media_properties
 
 from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_BATCH_SIZE_LIMITS, PHOTOBANK_EXPORT_FORMATS, FORMAT_SUBDIRS
 
@@ -330,6 +331,13 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
         if filter_func:
             bank_items = [item for item in items if filter_func(item, bank)]
             logging.info(f"Filtered {len(bank_items)}/{len(items)} items for {bank} based on status")
+
+        # Filter out editorial content for banks that don't support it
+        original_count = len(bank_items)
+        bank_items = [item for item in bank_items if not should_skip_editorial(item, bank)]
+        editorial_filtered = original_count - len(bank_items)
+        if editorial_filtered > 0:
+            logging.info(f"Filtered out {editorial_filtered} editorial items for {bank} (does not accept editorial)")
 
         # Expand to alternative formats and create records
         all_records = []
