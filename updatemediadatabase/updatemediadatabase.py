@@ -12,6 +12,7 @@ import os
 import argparse
 import logging
 from typing import List, Dict, Any
+from pathlib import Path
 
 # Import shared modules
 from shared.utils import get_log_filename
@@ -107,12 +108,12 @@ def parse_arguments():
     # ExifTool path is now managed via constants, no longer a parameter
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
-    parser.add_argument(\"--export-report\", action=\"store_true\",
-                        help=\"Export summary report of processed records\")
-    parser.add_argument(\"--report-dir\", type=str, default=DEFAULT_REPORT_DIR,
-                        help=\"Directory for report output\")
-    parser.add_argument(\"--report-format\", type=str, default=DEFAULT_REPORT_FORMAT,
-                        choices=[\"csv\", \"json\"], help=\"Report format: csv or json\")
+    parser.add_argument("--export-report", action="store_true",
+                        help="Export summary report of processed records")
+    parser.add_argument("--report-dir", type=str, default=DEFAULT_REPORT_DIR,
+                        help="Directory for report output")
+    parser.add_argument("--report-format", type=str, default=DEFAULT_REPORT_FORMAT,
+                        choices=["csv", "json"], help="Report format: csv or json")
     return parser.parse_args()
 
 def main():
@@ -364,8 +365,9 @@ def _write_report(stats: Dict[str, int], report_dir: str, report_format: str) ->
     """
     Write summary report for processed records.
     """
-    from datetime import datetime
     from shared.file_operations import save_csv, save_json
+    report_dir = _resolve_report_dir(report_dir)
+    ensure_directory(report_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"UpdateMediaDatabaseReport_{timestamp}.{report_format}"
     report_path = os.path.join(report_dir, filename)
@@ -375,6 +377,15 @@ def _write_report(stats: Dict[str, int], report_dir: str, report_format: str) ->
     else:
         save_json({"metrics": records}, report_path)
     logging.info("Report saved to %s", report_path)
+
+
+def _resolve_report_dir(report_dir: str) -> str:
+    """
+    Resolve report directory to an absolute path and reject empty values.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("report_dir must not be empty")
+    return str(Path(report_dir).expanduser().resolve())
 
 
 if __name__ == "__main__":
