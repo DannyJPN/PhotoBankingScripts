@@ -8,30 +8,21 @@ and saves the result back to the CSV and to a log.
 
 import argparse
 import logging
-import os
-from datetime import datetime
 
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory, load_csv, save_csv_with_backup
+from shared.file_operations import ensure_directory, load_csv
 from shared.logging_config import setup_logging
 
 from markphotomediaapprovalstatuslib.constants import (
-    BANKS,
     DEFAULT_PHOTO_CSV_PATH,
     DEFAULT_LOG_DIR,
     STATUS_CHECKED,
-    STATUS_COLUMN_KEYWORD,
-    STATUS_APPROVED,
-    STATUS_REJECTED,
-    STATUS_MAYBE
 )
 from markphotomediaapprovalstatuslib.status_handler import (
     filter_checked_entries,
-    filter_records_by_edit_type
+    filter_records_by_edit_type,
 )
 from markphotomediaapprovalstatuslib.media_helper import process_approval_records
-from markphotomediaapprovalstatuslib.public_portfolio.runner import process_public_portfolio_approval
-from markphotomediaapprovalstatuslib.public_portfolio.constants import DEFAULT_PUBLIC_PORTFOLIO_CONFIG
 
 
 def parse_arguments():
@@ -50,72 +41,37 @@ def parse_arguments():
                         help="Enable debug logging")
     parser.add_argument("--include-edited", action="store_true",
                         help="Include edited photos from 'upravené' folders (default: only original photos)")
-    parser.add_argument("--public-portfolio-approval", action="store_true",
-                        help="Enable public-portfolio approval detection mode (no GUI, no login)")
-    parser.add_argument("--public-portfolio-config", type=str, default=DEFAULT_PUBLIC_PORTFOLIO_CONFIG,
-                        help="Path to public portfolio config JSON")
-    parser.add_argument("--public-visible", action="store_true",
-                        help="Run browser with visible UI for public-portfolio detection")
-    parser.add_argument("--public-discover-only", action="store_true",
-                        help="Only discover portfolio URLs/identities and save config (no status updates)")
-    parser.add_argument("--public-dry-run", action="store_true",
-                        help="Run portfolio approval detection but do not write any changes to PhotoMedia.csv")
     return parser.parse_args()
 
 
 def main() -> None:
-    """Entry point: load CSV, run approval detection or GUI, and save results."""
-    # Parse arguments
+    """Entry point: load CSV, run GUI approval flow, and save results."""
     args = parse_arguments()
 
-    # Setup logging
     ensure_directory(args.log_dir)
     log_file = get_log_filename(args.log_dir)
     setup_logging(debug=args.debug, log_file=log_file)
     logging.info("Starting photo media approval status marking process")
 
-    # Load CSV data
     try:
         all_data = load_csv(args.csv_path)
-        logging.info(f"Loaded {len(all_data)} records from {args.csv_path}")
-    except Exception as e:
-        logging.error(f"Failed to load CSV file: {e}")
+        logging.info("Loaded %s records from %s", len(all_data), args.csv_path)
+    except Exception as exc:
+        logging.error("Failed to load CSV file: %s", exc)
         return
 
-    # Filter by edit type for processing (exclude alternative edits, optionally exclude edited photos)
-    # Note: This creates a filtered VIEW for processing, but we keep all_data for saving
     data_to_process = filter_records_by_edit_type(all_data, include_edited=args.include_edited)
     if not data_to_process:
         logging.info("No records to process after filtering")
         return
 
-    # Filter entries with STATUS_CHECKED status (from processable records only)
     filtered_data = filter_checked_entries(data_to_process)
     if not filtered_data:
-        logging.info(f"No entries with '{STATUS_CHECKED}' status found in processable records. Nothing to process.")
+        logging.info("No entries with '%s' status found in processable records. Nothing to process.", STATUS_CHECKED)
         return
 
-    if args.public_portfolio_approval:
-        dry_run_log_path = None
-        if args.public_dry_run:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            dry_run_log_path = os.path.join(args.log_dir, f"dry_run_{ts}.txt")
-        changes_made = process_public_portfolio_approval(
-            all_data,
-            filtered_data,
-            args.csv_path,
-            config_path=args.public_portfolio_config,
-            headless=not args.public_visible,
-            discover_only=args.public_discover_only,
-            dry_run=args.public_dry_run,
-            dry_run_log_path=dry_run_log_path,
-        )
-    else:
-        # Process approval records using GUI (saves after each file)
-        # Pass all_data so changes are made to the complete dataset
-        changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
+    changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
 
-    # Final summary (individual saves are done during processing)
     if changes_made:
         logging.info("All changes have been saved during processing")
     else:
