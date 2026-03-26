@@ -94,3 +94,5 @@ cookies/
 # Validation helpers (local only)
 validate_detection.py
 validation_misses.txt
+validate_pond5.py
+validate_misses_*.txt

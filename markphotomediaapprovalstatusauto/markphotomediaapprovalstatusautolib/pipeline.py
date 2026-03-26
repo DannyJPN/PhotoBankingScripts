@@ -3,7 +3,7 @@
 import logging
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from markphotomediaapprovalstatusautolib.constants import (
     COL_FILE,
@@ -145,6 +145,17 @@ def run_detection(
                 logging.warning("No adapter registered for bank: %s", bank_name)
                 continue
 
+            # Build portfolio index once per bank for adapters that require it (e.g. Pond5).
+            portfolio_index: Optional[List[Tuple[int, str]]] = None
+            if bank_name == "Pond5":
+                from markphotomediaapprovalstatusautolib.discovery.banks.pond5 import crawl_pond5_portfolio
+                try:
+                    portfolio_index = crawl_pond5_portfolio(contributor_name, headless=headless)
+                    logging.info("Pond5 portfolio index: %d assets", len(portfolio_index))
+                except Exception as exc:
+                    logging.error("Failed to crawl Pond5 portfolio: %s", exc)
+                    portfolio_index = []
+
             audit_path = f"{report_dir}/audit_{bank_name}_{ts}.csv"
             audit_writer = AuditWriter(audit_path)
             bank_found: Dict[str, str] = {}  # file_name → status_col, collected for end-of-bank save
@@ -159,6 +170,8 @@ def run_detection(
                         record,
                         http_client=http_client,
                         headless=headless,
+                        contributor_name=contributor_name,
+                        portfolio_index=portfolio_index,
                     )
                 except Exception as exc:
                     logging.error("Discovery error for %s / %s: %s", record.file, bank_name, exc)
