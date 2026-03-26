@@ -7,6 +7,7 @@ Last updated: 2026-01-06
 - Optional removal of missing records.
 - Optional scan for orphan files not present in CSV.
 - CSV/JSON report output.
+- Report output writes to a configurable report directory.
 
 ## Pending
 - None.

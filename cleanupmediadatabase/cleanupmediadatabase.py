@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 from typing import Dict, List
+from pathlib import Path
 
 from shared.utils import get_log_filename
 from shared.logging_config import setup_logging
@@ -174,6 +175,7 @@ def _write_report(
         "orphan_files": orphan_files
     }
 
+    report_dir = _resolve_report_dir(report_dir)
     ensure_directory(report_dir)
     report_path = os.path.join(report_dir, f"CleanupMediaDatabaseReport.{report_format}")
     if report_format == "csv":
@@ -186,6 +188,15 @@ def _write_report(
     else:
         save_json(report_data, report_path)
     logging.info("Report saved to %s", report_path)
+
+
+def _resolve_report_dir(report_dir: str) -> str:
+    """
+    Resolve report directory to an absolute path and reject empty values.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("report_dir must not be empty")
+    return str(Path(report_dir).expanduser().resolve())
 
 
 if __name__ == "__main__":
