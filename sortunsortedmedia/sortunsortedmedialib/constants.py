@@ -3,6 +3,8 @@ Constants for the SortUnsortedMedia project.
 Contains default values, regular expressions, and dictionaries for media classification.
 """
 
+from pathlib import Path
+
 # Default folder paths
 DEFAULT_UNSORTED_FOLDER = "I:/Neroztříděno"
 DEFAULT_TARGET_FOLDER = "I:/Roztříděno"
@@ -11,7 +13,7 @@ DEFAULT_MAX_PARALLEL = 60
 # Maximum number of parallel processes
 
 # Report output directory
-DEFAULT_REPORT_DIR = "H:/Logs/SortUnsortedMedia"
+DEFAULT_REPORT_DIR = str(Path(__file__).resolve().parents[1] / "logs" / "reports")
 DEFAULT_REPORT_FORMAT = "csv"
 
 # Terminal pause duration after processing a single file (in seconds)

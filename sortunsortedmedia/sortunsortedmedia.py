@@ -8,6 +8,7 @@ Main script for processing and sorting unsorted media files.
 import os
 import argparse
 import logging
+from pathlib import Path
 
 from shared.utils import get_log_filename
 from shared.file_operations import ensure_directory, save_csv, save_json
@@ -96,6 +97,28 @@ def main():
     print("\nAll media processing completed!")
 
 
+def resolve_report_dir(report_dir: str) -> str:
+    """
+    Normalize and validate the report directory path.
+
+    Args:
+        report_dir: User-supplied report directory path.
+
+    Returns:
+        Normalized absolute directory path.
+
+    Raises:
+        ValueError: If the path is empty or points to an existing file.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("Report directory path must not be empty.")
+
+    resolved = Path(report_dir).expanduser().resolve(strict=False)
+    if resolved.exists() and not resolved.is_dir():
+        raise ValueError(f"Report directory points to an existing file: {resolved}")
+    return str(resolved)
+
+
 def write_summary_report(
     unmatched_categories: dict[str, list[str]],
     report_dir: str,
@@ -109,13 +132,18 @@ def write_summary_report(
         report_dir: Directory where the report will be saved.
         report_format: Output format, either 'csv' or 'json'.
     """
+    resolved_report_dir = resolve_report_dir(report_dir)
     summary_records = build_summary_records(unmatched_categories)
     summary_name = build_report_filename("SortUnsortedMediaSummary", report_format)
-    summary_path = os.path.join(report_dir, summary_name)
-    if report_format == "csv":
-        save_csv(summary_records, summary_path, ["category", "count"])
-    else:
-        save_json({"summary": summary_records}, summary_path)
+    summary_path = os.path.join(resolved_report_dir, summary_name)
+    try:
+        if report_format == "csv":
+            save_csv(summary_records, summary_path, ["category", "count"])
+        else:
+            save_json({"summary": summary_records}, summary_path)
+    except Exception:
+        logging.exception("Failed to write summary report to %s", resolved_report_dir)
+        raise
     logging.info("Summary report saved to %s", summary_path)
 
 if __name__ == "__main__":
