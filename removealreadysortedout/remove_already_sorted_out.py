@@ -2,6 +2,7 @@ import os
 import argparse
 import logging
 from datetime import datetime
+from pathlib import Path
 from tqdm import tqdm
 
 from shared.utils import get_log_filename
@@ -130,6 +131,8 @@ def _write_removed_report(records: list[dict[str, str]], report_dir: str, report
     """
     Write removed files report to CSV or JSON.
     """
+    report_dir = _resolve_report_dir(report_dir)
+    ensure_directory(report_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"RemoveAlreadySortedOutRemoved_{timestamp}.{report_format}"
     report_path = os.path.join(report_dir, filename)
@@ -138,6 +141,15 @@ def _write_removed_report(records: list[dict[str, str]], report_dir: str, report
     else:
         save_json({"records": records}, report_path)
     logging.info("Removed files report saved to %s", report_path)
+
+
+def _resolve_report_dir(report_dir: str) -> str:
+    """
+    Resolve the report directory to an absolute path and reject empty values.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("report_dir must not be empty")
+    return str(Path(report_dir).expanduser().resolve())
 
 
 if __name__ == "__main__":
