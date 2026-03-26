@@ -9,8 +9,8 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "markphotomediaapprovalstatus"
 sys.path.insert(0, str(package_root))
 
-from markphotomediaapprovalstatuslib.constants import BANKS, STATUS_CHECKED
-from markphotomediaapprovalstatuslib.status_handler import filter_records_by_bank_status
+from markphotomediaapprovalstatusautolib.constants import BANKS, STATUS_CHECKED
+from markphotomediaapprovalstatusautolib.status_handler import filter_records_by_bank_status
 
 
 def test_filter_records_by_bank_status_bulk():

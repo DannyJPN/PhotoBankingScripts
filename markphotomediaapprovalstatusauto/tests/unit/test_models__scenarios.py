@@ -1,6 +1,6 @@
 """Unit tests for models.py."""
 
-from markphotomediaapprovalstatuslib.models import Candidate, DetectionResult, Evidence, PhotoRecord
+from markphotomediaapprovalstatusautolib.models import Candidate, DetectionResult, Evidence, PhotoRecord
 
 
 def test_photo_record__instantiation():

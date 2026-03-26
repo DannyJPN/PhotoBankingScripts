@@ -1,5 +1,5 @@
 """
-Unit tests for markphotomediaapprovalstatuslib/constants.py.
+Unit tests for markphotomediaapprovalstatusautolib/constants.py.
 """
 
 import sys
@@ -9,7 +9,7 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "markphotomediaapprovalstatus"
 sys.path.insert(0, str(package_root))
 
-from markphotomediaapprovalstatuslib import constants
+from markphotomediaapprovalstatusautolib import constants
 
 
 def test_constants__types():

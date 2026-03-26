@@ -4,7 +4,7 @@ import io
 
 from PIL import Image
 
-from markphotomediaapprovalstatuslib.verification.image_hasher import (
+from markphotomediaapprovalstatusautolib.verification.image_hasher import (
     generate_dhash,
     generate_phash,
     hamming_distance,

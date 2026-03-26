@@ -1,5 +1,5 @@
 """
-Unit tests for markphotomediaapprovalstatuslib/status_handler.py.
+Unit tests for markphotomediaapprovalstatusautolib/status_handler.py.
 """
 
 import sys
@@ -9,8 +9,8 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "markphotomediaapprovalstatus"
 sys.path.insert(0, str(package_root))
 
-from markphotomediaapprovalstatuslib import constants
-from markphotomediaapprovalstatuslib.status_handler import (
+from markphotomediaapprovalstatusautolib import constants
+from markphotomediaapprovalstatusautolib.status_handler import (
     extract_status_columns,
     filter_records_by_status,
     filter_records_by_bank_status,

@@ -10,8 +10,8 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "markphotomediaapprovalstatus"
 sys.path.insert(0, str(package_root))
 
-from markphotomediaapprovalstatuslib.constants import BANKS, STATUS_CHECKED, STATUS_APPROVED
-from markphotomediaapprovalstatuslib.media_helper import process_approval_records
+from markphotomediaapprovalstatusautolib.constants import BANKS, STATUS_CHECKED, STATUS_APPROVED
+from markphotomediaapprovalstatusautolib.media_helper import process_approval_records
 
 
 def test_process_approval_records_updates_and_saves(tmp_path, monkeypatch):
@@ -31,15 +31,15 @@ def test_process_approval_records_updates_and_saves(tmp_path, monkeypatch):
         callback(STATUS_APPROVED)
 
     monkeypatch.setattr(
-        "markphotomediaapprovalstatuslib.media_helper.save_csv_with_backup",
+        "markphotomediaapprovalstatusautolib.media_helper.save_csv_with_backup",
         lambda *_a, **_k: saved.__setitem__("count", saved["count"] + 1),
     )
     monkeypatch.setattr(
-        "markphotomediaapprovalstatuslib.media_helper.os.path.exists",
+        "markphotomediaapprovalstatusautolib.media_helper.os.path.exists",
         lambda _p: True,
     )
     dummy_viewer = types.SimpleNamespace(show_media_viewer=fake_show_media_viewer)
-    monkeypatch.setitem(sys.modules, "markphotomediaapprovalstatuslib.media_viewer", dummy_viewer)
+    monkeypatch.setitem(sys.modules, "markphotomediaapprovalstatusautolib.media_viewer", dummy_viewer)
 
     changed = process_approval_records(data, data, str(tmp_path / "out.csv"))
     assert changed is True

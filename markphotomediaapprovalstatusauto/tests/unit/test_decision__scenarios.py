@@ -2,8 +2,8 @@
 
 import pytest
 
-from markphotomediaapprovalstatuslib.decision import decide
-from markphotomediaapprovalstatuslib.models import Candidate, Evidence
+from markphotomediaapprovalstatusautolib.decision import decide
+from markphotomediaapprovalstatusautolib.models import Candidate, Evidence
 
 
 def _make_candidate() -> Candidate:

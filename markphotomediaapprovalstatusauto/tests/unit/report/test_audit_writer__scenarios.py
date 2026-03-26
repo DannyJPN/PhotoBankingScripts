@@ -4,8 +4,8 @@ import csv
 import os
 import tempfile
 
-from markphotomediaapprovalstatuslib.report.audit_models import AuditEntry
-from markphotomediaapprovalstatuslib.report.audit_writer import AuditWriter
+from markphotomediaapprovalstatusautolib.report.audit_models import AuditEntry
+from markphotomediaapprovalstatusautolib.report.audit_writer import AuditWriter
 
 
 def _make_entry(**kwargs) -> AuditEntry:

@@ -11,4 +11,4 @@ sys.path.insert(0, str(package_root))
 
 
 def test_import_media_viewer():
-    import markphotomediaapprovalstatuslib.media_viewer  # noqa: F401
+    import markphotomediaapprovalstatusautolib.media_viewer  # noqa: F401

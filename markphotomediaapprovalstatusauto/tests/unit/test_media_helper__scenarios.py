@@ -1,5 +1,5 @@
 """
-Unit tests for markphotomediaapprovalstatuslib/media_helper.py.
+Unit tests for markphotomediaapprovalstatusautolib/media_helper.py.
 """
 
 import sys
@@ -9,7 +9,7 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "markphotomediaapprovalstatus"
 sys.path.insert(0, str(package_root))
 
-from markphotomediaapprovalstatuslib.media_helper import (
+from markphotomediaapprovalstatusautolib.media_helper import (
     is_video_file,
     is_jpg_file,
     is_media_file,

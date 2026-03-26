@@ -15,7 +15,7 @@ from shared.file_operations import ensure_directory, load_csv
 from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
 
-from markphotomediaapprovalstatuslib.constants import (
+from markphotomediaapprovalstatusautolib.constants import (
     BANKS,
     DEFAULT_CONTRIBUTOR_NAME,
     DEFAULT_HASH_CACHE_PATH,
@@ -23,12 +23,13 @@ from markphotomediaapprovalstatuslib.constants import (
     DEFAULT_PHOTO_CSV_PATH,
     DEFAULT_PREVIEW_CACHE_DIR,
     DEFAULT_REPORT_DIR,
+    PHASH_THRESHOLD,
     STATUS_CHECKED,
 )
-from markphotomediaapprovalstatuslib.discovery.registry import available_banks
-from markphotomediaapprovalstatuslib.media_helper import process_approval_records
-from markphotomediaapprovalstatuslib.pipeline import run_detection
-from markphotomediaapprovalstatuslib.status_handler import (
+from markphotomediaapprovalstatusautolib.discovery.registry import available_banks
+from markphotomediaapprovalstatusautolib.media_helper import process_approval_records
+from markphotomediaapprovalstatusautolib.pipeline import run_detection
+from markphotomediaapprovalstatusautolib.status_handler import (
     filter_checked_entries,
     filter_records_by_edit_type,
 )
@@ -91,6 +92,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     auto_group.add_argument("--visible", action="store_true", help="Show browser window during detection")
     auto_group.add_argument(
+        "--phash-threshold",
+        type=int,
+        default=PHASH_THRESHOLD,
+        help="Max pHash Hamming distance for FOUND verdict (default: %(default)s; lower = stricter)",
+    )
+    auto_group.add_argument(
         "--hash-cache",
         type=str,
         default=DEFAULT_HASH_CACHE_PATH,
@@ -152,6 +159,7 @@ def main() -> None:
             headless=not args.visible,
             hash_cache_path=args.hash_cache,
             preview_cache_dir=args.preview_cache_dir,
+            phash_threshold=args.phash_threshold,
         )
     else:
         process_approval_records(all_data, filtered_data, args.csv_path)

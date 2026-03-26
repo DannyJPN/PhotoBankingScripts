@@ -14,8 +14,8 @@ Banks: ShutterStock, Pond5, BigStockPhoto, Dreamstime
 import argparse
 import logging
 
-from markphotomediaapprovalstatuslib.public_portfolio.constants import BLOCKED_BANKS
-from markphotomediaapprovalstatuslib.public_portfolio.session import run_session_saver
+from markphotomediaapprovalstatusautolib.public_portfolio.constants import BLOCKED_BANKS
+from markphotomediaapprovalstatusautolib.public_portfolio.session import run_session_saver
 
 logger = logging.getLogger(__name__)
 

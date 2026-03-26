@@ -24,14 +24,14 @@ from urllib.parse import quote_plus
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from markphotomediaapprovalstatuslib.constants import DEFAULT_LOG_DIR, DEFAULT_PHOTO_CSV_PATH, STATUS_APPROVED, STATUS_COLUMN_KEYWORD
-from markphotomediaapprovalstatuslib.public_portfolio.browser import browser_context
-from markphotomediaapprovalstatuslib.public_portfolio.utils import (
+from markphotomediaapprovalstatusautolib.constants import DEFAULT_LOG_DIR, DEFAULT_PHOTO_CSV_PATH, STATUS_APPROVED, STATUS_COLUMN_KEYWORD
+from markphotomediaapprovalstatusautolib.public_portfolio.browser import browser_context
+from markphotomediaapprovalstatusautolib.public_portfolio.utils import (
     extract_from_json_ld,
     extract_meta_content,
     extract_title,
 )
-from markphotomediaapprovalstatuslib.public_portfolio.matching import normalize_text
+from markphotomediaapprovalstatusautolib.public_portfolio.matching import normalize_text
 from shared.file_operations import ensure_directory, load_csv, save_json_file
 from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
