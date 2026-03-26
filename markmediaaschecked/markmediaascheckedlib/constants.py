@@ -1,6 +1,7 @@
 """
 Constants for the MarkMediaAsChecked script.
 """
+from pathlib import Path
 
 DEFAULT_PHOTO_CSV_FILE = "L:\\Můj disk\\XLS\\Fotobanky\\PhotoMedia.csv"
 STATUS_COLUMN_KEYWORD = "status"
@@ -11,7 +12,7 @@ STATUS_CHECKED = "kontrolováno"
 
 # Default log directory
 DEFAULT_LOG_DIR = "H:/Logs"
-DEFAULT_REPORT_DIR = "H:/Logs/MarkMediaAsChecked"
+DEFAULT_REPORT_DIR = str(Path(__file__).resolve().parents[1] / "logs" / "reports")
 
 # Column names
 COL_FILE = "Soubor"

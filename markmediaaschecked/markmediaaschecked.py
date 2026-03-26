@@ -9,6 +9,7 @@ import os
 import argparse
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from shared.utils import get_log_filename
 from shared.file_operations import ensure_directory, load_csv, save_csv, move_file
@@ -55,6 +56,17 @@ def parse_arguments():
         "--include-edited",
         action="store_true",
         help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
+    )
+    parser.add_argument(
+        "--export-report",
+        action="store_true",
+        help="Export a CSV report with every changed status value"
+    )
+    parser.add_argument(
+        "--report-dir",
+        type=str,
+        default=DEFAULT_REPORT_DIR,
+        help="Directory where CSV change reports will be written"
     )
     return parser.parse_args()
 
@@ -115,8 +127,10 @@ def main():
     save_csv(all_records, args.photo_csv_file)
 
     if args.export_report and changes_report:
-        report_path = _build_report_path(args.report_dir)
-        save_csv(changes_report, report_path, ["file", "status_column", "old_status", "new_status"])
+        report_dir = _resolve_report_dir(args.report_dir)
+        ensure_directory(report_dir)
+        report_path = _build_report_path(report_dir)
+        save_csv(changes_report, report_path)
         logging.info("Changes report saved to %s", report_path)
 
     logging.info("MarkMediaAsChecked process completed successfully")
@@ -129,6 +143,15 @@ def _build_report_path(report_dir: str) -> str:
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"MarkMediaAsCheckedReport_{timestamp}.csv"
     return os.path.join(report_dir, filename)
+
+
+def _resolve_report_dir(report_dir: str) -> str:
+    """
+    Resolve report directory to an absolute path and reject empty values.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("report_dir must not be empty")
+    return str(Path(report_dir).expanduser().resolve())
 
 
 if __name__ == "__main__":
