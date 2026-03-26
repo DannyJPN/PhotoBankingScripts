@@ -33,6 +33,9 @@ def make_args(tmp_path, **overrides):
         index_prefix="PICT",
         index_width=4,
         index_max=10,
+        report_dir=str(tmp_path / "reports"),
+        report_format="csv",
+        export_report=False,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -69,3 +72,88 @@ def test_main__calls_copy_and_flatten(monkeypatch, tmp_path):
 
     assert called["copy"] > 0
     assert called["flatten"] == 2
+
+
+def test_main__export_report_writes_new_files_report(monkeypatch, tmp_path):
+    args = make_args(tmp_path, export_report=True)
+    monkeypatch.setattr(pnu, "parse_arguments", lambda: args)
+    monkeypatch.setattr(pnu, "ensure_directory", lambda _p: None)
+    monkeypatch.setattr(pnu, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(pnu, "setup_logging", lambda **_k: None)
+    monkeypatch.setattr(pnu, "unify_duplicate_files", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "replace_in_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "normalize_indexed_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "copy_folder", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "flatten_folder", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "_collect_basename_set", lambda *_a, **_k: set())
+    monkeypatch.setattr(
+        pnu,
+        "_build_new_files_report",
+        lambda *_a, **_k: [{"category": "media", "file_path": "C:/file.jpg"}],
+    )
+
+    report_calls = []
+    monkeypatch.setattr(
+        pnu,
+        "_write_new_files_report",
+        lambda records, report_dir, report_format: report_calls.append((records, report_dir, report_format)),
+    )
+
+    pnu.main()
+
+    assert report_calls == [
+        ([{"category": "media", "file_path": "C:/file.jpg"}], args.report_dir, args.report_format)
+    ]
+
+
+def test_resolve_report_dir__rejects_existing_file(tmp_path):
+    target = tmp_path / "report.csv"
+    target.write_text("content", encoding="utf-8")
+
+    try:
+        pnu._resolve_report_dir(str(target))
+    except ValueError as exc:
+        assert "existing file" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for file path")
+
+
+def test_write_new_files_report__writes_csv(tmp_path):
+    report_dir = tmp_path / "reports"
+
+    pnu._write_new_files_report(
+        [{"category": "media", "file_path": "C:/file.jpg"}],
+        str(report_dir),
+        "csv",
+    )
+
+    generated = list(report_dir.iterdir())
+    assert len(generated) == 1
+    assert generated[0].name.startswith("PullNewMediaNewFiles_")
+    assert generated[0].suffix == ".csv"
+
+
+def test_build_new_files_report__filters_preexisting_basenames(tmp_path):
+    media_target = tmp_path / "target"
+    screen_target = tmp_path / "screens"
+    media_target.mkdir()
+    screen_target.mkdir()
+
+    media_old = media_target / "old.jpg"
+    media_new = media_target / "new.jpg"
+    screen_new = screen_target / "Screen_1.png"
+    media_old.write_text("old", encoding="utf-8")
+    media_new.write_text("new", encoding="utf-8")
+    screen_new.write_text("screen", encoding="utf-8")
+
+    records = pnu._build_new_files_report(
+        {"old.jpg"},
+        set(),
+        str(media_target),
+        str(screen_target),
+    )
+
+    assert records == [
+        {"category": "media", "file_path": str(media_new)},
+        {"category": "screenshots", "file_path": str(screen_new)},
+    ]

@@ -3,6 +3,7 @@ import argparse
 import logging
 import re
 from datetime import datetime
+from pathlib import Path
 
 from shared.utils            import get_log_filename
 from shared.file_operations import (
@@ -193,12 +194,17 @@ def _write_new_files_report(records: list[dict[str, str]], report_dir: str, repo
     """
     Write report of newly pulled files.
     """
+    resolved_report_dir = _resolve_report_dir(report_dir)
     filename = _build_report_filename("PullNewMediaNewFiles", report_format)
-    report_path = os.path.join(report_dir, filename)
-    if report_format == "csv":
-        save_csv(records, report_path, ["category", "file_path"])
-    else:
-        save_json({"records": records}, report_path)
+    report_path = os.path.join(resolved_report_dir, filename)
+    try:
+        if report_format == "csv":
+            save_csv(records, report_path, ["category", "file_path"])
+        else:
+            save_json({"records": records}, report_path)
+    except Exception:
+        logging.exception("Failed to write new files report to %s", resolved_report_dir)
+        raise
     logging.info("New files report saved to %s", report_path)
 
 
@@ -208,6 +214,19 @@ def _build_report_filename(prefix: str, extension: str) -> str:
     """
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return f"{prefix}_{timestamp}.{extension}"
+
+
+def _resolve_report_dir(report_dir: str) -> str:
+    """
+    Normalize and validate the report directory path.
+    """
+    if not report_dir or not report_dir.strip():
+        raise ValueError("Report directory path must not be empty.")
+
+    resolved = Path(report_dir).expanduser().resolve(strict=False)
+    if resolved.exists() and not resolved.is_dir():
+        raise ValueError(f"Report directory points to an existing file: {resolved}")
+    return str(resolved)
 
 
 if __name__ == "__main__":
