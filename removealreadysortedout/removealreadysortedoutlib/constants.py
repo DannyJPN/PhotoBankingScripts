@@ -1,7 +1,9 @@
+from pathlib import Path
+
 DEFAULT_UNSORTED_FOLDER = "I:/Neroztříděno"
 DEFAULT_TARGET_FOLDER = "I:/Roztříděno"
 DEFAULT_LOG_DIR = "H:/Logs"
-DEFAULT_REPORT_DIR = "H:/Logs/RemoveAlreadySortedOut"
+DEFAULT_REPORT_DIR = str(Path(__file__).resolve().parents[1] / "logs" / "reports")
 DEFAULT_REPORT_FORMAT = "csv"
 
 # ExifTool path
