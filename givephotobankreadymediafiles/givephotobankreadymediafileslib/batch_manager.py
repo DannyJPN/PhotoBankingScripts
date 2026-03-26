@@ -50,6 +50,38 @@ def _get_default_model_key() -> str:
     return f"{provider}/{model}"
 
 
+def _validate_dreamstime_categories(
+    selected: List[str], valid_categories: List[str]
+) -> List[str]:
+    """
+    Validate Dreamstime categories against the valid list.
+
+    Filters out any categories that don't exactly match the valid list.
+    This prevents AI from returning non-existent category combinations.
+
+    Args:
+        selected: List of categories selected by AI
+        valid_categories: List of valid Dreamstime categories from CSV
+
+    Returns:
+        Filtered list containing only valid categories
+    """
+    if not selected or not valid_categories:
+        return selected if selected else []
+
+    valid_set = set(valid_categories)
+    validated = []
+
+    for cat in selected:
+        cat_str = str(cat).strip()
+        if cat_str in valid_set:
+            validated.append(cat_str)
+        else:
+            logging.warning("Invalid Dreamstime category filtered: '%s'", cat_str)
+
+    return validated
+
+
 def _create_batch_provider(model_key: str):
     config = get_config()
     provider, model = model_key.split('/', 1)
@@ -431,7 +463,20 @@ def _save_metadata_to_csv(media_csv: str, file_path: str,
 
 
 def _process_batch_results(batch_state: BatchState, results: List[Dict[str, object]],
-                           media_csv: str) -> List[str]:
+                           media_csv: str,
+                           valid_categories: Optional[Dict[str, List[str]]] = None) -> List[str]:
+    """
+    Process batch results and save metadata to CSV.
+
+    Args:
+        batch_state: BatchState instance for the current batch
+        results: List of result dictionaries from the batch API
+        media_csv: Path to the PhotoMedia.csv file
+        valid_categories: Optional dict of valid categories per photobank for validation
+
+    Returns:
+        List of failed custom_ids that need retry
+    """
     failed_custom_ids: List[str] = []
     for result in tqdm(results, desc="Saving metadata to CSV", unit="file"):
         custom_id = result.get("custom_id")
@@ -485,6 +530,26 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
             logging.warning(f"Truncating keywords from {len(keywords)} to 50 for {file_entry['file_path']}")
             metadata["keywords"] = keywords[:50]
 
+        # Validate Dreamstime categories against valid list
+        if valid_categories:
+            categories = metadata.get("categories", {})
+            if isinstance(categories, dict):
+                dreamstime_selected = categories.get("dreamstime", [])
+                if dreamstime_selected:
+                    valid_dreamstime = valid_categories.get("Dreamstime", [])
+                    if valid_dreamstime:
+                        validated = _validate_dreamstime_categories(
+                            dreamstime_selected if isinstance(dreamstime_selected, list) else [dreamstime_selected],
+                            valid_dreamstime
+                        )
+                        if len(validated) != len(dreamstime_selected):
+                            logging.info(
+                                f"Dreamstime categories validated: {len(dreamstime_selected)} -> {len(validated)} "
+                                f"for {file_entry['file_path']}"
+                            )
+                        categories["dreamstime"] = validated
+                        metadata["categories"] = categories
+
         saved = _save_metadata_to_csv(media_csv, file_entry["file_path"], metadata, bool(file_entry.get("editorial")))
         if not saved:
             batch_state.update_file_by_custom_id(custom_id, status="batch_failed", error="Record not found")
@@ -497,7 +562,8 @@ def _process_batch_results(batch_state: BatchState, results: List[Dict[str, obje
 
 
 def _generate_alternatives_for_file(registry: BatchRegistry, media_csv: str,
-                                    original_path: str, original_metadata: Dict[str, object]) -> None:
+                                    original_path: str, original_metadata: Dict[str, object],
+                                    editorial_data: Optional[Dict[str, str]] = None) -> None:
     normalized = _normalize_path(original_path)
     if registry.data.get("alternatives_generated", {}).get(normalized):
         return
@@ -565,7 +631,7 @@ def _generate_alternatives_for_file(registry: BatchRegistry, media_csv: str,
                 custom_id,
                 user_description="",
                 editorial=editorial_flag,
-                editorial_data=None,
+                editorial_data=editorial_data,  # Pass editorial_data from original
                 entry_type="alternative",
                 extra={
                     "edit_tag": edit_tag,
@@ -601,7 +667,8 @@ def _queue_alternatives_from_batch(batch_state: BatchState, registry: BatchRegis
         if not original_path:
             continue
         original_metadata = item.get("result") or {}
-        _generate_alternatives_for_file(registry, media_csv, original_path, original_metadata)
+        editorial_data = item.get("editorial_data")  # Extract editorial_data from batch entry
+        _generate_alternatives_for_file(registry, media_csv, original_path, original_metadata, editorial_data)
 
 
 def _finalize_alternative_batches(registry: BatchRegistry) -> None:
@@ -1131,7 +1198,8 @@ def _retrieve_completed_batches(registry: BatchRegistry, media_csv: str,
                 })
 
             batch_state = BatchState(batch_id, registry.get_batch_dir(batch_id))
-            failed_custom_ids = _process_batch_results(batch_state, results, media_csv)
+            valid_categories = registry.data.get("_categories")
+            failed_custom_ids = _process_batch_results(batch_state, results, media_csv, valid_categories)
 
             result_ids = {item.get("custom_id") for item in results if item.get("custom_id")}
             missing = []
