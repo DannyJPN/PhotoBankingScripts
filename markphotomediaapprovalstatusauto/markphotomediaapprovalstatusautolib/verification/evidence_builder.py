@@ -1,7 +1,9 @@
 """Builds an Evidence object by comparing a local file against a Candidate."""
 
 import logging
-from typing import Optional
+from typing import Dict, Iterable, List, Optional, Tuple
+
+import imagehash
 
 from markphotomediaapprovalstatusautolib.models import Candidate, Evidence
 from markphotomediaapprovalstatusautolib.transport.http_client import HttpClient
@@ -70,3 +72,57 @@ def build_evidence(
         dhash_distance=dhash_dist,
         contributor_match=contributor_match,
     )
+
+
+def build_portfolio_phash_index(
+    portfolio: Iterable[Tuple[int, str]],
+    http_client: HttpClient,
+    preview_cache_dir: str,
+) -> Dict[int, Tuple[imagehash.ImageHash, imagehash.ImageHash]]:
+    """Download portfolio previews and compute pHash + dHash for each asset.
+
+    Accepts any iterable of (asset_id, cdn_preview_url) pairs so callers can wrap
+    the list with a progress-bar iterator (e.g. tqdm) without coupling the library
+    to any UI dependency.
+
+    Assets whose preview cannot be downloaded or hashed are skipped with a warning.
+
+    :param portfolio: Iterable of (asset_id, cdn_preview_url) from crawl_pond5_portfolio.
+    :param http_client: Shared HttpClient for downloading previews.
+    :param preview_cache_dir: Directory for caching downloaded preview images.
+    :return: Dict mapping asset_id to (phash, dhash) tuple.
+    """
+    index: Dict[int, Tuple[imagehash.ImageHash, imagehash.ImageHash]] = {}
+    total = 0
+    for asset_id, cdn_url in portfolio:
+        total += 1
+        preview_bytes = download_preview(cdn_url, http_client, preview_cache_dir)
+        if preview_bytes is None:
+            logging.warning("Could not download preview for asset %d — skipped", asset_id)
+            continue
+        try:
+            index[asset_id] = (generate_phash(preview_bytes), generate_dhash(preview_bytes))
+        except Exception as exc:
+            logging.warning("Could not hash preview for asset %d: %s — skipped", asset_id, exc)
+    logging.info("Portfolio pHash index built: %d / %d assets", len(index), total)
+    return index
+
+
+def find_best_portfolio_match(
+    local_phash: imagehash.ImageHash,
+    portfolio_index: Dict[int, Tuple[imagehash.ImageHash, imagehash.ImageHash]],
+) -> Tuple[Optional[int], int]:
+    """Find the portfolio asset with the smallest pHash Hamming distance.
+
+    :param local_phash: pHash of the local file.
+    :param portfolio_index: Pre-computed index from :func:`build_portfolio_phash_index`.
+    :return: (best_asset_id, best_distance) — asset_id is None when index is empty.
+    """
+    best_id: Optional[int] = None
+    best_dist = 999
+    for asset_id, (remote_phash, _) in portfolio_index.items():
+        dist = hamming_distance(local_phash, remote_phash)
+        if dist < best_dist:
+            best_dist = dist
+            best_id = asset_id
+    return best_id, best_dist

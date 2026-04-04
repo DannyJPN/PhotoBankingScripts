@@ -2,6 +2,8 @@
 Constants for the markphotomediaapprovalstatus script.
 """
 
+import os
+
 # List of photobanks to check
 BANKS = [
     # Active banks
@@ -78,6 +80,12 @@ PHASH_THRESHOLD = 2  # max Hamming distance for FOUND verdict
 DEFAULT_REPORT_DIR = "H:/Logs/auto_detection"
 DEFAULT_HASH_CACHE_PATH = "L:/Můj disk/XLS/Fotobanky/.hash_cache.db"
 DEFAULT_PREVIEW_CACHE_DIR = "L:/Můj disk/XLS/Fotobanky/.preview_cache"
+
+# Pond5 portfolio CSV cache — local to markphotomediaapprovalstatusauto/, not on L:
+# Kumulativní seznam asset_id + cdn_url; přetrvává mezi běhy a nikdy neztrácí záznamy.
+DEFAULT_POND5_PORTFOLIO_CACHE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "pond5_portfolio_cache.csv"
+)
 
 # Contributor identity (set per-user in config)
 DEFAULT_CONTRIBUTOR_NAME = ""

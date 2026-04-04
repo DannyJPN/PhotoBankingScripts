@@ -87,6 +87,9 @@ def main():
         )
     
     # Step 4: Get list of files from unsorted folder (after preprocessing)
+
+
+
     logging.info("Step 4: Listing files in unsorted folder...")
     unsorted_files = list_files(args.unsorted_folder, recursive=True)
     logging.info(f"Found {len(unsorted_files)} files in unsorted folder")

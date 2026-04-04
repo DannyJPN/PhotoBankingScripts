@@ -1,6 +1,7 @@
 """Orchestration pipeline: discovery → verification → decision → write."""
 
 import logging
+import os
 import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
@@ -45,7 +46,7 @@ def build_photo_record(row: dict, bank_name: str) -> Optional[PhotoRecord]:
     path = row.get(COL_PATH, "").strip()
     if not file_name:
         return None
-    local_path = os.path.join(path, file_name) if path else file_name
+    local_path = path if path else file_name  # Cesta is already the full file path
     status_col = f"{bank_name} {STATUS_COLUMN_KEYWORD}"
     return PhotoRecord(
         file=file_name,
@@ -58,7 +59,7 @@ def build_photo_record(row: dict, bank_name: str) -> Optional[PhotoRecord]:
     )
 
 
-def _select_best_evidence(evidences: List[Evidence]) -> Optional[Evidence]:
+def select_best_evidence(evidences: List[Evidence]) -> Optional[Evidence]:
     """Pick the evidence with the lowest pHash distance that has contributor match.
 
     Falls back to any evidence with a computed distance if no contributor match
@@ -148,9 +149,28 @@ def run_detection(
             # Build portfolio index once per bank for adapters that require it (e.g. Pond5).
             portfolio_index: Optional[List[Tuple[int, str]]] = None
             if bank_name == "Pond5":
-                from markphotomediaapprovalstatusautolib.discovery.banks.pond5 import crawl_pond5_portfolio
+                from markphotomediaapprovalstatusautolib.discovery.banks.pond5 import (
+                    build_search_vocabulary,
+                    crawl_pond5_portfolio,
+                    extract_contributor_name,
+                )
+                from shared.file_operations import load_json_file
+                _portfolios_json = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "markphotomediaapprovalstatus", "public_portfolios.json"
+                )
+                _profile_dir = os.path.join(os.path.dirname(__file__), "..", "cookies", "profile_Pond5")
                 try:
-                    portfolio_index = crawl_pond5_portfolio(contributor_name, headless=headless)
+                    _portfolios = load_json_file(_portfolios_json)
+                    _portfolio_url = _portfolios["banks"]["Pond5"]["portfolio_url"]
+                    from markphotomediaapprovalstatusautolib.constants import DEFAULT_POND5_PORTFOLIO_CACHE_PATH
+                    _search_vocabulary = build_search_vocabulary(filtered_data)
+                    portfolio_index = crawl_pond5_portfolio(
+                        _portfolio_url,
+                        headless=headless,
+                        profile_dir=_profile_dir,
+                        cache_path=DEFAULT_POND5_PORTFOLIO_CACHE_PATH,
+                        search_vocabulary=_search_vocabulary,
+                    )
                     logging.info("Pond5 portfolio index: %d assets", len(portfolio_index))
                 except Exception as exc:
                     logging.error("Failed to crawl Pond5 portfolio: %s", exc)
@@ -189,7 +209,7 @@ def run_detection(
                     )
                     evidences.append(ev)
 
-                best = _select_best_evidence(evidences)
+                best = select_best_evidence(evidences)
                 outcome, reason = decide(best, phash_threshold=phash_threshold)
                 now = datetime.now().isoformat()
 
