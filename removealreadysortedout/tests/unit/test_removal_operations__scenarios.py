@@ -42,3 +42,13 @@ def test_remove_desktop_ini__removes(tmp_path):
     ops.remove_desktop_ini(str(tmp_path))
 
     assert not desktop_ini.exists()
+
+
+def test_build_quarantine_path__adds_suffix_for_existing_name(tmp_path):
+    quarantine_dir = tmp_path / "quarantine"
+    quarantine_dir.mkdir()
+    (quarantine_dir / "image.jpg").write_text("taken", encoding="utf-8")
+
+    result = ops._build_quarantine_path(str(quarantine_dir), str(tmp_path / "image.jpg"))
+
+    assert result.endswith("image_001.jpg")

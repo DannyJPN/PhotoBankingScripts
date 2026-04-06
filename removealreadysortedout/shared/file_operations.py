@@ -158,6 +158,19 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         raise
 
 
+def delete_file(path: str) -> None:
+    """
+    Delete a file from disk.
+    """
+    logging.debug("Deleting file: %s", path)
+    try:
+        os.remove(path)
+        logging.debug("Deleted file: %s", path)
+    except Exception as e:
+        logging.error("Failed to delete file %s: %s", path, e)
+        raise
+
+
 def ensure_directory(path: str) -> None:
     """
     Ensure that a directory exists at the given path.

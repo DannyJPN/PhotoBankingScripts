@@ -3,6 +3,7 @@ import logging
 import shutil
 from typing import Dict, List
 from shared.hash_utils import compute_file_hash
+from shared.file_operations import move_file, delete_file, ensure_directory
 
 def get_target_files_map(target_folder: str) -> dict[str, list[str]]:
     """
@@ -68,7 +69,13 @@ def should_replace_file(source_path: str, target_path: str) -> bool:
             return True
         return False
 
-def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool, log_file: str) -> None:
+def handle_duplicate(
+    source_path: str,
+    target_paths: list[str],
+    overwrite: bool,
+    log_file: str,
+    quarantine_dir: str = ""
+) -> None:
     """
     Projde všechny kolidující soubory a rozhodne o přepisu nebo odstranění.
     """
@@ -88,17 +95,22 @@ def handle_duplicate(source_path: str, target_paths: list[str], overwrite: bool,
                 logging.info(f"Skipping replacement of {target_path} (overwrite disabled)")
         else:
             # Files have the same size, remove source file
-            remove_if_identical(source_path, target_path, log_file)
+            remove_if_identical(source_path, target_path, log_file, quarantine_dir)
             # Once we've handled one target file, we can stop
             break
 
-def remove_if_identical(source_path: str, target_path: str, log_file: str) -> None:
+def remove_if_identical(source_path: str, target_path: str, log_file: str, quarantine_dir: str = "") -> None:
     """
     Pokud má cílový a zdrojový soubor stejnou velikost, odstraní zdrojový a zaloguje.
     """
     try:
-        os.remove(source_path)
-        logging.debug(f"Removed duplicate file: {source_path} (identical to {target_path})")
+        if quarantine_dir:
+            quarantine_path = _build_quarantine_path(quarantine_dir, source_path)
+            move_file(source_path, quarantine_path, overwrite=False)
+            logging.debug("Quarantined duplicate file: %s (identical to %s)", source_path, target_path)
+        else:
+            delete_file(source_path)
+            logging.debug("Removed duplicate file: %s (identical to %s)", source_path, target_path)
     except Exception as e:
         logging.error(f"Failed to remove file {source_path}: {e}")
 
@@ -113,3 +125,22 @@ def remove_desktop_ini(folder: str) -> None:
             logging.info(f"Removed desktop.ini from {folder}")
         except Exception as e:
             logging.error(f"Failed to remove desktop.ini from {folder}: {e}")
+
+
+def _build_quarantine_path(quarantine_dir: str, source_path: str) -> str:
+    """
+    Build a unique quarantine path for a source file.
+    """
+    ensure_directory(quarantine_dir)
+    base_name = os.path.basename(source_path)
+    destination = os.path.join(quarantine_dir, base_name)
+    if not os.path.exists(destination):
+        return destination
+
+    stem, ext = os.path.splitext(base_name)
+    counter = 1
+    while True:
+        candidate = os.path.join(quarantine_dir, f"{stem}_{counter:03d}{ext}")
+        if not os.path.exists(candidate):
+            return candidate
+        counter += 1
