@@ -36,3 +36,33 @@ def test_main__calls_copy(monkeypatch):
 
     main_module.main()
     assert called
+
+
+def test_parse_arguments__preview_conflicts(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["integrate_sorted_photos.py", "--preview-conflicts"])
+
+    args = main_module.parse_arguments()
+
+    assert args.preview_conflicts is True
+
+
+def test_main__preview_conflicts_skips_copy(monkeypatch):
+    args = SimpleNamespace(
+        sortedFolder="C:/sorted",
+        targetFolder="C:/target",
+        log_dir="C:/logs",
+        debug=False,
+        preview_conflicts=True,
+    )
+    monkeypatch.setattr(main_module, "parse_arguments", lambda: args)
+    monkeypatch.setattr(main_module, "ensure_directory", lambda _p: None)
+    monkeypatch.setattr(main_module, "setup_logging", lambda **_k: None)
+    monkeypatch.setattr(main_module.os.path, "exists", lambda _p: True)
+    monkeypatch.setattr(main_module, "find_conflicts", lambda *_a: [{"source_path": "a", "dest_path": "b"}])
+
+    called = []
+    monkeypatch.setattr(main_module, "copy_files_with_preserved_dates", lambda *_a: called.append(True))
+
+    main_module.main()
+
+    assert called == []
