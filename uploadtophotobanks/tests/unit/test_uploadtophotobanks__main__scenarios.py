@@ -33,3 +33,38 @@ def test_validate_input_files(monkeypatch):
     args = SimpleNamespace(media_folder="C:/media", export_dir="C:/export")
     monkeypatch.setattr(main_module.os.path, "exists", lambda _p: False)
     assert main_module.validate_input_files(args) is False
+
+
+def test_parse_arguments__resume_flags(monkeypatch, tmp_path):
+    resume_log = tmp_path / "upload.csv"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "uploadtophotobanks.py",
+            "--resume",
+            "--resume-log",
+            str(resume_log),
+        ],
+    )
+
+    args = main_module.parse_arguments()
+
+    assert args.resume is True
+    assert args.resume_log == str(resume_log)
+
+
+def test_load_resume_failed_files__groups_failures(monkeypatch):
+    monkeypatch.setattr(
+        main_module,
+        "load_csv",
+        lambda _path: [
+            {"photobank": "ShutterStock", "filename": "a.jpg", "status": "failure"},
+            {"photobank": "ShutterStock", "filename": "b.jpg", "status": "success"},
+            {"photobank": "Pond5", "filename": "c.jpg", "status": "error"},
+        ],
+    )
+
+    failed = main_module._load_resume_failed_files("C:/log.csv", "C:/logs")
+
+    assert failed == {"ShutterStock": {"a.jpg"}, "Pond5": {"c.jpg"}}

@@ -14,6 +14,7 @@ import os
 import sys
 import argparse
 import logging
+from typing import Dict
 
 # Add the parent directory to the Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,11 +27,13 @@ from uploadtophotobanksslib.constants import (
     DEFAULT_PROCESSED_MEDIA_FOLDER,
     DEFAULT_EXPORT_DIR,
     DEFAULT_LOG_DIR,
+    DEFAULT_UPLOAD_LOG_DIR,
     DEFAULT_CREDENTIALS_FILE,
     PHOTOBANK_CONFIGS
 )
 from uploadtophotobanksslib.uploader import PhotobankUploader
 from uploadtophotobanksslib.credentials_manager import CredentialsManager
+from shared.file_operations import load_csv
 
 
 def parse_arguments():
@@ -72,6 +75,12 @@ Security notes:
                         help="Enable debug logging")
     parser.add_argument("--dry-run", action="store_true",
                         help="Validate files and test connections without uploading")
+    parser.add_argument("--resume", action="store_true",
+                        help="Upload only files that previously failed")
+    parser.add_argument("--resume-log", type=str, default="",
+                        help="Path to upload log CSV for resume mode")
+    parser.add_argument("--upload-log-dir", type=str, default=DEFAULT_UPLOAD_LOG_DIR,
+                        help="Directory to search for resume log files")
 
     # Photobank selection
     photobank_group = parser.add_argument_group("Photobank Selection")
@@ -162,11 +171,16 @@ def main():
         # Proceed directly with upload (no confirmation needed)
 
         # Perform upload
+        resume_failed_files = None
+        if args.resume:
+            resume_failed_files = _load_resume_failed_files(args.resume_log, args.upload_log_dir)
+
         results = uploader.upload_to_photobanks(
             args.media_folder,
             selected_photobanks,
             args.export_dir,
-            args.dry_run
+            args.dry_run,
+            resume_failed_files
         )
 
         # Display results
@@ -417,6 +431,44 @@ def show_credentials_info(credentials_manager):
     if logging.getLogger().level <= logging.DEBUG:
         print("Credentials source priority: 1) Environment variables, 2) Config file")
         print(f"Photobanks configured: {', '.join(photobanks)}")
+
+
+def _load_resume_failed_files(resume_log: str, upload_log_dir: str) -> Dict[str, set[str]]:
+    """
+    Load failed filenames per photobank from the upload log.
+    """
+    log_path = resume_log or _find_latest_log(upload_log_dir)
+    if not log_path:
+        raise FileNotFoundError("Resume log not found")
+
+    records = load_csv(log_path)
+    failed_map: Dict[str, set[str]] = {}
+    for record in records:
+        photobank = record.get("photobank", "")
+        filename = record.get("filename", "")
+        status = record.get("status", "")
+        if not photobank or not filename:
+            continue
+        if status in ["failure", "error"]:
+            failed_map.setdefault(photobank, set()).add(filename)
+    return failed_map
+
+
+def _find_latest_log(upload_log_dir: str) -> str:
+    """
+    Find the latest upload log in the log directory.
+    """
+    if not os.path.exists(upload_log_dir):
+        return ""
+
+    candidates = [
+        os.path.join(upload_log_dir, name)
+        for name in os.listdir(upload_log_dir)
+        if name.startswith("UploadLog_") and name.endswith(".csv")
+    ]
+    if not candidates:
+        return ""
+    return max(candidates, key=os.path.getmtime)
 
 
 if __name__ == "__main__":
