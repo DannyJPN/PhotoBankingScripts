@@ -81,6 +81,28 @@ def update_statuses(records: list[dict], status_columns: list[str]) -> int:
     return change_count
 
 
+def count_status_updates(records: list[dict], status_columns: list[str]) -> int:
+    """
+    Count how many status values would be updated.
+    """
+    if not records:
+        logging.warning("No records provided to count updates")
+        return 0
+
+    if not status_columns:
+        logging.warning("No status columns provided for counting updates")
+        return 0
+
+    change_count = 0
+    for record in records:
+        for col in status_columns:
+            if col in record and record[col] == STATUS_READY:
+                change_count += 1
+
+    logging.info("Found %d status values eligible for update", change_count)
+    return change_count
+
+
 def is_edited_photo(record: dict) -> bool:
     """
     Check if record is an edited photo based on filename edit tags.
