@@ -47,6 +47,7 @@ from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
 
 from markphotomediaapprovalstatusautolib.constants import (
+    COMBINED_HASH_THRESHOLD,
     DEFAULT_HASH_CACHE_PATH,
     DEFAULT_LOG_DIR,
     DEFAULT_PHOTO_CSV_PATH,
@@ -67,6 +68,7 @@ from markphotomediaapprovalstatusautolib.status_handler import filter_records_by
 from markphotomediaapprovalstatusautolib.transport.http_client import HttpClient
 from markphotomediaapprovalstatusautolib.verification.evidence_builder import (
     build_portfolio_phash_index,
+    find_best_combined_match,
     find_best_portfolio_match,
 )
 from markphotomediaapprovalstatusautolib.verification.hash_cache import HashCache
@@ -103,6 +105,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--portfolio-cache", type=str, default=DEFAULT_POND5_PORTFOLIO_CACHE_PATH, help="Path to the portfolio CSV cache file")
     parser.add_argument("--datadome-cooldown", type=int, default=60, help="Seconds to wait after DataDome block before recovery (default: 60)")
     parser.add_argument("--captcha-timeout", type=int, default=300, help="Seconds to wait in visible browser for CAPTCHA solving (default: 300)")
+    parser.add_argument("--cache-only", action="store_true", help="Skip portfolio crawl and use only the existing portfolio cache file")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
@@ -162,23 +165,31 @@ def main() -> None:
     logging.info("CSV approved records (Pond5 / sample): %d", csv_count)
 
     hash_cache = HashCache(args.hash_cache)
-    search_vocabulary = build_search_vocabulary(approved)
-    logging.info("Search vocabulary: %d unique substrings from %d approved records", len(search_vocabulary), csv_count)
 
     with HttpClient() as http_client:
-        # 3. Crawl portfolio (incremental + letter-prefix, cache-backed)
-        full_portfolio = crawl_pond5_portfolio(
-            portfolio_url=portfolio_url,
-            headless=not args.visible,
-            profile_dir=_PROFILE_DIR,
-            cache_path=args.portfolio_cache,
-            datadome_cooldown=args.datadome_cooldown,
-            captcha_timeout=args.captcha_timeout,
-            search_vocabulary=search_vocabulary,
-        )
-        if not full_portfolio:
-            logging.error("Portfolio crawl returned 0 assets. Run: python save_bank_session.py --bank Pond5")
-            sys.exit(1)
+        # 3. Load portfolio — from cache only or with fresh crawl
+        if args.cache_only:
+            from markphotomediaapprovalstatusautolib.discovery.banks.pond5 import PortfolioCache
+            full_portfolio = PortfolioCache(args.portfolio_cache).load()
+            if not full_portfolio:
+                logging.error("Portfolio cache is empty. Run without --cache-only to crawl first.")
+                sys.exit(1)
+            logging.info("Cache-only mode: loaded %d assets from %s", len(full_portfolio), args.portfolio_cache)
+        else:
+            search_vocabulary = build_search_vocabulary(approved)
+            logging.info("Search vocabulary: %d unique substrings from %d approved records", len(search_vocabulary), csv_count)
+            full_portfolio = crawl_pond5_portfolio(
+                portfolio_url=portfolio_url,
+                headless=not args.visible,
+                profile_dir=_PROFILE_DIR,
+                cache_path=args.portfolio_cache,
+                datadome_cooldown=args.datadome_cooldown,
+                captcha_timeout=args.captcha_timeout,
+                search_vocabulary=search_vocabulary,
+            )
+            if not full_portfolio:
+                logging.error("Portfolio crawl returned 0 assets. Run: python save_bank_session.py --bank Pond5")
+                sys.exit(1)
 
         portfolio_count = len(full_portfolio)
         logging.info(
@@ -221,16 +232,25 @@ def main() -> None:
                 csv_not_web_lines.append(f"{record.file} [portfolio index empty]")
                 continue
 
-            # Find best portfolio match by pHash Hamming distance (purely offline)
+            # Stage 1: phash-only match (fast path — same as main pipeline)
             best_id, best_phash_dist = find_best_portfolio_match(local_phash, portfolio_phash_index)
             if best_id is None:
                 csv_not_web_lines.append(f"{record.file} [no candidates]")
                 continue
+            best_dhash_dist = hamming_distance(local_dhash, portfolio_phash_index[best_id][1])
+            use_combined = False
 
-            best_remote_phash, best_remote_dhash = portfolio_phash_index[best_id]
-            best_dhash_dist = hamming_distance(local_dhash, best_remote_dhash)
+            if best_phash_dist > args.phash_threshold:
+                # Stage 2: combined phash+dhash match — fallback for image variants
+                # (sharpen/BW/negative whose pHash may be misleading vs CDN thumbnails)
+                comb_id, comb_pd, comb_dd = find_best_combined_match(
+                    local_phash, local_dhash, portfolio_phash_index
+                )
+                if comb_id is not None:
+                    best_id, best_phash_dist, best_dhash_dist = comb_id, comb_pd, comb_dd
+                    use_combined = True
 
-            # Build Evidence and call the shared decide() — same verdict logic as main pipeline
+            # Build Evidence and call decide()
             candidate = Candidate(
                 bank="Pond5",
                 url=f"https://www.pond5.com/stock-footage/{best_id}/",
@@ -242,9 +262,13 @@ def main() -> None:
                 candidate=candidate,
                 phash_distance=best_phash_dist,
                 dhash_distance=best_dhash_dist,
-                contributor_match=True,  # all portfolio assets belong to our contributor
+                contributor_match=True,
             )
-            outcome, reason = decide(evidence, phash_threshold=args.phash_threshold)
+            outcome, reason = decide(
+                evidence,
+                phash_threshold=args.phash_threshold,
+                combined_threshold=COMBINED_HASH_THRESHOLD if use_combined else None,
+            )
 
             if outcome == "FOUND":
                 matched_asset_ids.add(str(best_id))

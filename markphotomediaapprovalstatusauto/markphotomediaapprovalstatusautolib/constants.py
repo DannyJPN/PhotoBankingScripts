@@ -74,7 +74,8 @@ DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
 MAX_NUMBER = 999999  # Maximum number with 6 digits
 
 # Detection thresholds
-PHASH_THRESHOLD = 2  # max Hamming distance for FOUND verdict
+PHASH_THRESHOLD = 2          # max Hamming distance for FOUND verdict (main pipeline)
+COMBINED_HASH_THRESHOLD = 19  # max phash+dhash combined distance for FOUND verdict (validator stage 2)
 
 # Default paths for detection pipeline
 DEFAULT_REPORT_DIR = "H:/Logs/auto_detection"

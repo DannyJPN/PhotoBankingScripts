@@ -116,7 +116,7 @@ def find_best_portfolio_match(
 
     :param local_phash: pHash of the local file.
     :param portfolio_index: Pre-computed index from :func:`build_portfolio_phash_index`.
-    :return: (best_asset_id, best_distance) — asset_id is None when index is empty.
+    :return: (best_asset_id, best_phash_dist) — asset_id is None when index is empty.
     """
     best_id: Optional[int] = None
     best_dist = 999
@@ -126,3 +126,35 @@ def find_best_portfolio_match(
             best_dist = dist
             best_id = asset_id
     return best_id, best_dist
+
+
+def find_best_combined_match(
+    local_phash: imagehash.ImageHash,
+    local_dhash: imagehash.ImageHash,
+    portfolio_index: Dict[int, Tuple[imagehash.ImageHash, imagehash.ImageHash]],
+) -> Tuple[Optional[int], int, int]:
+    """Find the portfolio asset with the smallest combined pHash+dHash Hamming distance.
+
+    Used as a fallback when phash-only matching fails (distance exceeds PHASH_THRESHOLD).
+    Combined scoring distinguishes image variants (sharpen, BW, negative) that may
+    accidentally score lower on pHash alone but are correctly discriminated by dHash.
+
+    :param local_phash: pHash of the local file.
+    :param local_dhash: dHash of the local file.
+    :param portfolio_index: Pre-computed index from :func:`build_portfolio_phash_index`.
+    :return: (best_asset_id, best_phash_dist, best_dhash_dist) — asset_id is None when index is empty.
+    """
+    best_id: Optional[int] = None
+    best_phash_dist = 999
+    best_dhash_dist = 999
+    best_combined = 999
+    for asset_id, (remote_phash, remote_dhash) in portfolio_index.items():
+        pd = hamming_distance(local_phash, remote_phash)
+        dd = hamming_distance(local_dhash, remote_dhash)
+        combined = pd + dd
+        if combined < best_combined:
+            best_combined = combined
+            best_phash_dist = pd
+            best_dhash_dist = dd
+            best_id = asset_id
+    return best_id, best_phash_dist, best_dhash_dist
