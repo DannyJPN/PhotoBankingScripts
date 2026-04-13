@@ -576,7 +576,7 @@ def _crawl_letter_prefix_phase(
 
 def crawl_pond5_portfolio(
     portfolio_url: str,
-    headless: bool = True,
+    headless: bool = False,
     profile_dir: Optional[str] = None,
     max_pages: int = 200,
     cache_path: Optional[str] = None,
