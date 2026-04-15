@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Tuple
 from markphotomediaapprovalstatusautolib.constants import (
     COL_FILE,
     COL_PATH,
-    COMBINED_HASH_THRESHOLD,
     DEFAULT_CONTRIBUTOR_NAME,
     DEFAULT_HASH_CACHE_PATH,
     DEFAULT_PREVIEW_CACHE_DIR,
@@ -211,16 +210,7 @@ def run_detection(
                     evidences.append(ev)
 
                 best = select_best_evidence(evidences)
-                if bank_name == "Pond5" and evidences and (best is None or (best.phash_distance or 999) > phash_threshold):
-                    # Stage 2: phash alone failed — re-select by minimum combined phash+dhash distance
-                    combined_best = min(
-                        evidences,
-                        key=lambda e: (e.phash_distance or 999) + (e.dhash_distance or 999),
-                    )
-                    best = combined_best
-                    outcome, reason = decide(best, phash_threshold=phash_threshold, combined_threshold=COMBINED_HASH_THRESHOLD)
-                else:
-                    outcome, reason = decide(best, phash_threshold=phash_threshold)
+                outcome, reason = decide(best, phash_threshold=phash_threshold)
                 now = datetime.now().isoformat()
 
                 result = DetectionResult(
