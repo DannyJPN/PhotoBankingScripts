@@ -1,4 +1,4 @@
-"""
+﻿"""
 Mark Photo Media Approval Status
 
 This script allows manual evaluation of photo statuses in a CSV database for each defined photobank.
@@ -11,13 +11,14 @@ import argparse
 import logging
 
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory, load_csv, save_csv_with_backup
+from shared.file_operations import ensure_directory, load_csv, save_csv_with_backup, save_csv
 from shared.logging_config import setup_logging
 
 from markphotomediaapprovalstatuslib.constants import (
     BANKS,
     DEFAULT_PHOTO_CSV_PATH,
     DEFAULT_LOG_DIR,
+    DEFAULT_REPORT_DIR,
     STATUS_CHECKED,
     STATUS_COLUMN_KEYWORD,
     STATUS_APPROVED,
@@ -48,7 +49,7 @@ def parse_arguments():
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
     parser.add_argument("--include-edited", action="store_true",
-                        help="Include edited photos from 'upravené' folders (default: only original photos)")
+                        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)")
     return parser.parse_args()
 
 
@@ -88,7 +89,12 @@ def main():
 
     # Process approval records using GUI (saves after each file)
     # Pass all_data so changes are made to the complete dataset
-    changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
+    changes_made, decision_records = process_approval_records(all_data, filtered_data, args.csv_path)
+
+    if args.export_report and decision_records:
+        report_path = _build_report_path(args.report_dir)
+        save_csv(decision_records, report_path)
+        logging.info("Decisions report saved to %s", report_path)
 
     # Final summary (individual saves are done during processing)
     if changes_made:
@@ -99,5 +105,16 @@ def main():
     logging.info("Photo media approval status marking process completed")
 
 
+def _build_report_path(report_dir: str) -> str:
+    """
+    Build report path with timestamp.
+    """
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"PhotoApprovalDecisions_{timestamp}.csv"
+    return os.path.join(report_dir, filename)
+
+
 if __name__ == "__main__":
     main()
+
