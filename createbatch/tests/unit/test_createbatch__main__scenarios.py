@@ -69,6 +69,8 @@ def make_args(tmp_path, **overrides):
     defaults = dict(
         photo_csv=str(tmp_path / "input.csv"),
         output_folder=str(tmp_path / "out"),
+        prepared_after="",
+        prepared_before="",
         skip_existing=False,
         log_dir=str(tmp_path / "logs"),
         debug=False,
@@ -97,6 +99,8 @@ def test_createbatch__parse_arguments__defaults(monkeypatch):
     assert args.photo_csv == cb_constants.DEFAULT_PHOTO_CSV_FILE
     assert args.output_folder == cb_constants.DEFAULT_PROCESSED_MEDIA_FOLDER
     assert args.log_dir == cb_constants.DEFAULT_LOG_DIR
+    assert args.prepared_after == ""
+    assert args.prepared_before == ""
     assert args.skip_existing is False
     assert args.debug is False
     assert args.include_edited is False
@@ -115,6 +119,10 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
             str(tmp_path / "out"),
             "--log_dir",
             str(tmp_path / "logs"),
+            "--prepared-after",
+            "2025-01-01",
+            "--prepared-before",
+            "2025-12-31",
             "--skip-existing",
             "--debug",
             "--include-edited",
@@ -126,6 +134,8 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
     assert args.photo_csv.endswith("photos.csv")
     assert args.output_folder.endswith("out")
     assert args.log_dir.endswith("logs")
+    assert args.prepared_after == "2025-01-01"
+    assert args.prepared_before == "2025-12-31"
     assert args.skip_existing is True
     assert args.debug is True
     assert args.include_edited is True
@@ -235,3 +245,37 @@ def test_createbatch__main__zero_total_does_not_crash(common_patches, monkeypatc
     monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Alamy": 0})
 
     createbatch_module.main()
+
+
+def test_createbatch__main__applies_prepared_date_filter(common_patches, monkeypatch):
+    raw_records = [{"Cesta": "a.jpg"}]
+    filtered_records = [{"Cesta": "filtered.jpg"}]
+    DummyProcessor.return_map = {"AdobeStock": filtered_records}
+
+    monkeypatch.setattr(
+        createbatch_module,
+        "parse_arguments",
+        lambda: make_args(common_patches, prepared_after="2025-01-01", prepared_before="2025-12-31"),
+    )
+    monkeypatch.setattr(createbatch_module, "load_csv", lambda _path: raw_records)
+    monkeypatch.setattr(
+        createbatch_module,
+        "_apply_prepared_date_filter",
+        lambda records, prepared_after, prepared_before: (
+            filtered_records
+            if records == raw_records and prepared_after == "2025-01-01" and prepared_before == "2025-12-31"
+            else []
+        ),
+    )
+    monkeypatch.setattr(createbatch_module, "split_into_batches", lambda recs, _limit: [recs])
+    monkeypatch.setattr(
+        createbatch_module,
+        "prepare_media_file",
+        lambda rec, *_args, **_kwargs: [rec["Cesta"]],
+    )
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"AdobeStock": 0})
+
+    createbatch_module.main()
+
+    tracker = DummyProgressTracker.last_instance
+    assert tracker.started_banks == ["AdobeStock"]
