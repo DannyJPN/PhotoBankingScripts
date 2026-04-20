@@ -51,7 +51,12 @@ def is_media_file(file_path: str) -> bool:
     return ext in media_extensions
 
 
-def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dict[str, str]], csv_path: str) -> bool:
+def process_approval_records(
+    data: List[Dict[str, str]],
+    filtered_data: List[Dict[str, str]],
+    csv_path: str,
+    banks_override: List[str] | None = None
+) -> bool:
     """
     Process approval records bank-by-bank, file-by-file using MediaViewer GUI.
 
@@ -75,12 +80,13 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
         return False
 
     changes_made = False
-    total_banks = len(BANKS)
+    banks_to_process = banks_override or BANKS
+    total_banks = len(banks_to_process)
 
     logging.info(f"Starting bank-first iteration across {total_banks} banks")
 
     # OUTER LOOP: Iterate through BANKS
-    for bank_index, bank in enumerate(BANKS, start=1):
+    for bank_index, bank in enumerate(banks_to_process, start=1):
         logging.info(f"=== Processing bank {bank_index}/{total_banks}: {bank} ===")
 
         # Filter records for THIS bank only
