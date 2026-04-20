@@ -1,4 +1,6 @@
-﻿import os
+import os
+from pathlib import Path
+
 # zdrojové složky
 DEFAULT_RAID_DRIVE           = r"N:/Můj disk/Foto"
 DEFAULT_DROPBOX              = r"F:/Dropbox/Camera Uploads"
@@ -18,6 +20,10 @@ DEFAULT_FINAL_TARGET_FOLDER  = r"J:/"
 
 # logování
 DEFAULT_LOG_DIR              = r"H:/Logs"
+
+# report output
+DEFAULT_REPORT_DIR           = str(Path(__file__).resolve().parents[1] / "logs" / "reports")
+DEFAULT_REPORT_FORMAT        = "csv"
 
 # konstanty pro detekci screenshotů
 SCREENSHOT_MARKERS = [
