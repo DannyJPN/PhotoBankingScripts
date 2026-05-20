@@ -121,9 +121,16 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-    Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Kopíruje atomicky: zapisuje do temp souboru ve stejném adresáři, fsync, pak os.replace().
-    Zabraňuje vzniku zero-filled nebo truncated souborů při přerušení (plný disk, kill procesu).
+,    Copy *src* to *dest*, preserving metadata. Overwrites if *overwrite* is True.
+
+    Uses an atomic write pattern (temp file → fsync → os.replace) so that *dest*
+    never contains partial data if the operation is interrupted by a full disk,
+    an exception, or a process kill.
+
+    :param src: Path to the source file.
+    :param dest: Path to the destination file.
+    :param overwrite: If False, skip when *dest* already exists.
+    :raises OSError: If the copy fails; any incomplete temp file is removed before raising.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
