@@ -42,7 +42,6 @@ class OpenAIProvider(CloudAIProvider):
         self.organization = kwargs.get('organization')
         self.project = kwargs.get('project')
         
-        # Model capabilities - Updated 2026-03-24
         self._vision_models = {
             # GPT-5.4 Series (2026)
             'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-2026-03-05',
@@ -50,7 +49,7 @@ class OpenAIProvider(CloudAIProvider):
             'gpt-5', 'gpt-5-mini', 'gpt-5-2025-08-07', 'gpt-5-mini-2025-08-07',
             # GPT-4.1 Series (2025)
             'gpt-4.1', 'gpt-4.1-mini',
-            'gpt-4.1-2025-04-14', 'gpt-4.1-mini-2025-04-14', 'gpt-4.1-nano-2025-04-14',
+            'gpt-4.1-2025-04-14', 'gpt-4.1-mini-2025-04-14',
             # GPT-4o Series
             'gpt-4-vision-preview', 'gpt-4o', 'gpt-4o-mini',
             'gpt-4o-2024-11-20', 'gpt-4o-2024-08-06', 'gpt-4o-2024-05-13',
@@ -65,12 +64,11 @@ class OpenAIProvider(CloudAIProvider):
         # Non-vision models (text-only)
         self._text_only_models = {
             'gpt-5-nano', 'gpt-5-nano-2025-08-07', 'gpt-5.4-nano',
-            'gpt-4.1-nano',
+            'gpt-4.1-nano', 'gpt-4.1-nano-2025-04-14',
             'o1-mini', 'o1-mini-2024-09-12',
             'o3-mini', 'o3-mini-2025-01-31',
         }
 
-        # Pricing (per 1K tokens, as of 2026-03-24)
         self._pricing = {
             # GPT-5.4 Series (2026)
             'gpt-5.4': {'input': 1.25, 'output': 10.0},
@@ -86,7 +84,7 @@ class OpenAIProvider(CloudAIProvider):
             'gpt-4.1-nano': {'input': 0.003, 'output': 0.01},
             # GPT-4o Series
             'gpt-4o': {'input': 0.005, 'output': 0.015},
-            'gpt-4o-mini': {'input': 0.0015, 'output': 0.0006},
+            'gpt-4o-mini': {'input': 0.00015, 'output': 0.0006},
             'gpt-4-turbo': {'input': 0.01, 'output': 0.03},
             # Reasoning models
             'o1': {'input': 0.015, 'output': 0.060},

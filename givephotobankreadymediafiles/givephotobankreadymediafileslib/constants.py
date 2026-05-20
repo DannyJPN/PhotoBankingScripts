@@ -168,7 +168,6 @@ DEFAULT_OLLAMA_MODELS = [
     "llama3.2-vision:11b",
     "llama3.2-vision:90b",
     "cogvlm:17b",
-    # Added 2026-03-24
     "gemma3:12b",
     "gemma3:27b",
     "qwen2.5-vl:7b",

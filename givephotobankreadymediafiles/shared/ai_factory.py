@@ -235,13 +235,14 @@ class AIFactory:
                 'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-3.5-turbo',
             ],
             ProviderType.ANTHROPIC: [
-                # Added 2026-03-24
-                'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001',
+                # Current
+                'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001',
+                # Legacy
+                'claude-opus-4-6',
                 'claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101',
                 'claude-opus-4-1-20250805',
                 'claude-sonnet-4-20250514', 'claude-opus-4-20250514',
                 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022',
-                # Legacy
                 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229',
                 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
             ],
@@ -281,7 +282,6 @@ class AIFactory:
                 'llava:7b', 'llava:13b', 'llava:34b', 'llava:7b-v1.6',
                 'bakllava:7b', 'llama3.2-vision:11b', 'llama3.2:3b',
                 'mistral:7b', 'codellama:13b',
-                # Added 2026-03-24
                 'gemma3:12b', 'gemma3:27b',
                 'qwen2.5-vl:7b', 'qwen2.5-vl:72b',
                 'llama4:scout', 'llama4:maverick',
