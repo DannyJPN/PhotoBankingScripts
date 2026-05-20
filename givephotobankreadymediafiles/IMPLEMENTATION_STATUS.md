@@ -74,3 +74,4 @@
 - Removed duplicate JSON keys (`claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022`) that caused silent data loss
 - Added `claude-opus-4-7` as current flagship Anthropic model
 - Corrected Ollama `vision_models` set: added `qwen2.5-vl`, `minicpm-v`, `moondream2`, `llama4:scout/maverick`
+- Fixed `supports_images` flag in config_template.json for o3/o3-pro/o4-mini (all three support vision)

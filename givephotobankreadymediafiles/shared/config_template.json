@@ -100,23 +100,23 @@
         "o3": {
           "name": "OpenAI o3",
           "max_tokens": 4000,
-          "supports_images": false,
+          "supports_images": true,
           "cost_per_1k_tokens": 0.05,
-          "notes": "Reasoning model, thinks before responding"
+          "notes": "Reasoning model with vision support"
         },
         "o3-pro": {
           "name": "OpenAI o3 Pro",
           "max_tokens": 4000,
-          "supports_images": false,
+          "supports_images": true,
           "cost_per_1k_tokens": 0.1,
-          "notes": "Premium reasoning model"
+          "notes": "Premium reasoning with vision"
         },
         "o4-mini": {
           "name": "OpenAI o4 Mini",
           "max_tokens": 2000,
-          "supports_images": false,
+          "supports_images": true,
           "cost_per_1k_tokens": 0.02,
-          "notes": "Cost-efficient reasoning"
+          "notes": "Cost-efficient reasoning with vision"
         }
       }
     },
