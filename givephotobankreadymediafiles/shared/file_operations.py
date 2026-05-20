@@ -122,22 +122,33 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
     Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.copy2 pro zachování metadat a ensure_directory pro vytvoření chybějící cesty.
+    Kopíruje atomicky: zapisuje do temp souboru ve stejném adresáři, fsync, pak os.replace().
+    Zabraňuje vzniku zero-filled nebo truncated souborů při přerušení (plný disk, kill procesu).
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if not overwrite and os.path.exists(dest):
         logging.debug("File exists and overwrite disabled, skipping: %s", dest)
         return
 
-    # Vytvoří cílovou složku, pokud neexistuje
-    dest_folder = os.path.dirname(dest)
-    if dest_folder:
-        ensure_directory(dest_folder)
+    dest_folder = os.path.dirname(dest) or "."
+    ensure_directory(dest_folder)
 
+    temp_path = None
     try:
-        shutil.copy2(src, dest)
+        temp_fd, temp_path = tempfile.mkstemp(dir=dest_folder, prefix=".tmp_copy_")
+        os.close(temp_fd)
+        shutil.copy2(src, temp_path)
+        with open(temp_path, "rb") as f:
+            os.fsync(f.fileno())
+        os.replace(temp_path, dest)
+        temp_path = None
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                logging.warning("Failed to clean up temp file: %s", temp_path)
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
 
