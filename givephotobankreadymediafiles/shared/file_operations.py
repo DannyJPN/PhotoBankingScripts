@@ -5,6 +5,7 @@ import shutil
 import logging
 import csv
 import json
+import sys
 import tempfile
 from typing import IO
 from typing import List, Dict, Any, Union
@@ -119,13 +120,70 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
-def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
+def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
+    """Set file creation time on Windows using Win32 SetFileTime via ctypes.
+
+    Python stdlib (shutil.copy2 / os.utime) cannot set creation time on Windows.
+    This function calls CreateFileW → SetFileTime → CloseHandle directly.
+
+    :param path: Target file path.
+    :param ctime_unix: Creation time as Unix timestamp (seconds since Unix epoch).
+    :raises OSError: If the handle cannot be opened or SetFileTime fails.
+    :raises NotImplementedError: If called on a non-Windows platform.
     """
-    Copy *src* to *dest*, preserving metadata. Overwrites if *overwrite* is True.
+    if sys.platform != "win32":
+        raise NotImplementedError("_set_creation_time_windows is only supported on Windows")
+    import ctypes
+    import ctypes.wintypes as _wt
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateFileW.argtypes = [
+        _wt.LPCWSTR, _wt.DWORD, _wt.DWORD, ctypes.c_void_p,
+        _wt.DWORD, _wt.DWORD, _wt.HANDLE,
+    ]
+    kernel32.CreateFileW.restype = _wt.HANDLE
+    kernel32.SetFileTime.argtypes = [
+        _wt.HANDLE,
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+    ]
+    kernel32.SetFileTime.restype = _wt.BOOL
+    kernel32.CloseHandle.argtypes = [_wt.HANDLE]
+    kernel32.CloseHandle.restype = _wt.BOOL
+
+    # Convert Unix timestamp to Windows FILETIME (100-ns intervals since 1601-01-01)
+    t100ns = int(ctime_unix * 10_000_000) + 116_444_736_000_000_000
+    ft = _wt.FILETIME(t100ns & 0xFFFFFFFF, t100ns >> 32)
+
+    handle = kernel32.CreateFileW(
+        os.path.abspath(path),
+        0x0100,  # FILE_WRITE_ATTRIBUTES
+        0,
+        None,
+        3,      # OPEN_EXISTING
+        0x80,   # FILE_ATTRIBUTE_NORMAL
+        None,
+    )
+    if handle == _wt.HANDLE(-1).value:
+        raise OSError(f"SetFileTime: cannot open {path!r} (WinError {kernel32.GetLastError()})")
+    try:
+        # Pass None for atime and mtime — Win32 treats NULL as "do not change"
+        if not kernel32.SetFileTime(handle, ctypes.byref(ft), None, None):
+            raise OSError(f"SetFileTime failed on {path!r} (WinError {kernel32.GetLastError()})")
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
+    """Copy *src* to *dest*, preserving all metadata including creation time on Windows.
 
     Uses an atomic write pattern (temp file → fsync → os.replace) so that *dest*
     never contains partial data if the operation is interrupted by a full disk,
     an exception, or a process kill.
+
+    On Windows, creation time is explicitly restored via Win32 SetFileTime after
+    the rename, because shutil.copy2 / os.utime cannot set creation time on Windows.
 
     :param src: Path to the source file.
     :param dest: Path to the destination file.
@@ -140,6 +198,9 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     dest_folder = os.path.dirname(dest) or "."
     ensure_directory(dest_folder)
 
+    # Read creation time before the copy — on Windows st_ctime is creation time
+    src_ctime: float | None = os.stat(src).st_ctime if sys.platform == "win32" else None
+
     temp_path = None
     try:
         temp_fd, temp_path = tempfile.mkstemp(dir=dest_folder, prefix=".tmp_copy_")
@@ -149,6 +210,8 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
             os.fsync(f.fileno())
         os.replace(temp_path, dest)
         temp_path = None
+        if src_ctime is not None:
+            _set_creation_time_windows(dest, src_ctime)
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
         if temp_path and os.path.exists(temp_path):

@@ -70,3 +70,65 @@ def test_write_json_and_read_json(tmp_path):
     file_ops.write_json(str(target), {"a": 1})
 
     assert file_ops.read_json(str(target)) == {"a": 1}
+
+
+def test_copy_file__content_correct(tmp_path):
+    src = tmp_path / "src.txt"
+    src.write_text("hello", encoding="utf-8")
+    dest = tmp_path / "dest.txt"
+
+    file_ops.copy_file(str(src), str(dest))
+
+    assert dest.read_text(encoding="utf-8") == "hello"
+
+
+def test_copy_file__mtime_preserved(tmp_path):
+    import time
+    src = tmp_path / "src.txt"
+    src.write_text("x", encoding="utf-8")
+    old_mtime = 1_000_000_000.0
+    import os
+    os.utime(str(src), (old_mtime, old_mtime))
+    dest = tmp_path / "dest.txt"
+
+    file_ops.copy_file(str(src), str(dest))
+
+    assert abs(dest.stat().st_mtime - old_mtime) < 2
+
+
+import sys
+
+@pytest.mark.skipif(sys.platform != "win32", reason="creation time only on Windows")
+def test_copy_file__creation_time_preserved_windows(tmp_path):
+    import os, time
+    src = tmp_path / "src.txt"
+    src.write_text("x", encoding="utf-8")
+    # Allow creation time to be set by OS, then verify it is copied
+    src_ctime = src.stat().st_ctime
+    dest = tmp_path / "dest.txt"
+
+    file_ops.copy_file(str(src), str(dest))
+
+    assert abs(dest.stat().st_ctime - src_ctime) < 2
+
+
+def test_copy_file__overwrite_false_skips(tmp_path):
+    src = tmp_path / "src.txt"
+    src.write_text("new", encoding="utf-8")
+    dest = tmp_path / "dest.txt"
+    dest.write_text("old", encoding="utf-8")
+
+    file_ops.copy_file(str(src), str(dest), overwrite=False)
+
+    assert dest.read_text(encoding="utf-8") == "old"
+
+
+def test_copy_file__no_temp_file_on_missing_src(tmp_path):
+    src = tmp_path / "nonexistent.txt"
+    dest = tmp_path / "dest.txt"
+
+    with pytest.raises(Exception):
+        file_ops.copy_file(str(src), str(dest))
+
+    temp_files = list(tmp_path.glob(".tmp_copy_*"))
+    assert temp_files == [], f"Orphaned temp files: {temp_files}"
