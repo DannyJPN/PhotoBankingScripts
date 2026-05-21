@@ -145,7 +145,7 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
         temp_fd, temp_path = tempfile.mkstemp(dir=dest_folder, prefix=".tmp_copy_")
         os.close(temp_fd)
         shutil.copy2(src, temp_path)
-        with open(temp_path, "rb") as f:
+        with open(temp_path, "r+b") as f:
             os.fsync(f.fileno())
         os.replace(temp_path, dest)
         temp_path = None
