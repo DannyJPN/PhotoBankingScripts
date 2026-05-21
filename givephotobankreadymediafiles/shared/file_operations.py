@@ -12,6 +12,15 @@ from typing import List, Dict, Any, Union
 from collections import defaultdict
 from tqdm import tqdm
 
+if sys.platform == "win32":
+    import ctypes
+    import ctypes.wintypes as _wt
+
+    _WIN32_FILE_WRITE_ATTRIBUTES = 0x0100
+    _WIN32_OPEN_EXISTING = 3
+    _WIN32_FILE_ATTRIBUTE_NORMAL = 0x80
+    _WIN32_FILETIME_EPOCH_DIFF = 116_444_736_000_000_000
+
 # Type alias for JSON-serializable data
 JsonData = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 
@@ -120,11 +129,13 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+
+
 def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
     """Set file creation time on Windows using Win32 SetFileTime via ctypes.
 
     Python stdlib (shutil.copy2 / os.utime) cannot set creation time on Windows.
-    This function calls CreateFileW → SetFileTime → CloseHandle directly.
+    This function calls CreateFileW -> SetFileTime -> CloseHandle directly.
 
     :param path: Target file path.
     :param ctime_unix: Creation time as Unix timestamp (seconds since Unix epoch).
@@ -133,8 +144,6 @@ def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
     """
     if sys.platform != "win32":
         raise NotImplementedError("_set_creation_time_windows is only supported on Windows")
-    import ctypes
-    import ctypes.wintypes as _wt
 
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateFileW.argtypes = [
@@ -153,16 +162,16 @@ def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
     kernel32.CloseHandle.restype = _wt.BOOL
 
     # Convert Unix timestamp to Windows FILETIME (100-ns intervals since 1601-01-01)
-    t100ns = int(ctime_unix * 10_000_000) + 116_444_736_000_000_000
+    t100ns = int(ctime_unix * 10_000_000) + _WIN32_FILETIME_EPOCH_DIFF
     ft = _wt.FILETIME(t100ns & 0xFFFFFFFF, t100ns >> 32)
 
     handle = kernel32.CreateFileW(
         os.path.abspath(path),
-        0x0100,  # FILE_WRITE_ATTRIBUTES
+        _WIN32_FILE_WRITE_ATTRIBUTES,
         0,
         None,
-        3,      # OPEN_EXISTING
-        0x80,   # FILE_ATTRIBUTE_NORMAL
+        _WIN32_OPEN_EXISTING,
+        _WIN32_FILE_ATTRIBUTE_NORMAL,
         None,
     )
     if handle == _wt.HANDLE(-1).value:
@@ -214,13 +223,14 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
             _set_creation_time_windows(dest, src_ctime)
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
+        logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
+        raise
+    finally:
         if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except OSError:
                 logging.warning("Failed to clean up temp file: %s", temp_path)
-        logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
-        raise
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
