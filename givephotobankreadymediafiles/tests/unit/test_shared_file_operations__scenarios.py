@@ -5,7 +5,6 @@ Unit tests for givephotobankreadymediafiles/shared/file_operations.py.
 import os
 import shutil
 import sys
-import time
 from pathlib import Path
 
 import pytest
