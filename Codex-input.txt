@@ -1,0 +1,616 @@
+Date: 2026-03-25
+Branch reviewed: feature/public-portfolio-approval
+
+Purpose
+- Summarize a static code review of the current branch.
+- Summarize research on whether customer-side APIs or other official catalog/search channels can replace or reduce web scraping for "is this asset publicly visible to customers?" checks.
+
+Scope note
+- This review intentionally focuses on the current branch's public-portfolio approval feature in markphotomediaapprovalstatus.
+- The standalone script discover_portfolios.py appears to be a one-off helper and is not called by other code in the repository. It is therefore not treated as a primary production blocker.
+- The repository currently contains unrelated uncommitted changes and untracked files. This note is added as a separate file only.
+
+==================================================
+1. Executive Summary
+==================================================
+
+The current branch is trying to solve a valid problem:
+- determine whether a media item is publicly visible on a photobank from the customer side
+- if visible, infer that the item is effectively approved/live
+
+That product direction is reasonable.
+
+The main weakness is not the idea, but the implementation strategy:
+- the code currently relies on a large amount of bank-specific HTML scraping
+- matching is still mostly title-based
+- the main runner mixes crawling, anti-bot handling, matching, dry-run logging, and CSV writes in one flow
+
+My conclusion:
+- the branch is directionally correct
+- the architecture is still too heuristic and too operationally complex
+- for several banks, official customer-side APIs or official catalog/search channels should be preferred over scraping public portfolio pages
+- for the remaining banks, the fallback should be public site search or item-page inspection, not necessarily contributor-portfolio scraping
+
+==================================================
+2. Static Code Review
+==================================================
+
+2.1. What the branch is solving
+
+This branch adds a new non-GUI mode to markphotomediaapprovalstatus:
+- public portfolio crawling
+- asset extraction per bank
+- matching against PhotoMedia.csv
+- optional dry-run mode
+- session/cookie handling for anti-bot protected banks
+
+Primary touched area:
+- markphotomediaapprovalstatus/markphotomediaapprovalstatus.py
+- markphotomediaapprovalstatus/markphotomediaapprovalstatuslib/public_portfolio/*
+
+2.2. Main strengths
+
+- The feature target is well chosen: public customer visibility is often more relevant than internal contributor-side status.
+- Per-bank adapters are the right architectural direction because each bank exposes different HTML and metadata.
+- The code separates some concerns correctly:
+  - browser handling
+  - matching
+  - config
+  - session/cookies
+  - bank-specific extraction
+- Dry-run support is useful and operationally important.
+
+2.3. Main weaknesses and what should be improved
+
+1. The main runner is doing too much.
+
+File:
+- markphotomediaapprovalstatus/markphotomediaapprovalstatuslib/public_portfolio/runner.py
+
+The main flow currently combines:
+- config loading
+- bank iteration
+- portfolio crawling
+- anti-bot retry/session handling
+- dry-run logging
+- record matching
+- CSV persistence
+
+This makes the feature hard to debug and hard to stabilize. The function should be split into at least:
+- process_bank()
+- crawl_bank_assets()
+- match_bank_records()
+- persist_bank_updates()
+- handle_blocked_bank()
+
+2. Automatic approval is still based on relatively weak evidence.
+
+File:
+- markphotomediaapprovalstatus/markphotomediaapprovalstatuslib/public_portfolio/matching.py
+
+The current matching logic is mostly:
+- normalized title match
+- pipe-segment match
+- prefix match
+
+This is usable as a heuristic, but not strong enough to safely auto-write approvals across many banks.
+
+Risks:
+- false positives for similar title series
+- truncated title collisions
+- language/punctuation normalization edge cases
+- overly optimistic prefix matches
+
+Recommendation:
+- only auto-approve on "strong match"
+- introduce match confidence tiers:
+  - strong
+  - weak
+  - ambiguous
+  - none
+- weak matches should log only, not update CSV automatically
+
+3. PublicAsset is missing a stronger identity contract.
+
+File:
+- markphotomediaapprovalstatus/markphotomediaapprovalstatuslib/public_portfolio/models.py
+
+PublicAsset currently has:
+- bank
+- url
+- contributor_id
+- title
+- description
+
+For many banks, URL or page metadata contains a stable asset identifier. That should be modeled explicitly if available, for example:
+- asset_id
+- source_type
+- media_type
+- maybe width/height if present
+
+Without that, the system is forced to overuse title-based inference.
+
+4. Portfolio scraping is likely not the best primary source for all banks.
+
+Files:
+- public_portfolio/banks/*
+- public_portfolio/runner.py
+
+Portfolio pages are often:
+- lazy-loaded
+- anti-bot protected
+- incomplete
+- operationally unstable
+
+For many banks, public customer search/catalog endpoints are a cleaner primary source than contributor/public portfolio pages.
+
+Recommendation:
+- redesign bank strategy as:
+  - API search first
+  - official site search fallback
+  - scraping fallback only when necessary
+
+5. Session saver is too tightly coupled to the main automated flow.
+
+Files:
+- public_portfolio/runner.py
+- public_portfolio/session.py
+
+The main run currently attempts interactive recovery for blocked banks.
+That increases operational complexity and makes automation less predictable.
+
+Recommendation:
+- make automatic mode report blocked banks
+- run cookie/session capture explicitly as a separate maintenance step
+- keep the automatic pipeline deterministic
+
+6. Bank adapters are useful, but normalization logic is too fragmented.
+
+Files:
+- public_portfolio/banks/base.py
+- public_portfolio/banks/*.py
+
+Each adapter currently invents its own extraction style:
+- URL slug parsing
+- alt text parsing
+- aria-label parsing
+- anchor text parsing
+
+That is unavoidable to some extent, but quality rules should be centralized more aggressively in BaseBankAdapter:
+- minimal title quality
+- title cleanup
+- duplicate handling
+- asset quality thresholds
+
+7. Logging volume is decent, but diagnostic value is still lower than needed.
+
+The code logs a lot of steps, but still does not make it easy to answer:
+- why did this record not match?
+- what were the top candidates?
+- why was the match considered ambiguous?
+- how many assets were discarded due to contributor mismatch?
+
+Recommendation:
+- add structured debug output for failed/ambiguous matches
+- include top candidate titles and reasons
+- include summary counts per bank:
+  - extracted
+  - deduplicated
+  - filtered by contributor
+  - strong matches
+  - weak matches
+  - ambiguous
+
+8. The branch feels like a feature spike that needs narrowing before hardening.
+
+This branch introduced many capabilities at once:
+- crawler
+- session saver
+- config defaults
+- bank adapters
+- public discovery support
+- dry-run logging
+
+Recommendation:
+- stabilize 2-3 banks fully first
+- prove end-to-end accuracy
+- only then broaden bank coverage
+
+2.4. Most likely sources of "still not functional" behavior
+
+If the branch is currently perceived as not fully functional, the most likely causes are:
+
+- anti-bot / challenge pages causing incomplete crawls
+- overreliance on title heuristics
+- unstable extraction quality across banks
+- operational complexity from retry/session flow
+- weak observability when matching fails
+
+2.5. Concrete simplifications I would make first
+
+1. Refactor runner.py into smaller functions.
+2. Make automatic approval conservative:
+   - strong matches only
+   - weak matches only log
+3. Remove implicit interactive recovery from the main automatic pass.
+4. Promote API-first or official-search-first bank strategies where possible.
+5. Focus on stabilizing a small set of banks before extending coverage.
+
+==================================================
+3. Research: Can official APIs or other cleaner official channels replace scraping?
+==================================================
+
+Important framing:
+- The question is not "is there a contributor API?"
+- The relevant question is:
+  "Can I determine from the customer side whether a given asset is publicly visible?"
+
+That means customer-side catalog/search APIs are fully acceptable, and usually better than scraping.
+
+High-level conclusion:
+- For several banks, official customer-side APIs appear to be the best long-term source.
+- For some others, official public web search is a better fallback than portfolio scraping.
+- For a smaller set, scraping remains the realistic fallback.
+
+==================================================
+4. Bank-by-Bank Assessment
+==================================================
+
+Legend
+- API First: official catalog/search API looks like the best direction
+- Site Search Fallback: no clear practical API, but public official search pages are usable
+- Scraping Fallback: likely still needed
+
+4.1. ShutterStock
+
+Assessment:
+- API First
+
+Why:
+- Official Search API exists
+- Search works over public catalog content
+- This is much cleaner than portfolio scraping
+
+Practical recommendation:
+- Use Shutterstock search API as primary source
+- Search by title keywords and optionally contributor filters if available in the API contract you obtain
+- Keep public site fallback only if API access is unavailable
+
+Official sources:
+- https://www.shutterstock.com/developers/
+- https://www.shutterstock.com/developers/documentation/searching
+- https://submit.shutterstock.com/help/en/articles/10617439-how-do-customers-find-my-work-on-shutterstock
+- https://submit.shutterstock.com/help/en/articles/10594611-what-happens-after-my-content-is-approved
+
+4.2. Adobe Stock
+
+Assessment:
+- API First
+
+Why:
+- Official Stock Search API exists
+- Adobe explicitly documents customer-side stock API usage
+- No contributor API is needed for this use case
+
+Practical recommendation:
+- Prefer Adobe Stock Search API for public visibility checks
+- Use title/description-based search and inspect returned asset metadata
+
+Official sources:
+- https://developer.adobe.com/stock/docs/api/11-search-reference/
+- https://developer.adobe.com/stock/docs/getting-started/
+- https://developer.adobe.com/stock/docs/faq/
+
+4.3. Getty Images / iStock
+
+Assessment:
+- API First
+
+Why:
+- Getty has an official API offering for search/content access
+- This appears more appropriate than scraping visible portfolio pages
+
+Practical recommendation:
+- Prefer Getty catalog/search API if access is available
+- If not, use official site search before portfolio crawling
+
+Official sources:
+- https://www.gettyimages.ie/api
+
+4.4. Alamy
+
+Assessment:
+- Likely API First if access can be obtained, otherwise Site Search Fallback
+
+Why:
+- Official API partnership program exists
+- Public documentation suggests partner/customer integrations exist
+- Open self-serve search documentation was not clearly visible
+
+Practical recommendation:
+- If API access is realistically obtainable, prefer it
+- Otherwise use official site search or item pages before portfolio scraping
+
+Official sources:
+- https://www.alamy.com/api-partnerships/
+
+4.5. DepositPhotos
+
+Assessment:
+- API First
+
+Why:
+- Official API program exists
+- Search/catalog use appears to be a supported direction
+
+Practical recommendation:
+- Use API as primary path if access is obtainable
+- Avoid scraping portfolio pages if API can return public assets directly
+
+Official sources:
+- https://depositphotos.com/api-program/signup.html
+- https://depositphotos.com/api-agreement.html
+- https://depositphotos.com/api-plans.html
+
+4.6. 123RF
+
+Assessment:
+- API First
+
+Why:
+- Official media search API documentation exists
+- Public catalog search use is directly relevant
+
+Practical recommendation:
+- Use the official API before any scraper approach
+
+Official sources:
+- https://www.123rfapis.com/documentation/
+
+4.7. Pond5
+
+Assessment:
+- API First if access is realistically obtainable
+
+Why:
+- Official API exists
+- Customer-side catalog access is a better fit than scraping portfolio pages
+
+Practical recommendation:
+- Prefer API when possible
+- If access is gated, public site search fallback is still cleaner than portfolio scraping
+
+Official sources:
+- https://www.pond5.com/api
+
+4.8. Dreamstime
+
+Assessment:
+- Site Search Fallback
+
+Why:
+- I did not find clear official search API documentation suitable for this exact use case
+- Public customer search remains a viable official surface
+
+Practical recommendation:
+- Prefer official public search pages over contributor/public portfolio scraping
+- Scrape search results or stable item pages only as needed
+
+Official sources:
+- https://www.dreamstime.com/
+- https://www.dreamstime.com/stock-photos
+- https://www.dreamstime.com/photo-tools
+
+4.9. BigStockPhoto
+
+Assessment:
+- Site Search Fallback
+
+Why:
+- Bigstock publicly references "API & Partners" in site navigation, but I did not find a practical documented API path to rely on for this project
+- Public item pages are visible and reasonably stable
+
+Practical recommendation:
+- Use customer-side search/item pages
+- Do not invest heavily in contributor-portfolio scraping
+
+Official sources:
+- https://www.bigstockphoto.com/
+- https://www.bigstockphoto.com/image-365673784/stock-photo-passionate-embrace-of-a-couple-in-love
+
+4.10. PIXTA
+
+Assessment:
+- Site Search Fallback
+
+Why:
+- I did not find a clear public API path
+- The official site search UI supports customer-side search and contributor-oriented search modes
+
+Practical recommendation:
+- Use official search pages before scraping portfolio pages
+
+Official sources:
+- https://www.pixtastock.com/
+
+4.11. Freepik
+
+Assessment:
+- API First
+
+Why:
+- Official API exists
+- Search/list/detail endpoints are documented
+- Strong candidate for replacing scraping
+
+Practical recommendation:
+- Make Freepik one of the first banks to migrate to API-first
+
+Official sources:
+- https://www.freepik.com/api
+- https://docs.freepik.com/api-reference/resources/stock-content
+- https://www.freepik.com/api/pricing
+
+4.12. Vecteezy
+
+Assessment:
+- API First
+
+Why:
+- Official developer API exists for stock resources
+
+Practical recommendation:
+- Use Vecteezy API before scraping
+
+Official sources:
+- https://www.vecteezy.com/developers
+
+4.13. StoryBlocks
+
+Assessment:
+- API First
+
+Why:
+- Official API exists for business/catalog integration
+- Matches the customer-visibility use case better than scraping public pages
+
+Practical recommendation:
+- Prefer API if accessible
+
+Official sources:
+- https://www.storyblocks.com/resources/business-solutions/api
+
+4.14. Envato
+
+Assessment:
+- Site Search Fallback
+
+Why:
+- I found official Envato API terms, but not a clear stock-catalog API equivalent for the exact Elements visibility use case needed here
+
+Practical recommendation:
+- Treat official search/item pages as the likely practical source
+
+Official sources:
+- https://help.market.envato.com/hc/en-us/articles/42875085863705-Envato-Market-API-Terms
+- https://help.elements.envato.com/hc/en-us/articles/360000629186-Item-selection
+
+4.15. 500px
+
+Assessment:
+- Do not invest
+
+Why:
+- 500px officially discontinued free API access years ago
+- This is a weak candidate for building against
+
+Practical recommendation:
+- Avoid spending engineering effort here unless there is a strong business reason
+
+Official sources:
+- https://support.500px.com/hc/en-us/articles/360002435653-API
+
+4.16. MostPhotos
+
+Assessment:
+- Site Search / item-page fallback
+
+Why:
+- I did not find a clear official API
+- Public customer pages appear usable
+
+Practical recommendation:
+- Keep this low priority and use public web fallback
+
+Official source:
+- https://www.mostphotos.com/en-us/2253208/red-cat-breed-selkirk-rex
+
+4.17. CanStockPhoto
+
+Assessment:
+- Do not invest
+
+Why:
+- Weak candidate operationally
+- Already low-value / deprecated in project context
+
+==================================================
+5. Recommended Strategy by Bank
+==================================================
+
+Priority group A: migrate to API-first as soon as practical
+- ShutterStock
+- Adobe Stock
+- GettyImages / iStock
+- DepositPhotos
+- 123RF
+- Pond5
+- Freepik
+- Vecteezy
+- StoryBlocks
+
+Priority group B: consider API-first if access is realistic, otherwise use official site search
+- Alamy
+
+Priority group C: keep on official site search / public web fallback
+- Dreamstime
+- BigStockPhoto
+- PIXTA
+- Envato
+- MostPhotos
+
+Priority group D: low-value / avoid engineering investment
+- 500px
+- CanStockPhoto
+
+==================================================
+6. Important Practical Constraint: Customer accounts are not the key issue
+==================================================
+
+Question:
+- Will this work without customer accounts on the photobanks?
+
+Answer:
+- Sometimes yes
+- Sometimes no
+- The real issue is not whether you have a customer account
+- The real issue is whether the bank exposes customer-side search/catalog access via:
+  - self-serve developer API
+  - partner-only API
+  - official public search pages
+
+Practical implication:
+- some banks may be usable through public developer registration
+- some will require partnership approval
+- for the rest, official public search remains the best fallback
+
+==================================================
+7. Final Recommendation
+==================================================
+
+Do not treat "public portfolio scraping" as the universal strategy.
+
+Recommended architecture:
+
+1. API-first where official customer-side catalog/search APIs exist.
+2. Official public site search/item-page inspection where no practical API is available.
+3. Portfolio scraping only as a fallback, not the default.
+4. Keep approval updates conservative:
+   - strong match -> update
+   - weak match -> log only
+   - ambiguous -> no automatic update
+
+If I were continuing this branch, I would do the following in order:
+
+1. Refactor runner.py into smaller testable units.
+2. Introduce match confidence tiers.
+3. Stop auto-approving on weak title heuristics.
+4. Replace portfolio scraping with API-first logic for the highest-value banks:
+   - Shutterstock
+   - Adobe Stock
+   - Getty/iStock
+   - Freepik
+   - 123RF
+5. Use official search-page fallback for the rest.
+
+End of report.

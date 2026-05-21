@@ -1,0 +1,590 @@
+Dobře, navrhl jsem výzkumný plán. Bude to velmi podrobný a technicky zaměřený průzkum možností, jak automatizovaně zjistit, zda je konkrétní fotografie veřejně dostupná na různých fotobankách, výhradně z pohledu zákazníka.
+
+# Automatizované ověřování přítomnosti fotografie na fotobankách: Hluboký, technicky přesný a prakticky použitelný průzkum
+
+---
+
+## 1. Executive summary
+
+Tento dokument představuje mimořádně hluboký, technicky přesný a prakticky použitelný průzkum možností, jak **automatizovaně a spolehlivě ověřit, zda je konkrétní fotografie již veřejně dostupná na různých fotobankách**. Zaměřuje se výhradně na **customer-side realitu** – tedy na to, zda je fotografie skutečně veřejně dohledatelná a viditelná běžnému návštěvníkovi webu, nikoli na interní statusy v contributorském backendu.
+
+**Hlavní závěry:**
+
+- **Tier 1 (vysoká automatizovatelnost, nízké riziko false positives):** Shutterstock, Adobe Stock, Getty Images/iStock, DepositPhotos, 123RF, Pond5, Dreamstime, BigStockPhoto, Alamy – tyto banky mají robustní veřejné search rozhraní, často i API, a umožňují získat náhledy (preview) pro porovnání vizuální podobnosti.
+- **Tier 2 (omezená automatizace, vyšší rizika nebo omezené možnosti):** Freepik, Vecteezy, StoryBlocks, Envato, PIXTA, MostPhotos, 500px – zde jsou možnosti omezenější, často chybí robustní search API, preview jsou někdy obtížně dostupné, nebo je anti-bot ochrana výraznější.
+- **Tier 3 (pouze fallback, vysoké riziko false negatives/positives):** CanStockPhoto (již neexistuje), některé menší nebo regionální banky, kde není stabilní search nebo je web nestabilní.
+- **Tier 4 (neinvestovat):** Banky bez veřejného searchu, bez preview, nebo s extrémně silnou anti-bot ochranou.
+
+**Klíčové doporučení:** Nejvyšší spolehlivosti dosáhnete **hybridní strategií**: kombinujte textové vyhledávání (search API/UI), contributor portfolia, přímé item stránky a zejména **porovnání preview obrázků pomocí perceptuálních hashů (pHash, dHash, CLIP, SSIM)**. Rozhodovací logika musí být konzervativní, s důrazem na minimalizaci falešných pozitiv a auditovatelnost každého rozhodnutí.
+
+---
+
+## 2. Srovnávací tabulka všech fotobank
+
+| Banka             | Bez loginu? | S contributor loginem? | API?           | Veřejné search UI? | Portfolio použitelné? | Preview dostupné? | Vhodný primární přístup | Riziko false positive | Riziko false negative | Doporučená priorita |
+|-------------------|-------------|-----------------------|----------------|--------------------|-----------------------|-------------------|------------------------|----------------------|----------------------|---------------------|
+| Shutterstock      | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Adobe Stock       | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Getty/iStock      | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| DepositPhotos     | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| 123RF             | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Pond5             | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Dreamstime        | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| BigStockPhoto     | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Alamy             | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Ano               | Search + preview       | Nízké                | Nízké                | Tier 1              |
+| Freepik           | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Omezeně           | Search + portfolio     | Střední              | Střední              | Tier 2              |
+| Vecteezy          | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Omezeně           | Search + portfolio     | Střední              | Střední              | Tier 2              |
+| StoryBlocks       | Ano         | Ano                   | Partner only   | Ano               | Omezeně               | Omezeně           | Search                 | Vysoké               | Střední              | Tier 2              |
+| Envato            | Ano         | Ano                   | Partner only   | Ano               | Omezeně               | Omezeně           | Search                 | Vysoké               | Střední              | Tier 2              |
+| PIXTA             | Ano         | Ano                   | Partner only   | Ano               | Omezeně               | Omezeně           | Search                 | Vysoké               | Střední              | Tier 2              |
+| MostPhotos        | Ano         | Ano                   | Partner only   | Ano               | Omezeně               | Omezeně           | Search                 | Vysoké               | Střední              | Tier 2              |
+| 500px             | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Omezeně           | Search                 | Vysoké               | Střední              | Tier 2              |
+| CanStockPhoto     | Ne          | Ne                    | Ne             | Ne                | Ne                    | Ne                | Nelze                  | -                    | -                    | Tier 4              |
+| Stocksy, EyeEm    | Ano         | Ano                   | Partner only   | Ano               | Ano                   | Omezeně           | Search                 | Střední              | Střední              | Tier 2/3            |
+
+**Poznámka:** Rizika false positive/negative jsou relativní a závisí na konkrétní implementaci a kvalitě matchingu.
+
+---
+
+## 3. Detailní rozbor po jednotlivých bankách
+
+### 3.1 Shutterstock
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, robustní, umožňuje vyhledávání podle klíčových slov, popisu, contributor jména, někdy i podle obrázku (reverse image search).
+- **API:** Partner-only, není veřejně dostupné pro běžné uživatele, ale lze reverzně analyzovat frontendové search requesty (XHR/JSON).
+- **Portfolio contributorů:** Veřejné, lze filtrovat podle autora.
+- **Preview obrázky:** Dostupné v různých velikostech, často s vodoznakem.
+- **Anti-bot ochrana:** Cloudflare, někdy CAPTCHA, ale běžné search dotazy jsou většinou dostupné bez loginu.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání (description, keywords, contributor), případně reverse image search (přes Google Images/TinEye jako fallback).
+- **Sekundární:** Procházení contributor portfolia.
+- **Fallback:** Přímý přístup na detail assetu, pokud znáte asset ID nebo URL.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek (thumbnail), contributor, description, rozlišení, někdy asset ID v URL, title.
+- **Silný match:** Perceptuální hash (pHash, dHash, CLIP) mezi lokálním souborem a preview; shoda contributor + description + vizuální podobnost.
+- **Slabý match:** Pouze title nebo description, bez vizuální shody.
+- **Rizikové:** Pouze textová shoda bez vizuálního potvrzení.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vysoká vizuální podobnost (pHash/CLIP > 0.95) + shoda contributor.
+- **NE:** Nenalezen žádný kandidát ani při rozšířeném vyhledávání.
+- **NEJISTÉ:** Textová shoda, ale vizuální podobnost nízká nebo nejednoznačná.
+
+#### Rizika
+
+- **Anti-bot:** Cloudflare, rate limiting, možné blokace při vysoké frekvenci.
+- **Lazy loading:** Výsledky se načítají dynamicky, nutné simulovat scroll/pagination.
+- **Shadow DOM/JS-rendered:** Některé části UI jsou dynamické, vhodné použít Playwright/Selenium.
+- **Cache delay:** Nově schválené fotografie se mohou objevit se zpožděním.
+- **Falešné negativy:** Pokud je asset „hidden“ nebo není indexován search enginem.
+- **Falešné pozitivy:** Pokud je fotografie velmi podobná jiné (např. série snímků).
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + download preview + perceptuální hash.
+- **Sekundární:** Portfolio contributorů jako candidate source.
+- **Fallback:** Reverse image search přes Google/TinEye.
+- **Potřebné vstupy:** Lokální soubor, description, contributor.
+- **Spolehlivost:** Vysoká při kombinaci vizuální a textové shody.
+- **Rizika:** Rate limiting, anti-bot, false positives u podobných snímků.
+- **Produkční nasazení:** Používat cache, auditní logy (screenshoty, JSON response), konzervativní prahy.
+
+---
+
+### 3.2 Adobe Stock
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, robustní, umožňuje vyhledávání podle klíčových slov, contributor jména, asset ID.
+- **API:** Partner-only, ale lze reverzně analyzovat search endpointy (XHR/JSON).
+- **Portfolio contributorů:** Veřejné, lze filtrovat podle autora.
+- **Preview obrázky:** Dostupné, často s vodoznakem.
+- **Anti-bot ochrana:** Mírná, běžné search dotazy dostupné bez loginu.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání (description, keywords, contributor).
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Přímý přístup na detail assetu, pokud znáte asset ID.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description, asset ID (pokud je znám), title.
+- **Silný match:** Perceptuální hash preview vs. lokální soubor + shoda contributor.
+- **Slabý match:** Pouze textová shoda.
+- **Rizikové:** Title/description bez vizuálního potvrzení.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+- **NE:** Nenalezen žádný kandidát.
+- **NEJISTÉ:** Textová shoda, vizuální podobnost nízká.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting, možné blokace při vysoké frekvenci.
+- **Lazy loading:** Výsledky se načítají dynamicky.
+- **Cache delay:** Nově schválené fotografie se mohou objevit se zpožděním.
+- **Falešné pozitivy:** Série podobných snímků.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Reverse image search.
+- **Spolehlivost:** Vysoká.
+- **Produkční nasazení:** Auditní logy, cache, konzervativní prahy.
+
+---
+
+### 3.3 Getty Images / iStock
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, robustní, umožňuje vyhledávání podle klíčových slov, contributor jména, asset ID.
+- **API:** Partner-only, ale lze reverzně analyzovat search endpointy.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Střední, někdy rate limiting.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Přímý přístup na detail assetu.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description, asset ID.
+- **Silný match:** Vizuální podobnost + contributor.
+- **Slabý match:** Textová shoda.
+- **Rizikové:** Title/description bez vizuálního potvrzení.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+- **NE:** Nenalezen žádný kandidát.
+- **NEJISTÉ:** Textová shoda, vizuální podobnost nízká.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting, možné blokace.
+- **Cache delay:** Nově schválené fotografie se mohou objevit se zpožděním.
+- **Falešné pozitivy:** Série podobných snímků.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Reverse image search.
+- **Spolehlivost:** Vysoká.
+
+---
+
+### 3.4 DepositPhotos
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, robustní.
+- **API:** Partner-only, lze reverzně analyzovat search endpointy.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Přímý přístup na detail assetu.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+- **Slabý match:** Textová shoda.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+- **NE:** Nenalezen žádný kandidát.
+- **NEJISTÉ:** Textová shoda, vizuální podobnost nízká.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+- **Cache delay:** Nově schválené fotografie se mohou objevit se zpožděním.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+- **Spolehlivost:** Vysoká.
+
+---
+
+### 3.5 123RF
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano.
+- **API:** Partner-only.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+- **NE:** Nenalezen žádný kandidát.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+
+---
+
+### 3.6 Pond5
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, včetně vizuálního vyhledávání.
+- **API:** Partner-only.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání, vizuální vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + vizuální vyhledávání + preview + perceptuální hash.
+
+---
+
+### 3.7 Dreamstime
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano.
+- **API:** Partner-only.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+
+---
+
+### 3.8 BigStockPhoto
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano.
+- **API:** Partner-only.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+
+---
+
+### 3.9 Alamy
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, s pokročilými filtry.
+- **API:** Partner-only.
+- **Portfolio contributorů:** Veřejné.
+- **Preview obrázky:** Dostupné.
+- **Anti-bot ochrana:** Mírná.
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek, contributor, description.
+- **Silný match:** Vizuální podobnost + contributor.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor.
+
+#### Rizika
+
+- **Anti-bot:** Rate limiting.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash.
+
+---
+
+### 3.10 Freepik, Vecteezy, StoryBlocks, Envato, PIXTA, MostPhotos, 500px, Stocksy, EyeEm
+
+#### Přístup a technický mechanismus
+
+- **Veřejné search UI:** Ano, ale často omezené nebo s menšími možnostmi filtrování.
+- **API:** Partner-only, někdy omezené.
+- **Portfolio contributorů:** Veřejné, ale někdy obtížně dohledatelné.
+- **Preview obrázky:** Omezeně dostupné, někdy v nízké kvalitě.
+- **Anti-bot ochrana:** Často výraznější (DataDome, Cloudflare, CAPTCHA).
+
+#### Získání kandidátů
+
+- **Primární:** Textové vyhledávání.
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Reverse image search.
+
+#### Ověření shody
+
+- **Dostupné identifikátory:** Preview obrázek (často nízká kvalita), contributor, description.
+- **Silný match:** Vizuální podobnost, pokud je preview dostatečně kvalitní.
+- **Slabý match:** Textová shoda.
+
+#### Rozhodnutí přítomnosti
+
+- **ANO:** Vizuální podobnost > 0.95 + shoda contributor (pokud je preview kvalitní).
+- **NE:** Nenalezen žádný kandidát.
+- **NEJISTÉ:** Textová shoda, vizuální podobnost nízká.
+
+#### Rizika
+
+- **Anti-bot:** Výrazná, často blokace při vyšší frekvenci.
+- **Preview:** Někdy nedostatečná kvalita pro spolehlivý hash.
+- **Falešné pozitivy:** Pokud je preview příliš malé nebo nekvalitní.
+
+#### Doporučení
+
+- **Primární strategie:** Textové vyhledávání + preview + perceptuální hash (pokud je preview použitelné).
+- **Sekundární:** Portfolio contributorů.
+- **Fallback:** Reverse image search.
+
+---
+
+### 3.11 CanStockPhoto
+
+- **Poznámka:** Tato fotobanka již neexistuje, není relevantní pro automatizaci.
+
+---
+
+## 4. Návrh implementační architektury
+
+### Pipeline od vstupu po rozhodnutí
+
+1. **Input:** Lokální soubor (obrázek) + řádek z `PhotoMedia.csv` (filename, description, title, contributor, asset ID).
+2. **Candidate discovery:**
+   - Generování search dotazů z description, keywords, contributor.
+   - Prohledání veřejného search UI (přes HTTP klienta nebo Playwright).
+   - Prohledání contributor portfolia (pokud je dostupné).
+   - Fallback: Reverse image search (Google Images, TinEye).
+3. **Metadata normalization:**
+   - Extrakce preview obrázků, contributor jména, description, asset ID (pokud je dostupné).
+   - Uložení všech kandidátů do cache (včetně screenshotů, JSON payloadů, HTML snapshotů).
+4. **Image similarity:**
+   - Stažení preview obrázku.
+   - Výpočet perceptuálního hashe (pHash, dHash, CLIP embedding, SSIM).
+   - Porovnání s lokálním souborem.
+   - Pokud preview obsahuje vodoznak, použít robustnější hash nebo CLIP.
+5. **Confidence scoring:**
+   - Vyhodnocení shody: vizuální podobnost, contributor, description, rozlišení, asset ID.
+   - Výpočet skóre podle váženého modelu (viz níže).
+6. **Bank-specific adapters:**
+   - Každá banka má vlastní adapter pro search, extrakci preview, parsing výsledků.
+   - Adaptery jsou konfigurovatelné (např. selektory, endpointy, anti-bot strategie).
+7. **Audit logs:**
+   - Ukládání všech důkazů: screenshoty, JSON payloady, preview obrázky, výstupy hashů.
+   - Logování všech rozhodnutí a skóre.
+8. **Manual review queue:**
+   - Všechny případy s nejistým skóre nebo konfliktními důkazy jdou do fronty pro ruční kontrolu.
+
+### Další klíčové prvky
+
+- **Rate limiting a retry strategie:** Exponenciální backoff, randomizace, session management, rotace user-agentů.
+- **Anti-bot mitigation:** Playwright se stealth pluginem, persistentní session, cookies, simulace lidského chování.
+- **Cache:** Ukládání výsledků search, preview obrázků, hashů, aby se minimalizoval počet dotazů.
+- **Evidence storage:** Každý krok ukládá důkazy pro audit (pro právní audit i troubleshooting).
+
+---
+
+## 5. Návrh scoring modelu
+
+### Váhy pro různé typy shody
+
+| Typ shody                        | Váha (příklad) |
+|-----------------------------------|---------------|
+| Vizuální podobnost (pHash/CLIP)   | +50           |
+| Shoda contributor                 | +20           |
+| Shoda description                 | +10           |
+| Shoda title                       | +5            |
+| Shoda asset ID                    | +30           |
+| Shoda rozlišení/aspect ratio      | +10           |
+| Shoda filename (pokud je dostupný)| +5            |
+| OCR shoda (text na obrázku)       | +5            |
+| Ambiguous near-duplicate          | -30           |
+| Rozdílný contributor              | -50           |
+
+### Prahy pro rozhodnutí
+
+- **Auto present (ANO):** Skóre >= 70
+- **Auto absent (NE):** Skóre <= 20
+- **Uncertain (NEJISTÉ):** 21 <= skóre <= 69
+
+**Poznámka:** Prahy je nutné kalibrovat na reálném datasetu a mohou se lišit podle banky.
+
+---
+
+## 6. Doporučení pro implementaci v Pythonu
+
+### Které části řešit přes requests/httpx
+
+- **Textové search dotazy:** Pokud search endpointy nejsou chráněné anti-bot ochranou, lze použít requests/httpx.
+- **Stahování preview obrázků:** Pokud URL preview není dynamicky generováno JS.
+- **Parsing JSON payloadů:** Pokud jsou dostupné v XHR odpovědích.
+
+### Kde použít Playwright
+
+- **Dynamicky renderované stránky:** Pokud search UI nebo portfolio načítá výsledky až po načtení JS.
+- **Anti-bot ochrana:** Pokud je nasazen Cloudflare/DataDome, použít Playwright se stealth pluginem.
+- **Lazy loading/pagination:** Simulace scrollování, klikání na „další stránku“.
+- **Screenshoty pro audit:** Playwright umožňuje snadné pořizování screenshotů.
+
+### Kde použít OCR, CLIP, pHash, SSIM
+
+- **OCR:** Pokud preview obsahuje vodoznak nebo textové signatury (např. copyright, jméno autora).
+- **CLIP:** Pro robustní vizuální porovnání i při různých úpravách/vodoznaku.
+- **pHash/dHash:** Pro rychlé a efektivní porovnání, pokud je preview dostatečně kvalitní.
+- **SSIM:** Pro detailní porovnání strukturálních podobností.
+
+### Ukládání cache a důkazů
+
+- **Cache:** Redis nebo lokální SQLite/Parquet pro ukládání výsledků search, preview, hashů.
+- **Důkazy:** Ukládat screenshoty, HTML snapshoty, JSON payloady, preview obrázky, výstupy hashů.
+- **Auditní logy:** Každé rozhodnutí logovat s timestampem, vstupními daty a výstupem.
+
+### Testování přes reálné vzorky
+
+- **Testovací dataset:** Vytvořit z `PhotoMedia.csv` reprezentativní vzorek (různé banky, různé typy shody).
+- **A/B testy:** Porovnávat různé strategie (např. pHash vs. CLIP, různé prahy).
+- **Precision/recall:** Vyhodnocovat přesnost a úplnost rozhodnutí.
+
+---
+
+## 7. Právní a etické aspekty
+
+- **Dodržování ToS:** Vždy respektovat podmínky použití fotobank, zejména zákaz scrapingů, pokud je explicitně uveden.
+- **Etika:** Nepřetěžovat servery, používat rozumné rate limiting, respektovat robots.txt.
+- **Auditovatelnost:** Ukládat důkazy pro případ právního auditu (screenshoty, logy, hash výsledky).
+- **Bezpečnost:** Ukládat důkazy v zabezpečeném úložišti, chránit před neoprávněným přístupem.
+
+---
+
+## 8. Shrnutí a doporučené pořadí implementace
+
+1. **Shutterstock, Adobe Stock, Getty/iStock, DepositPhotos, 123RF, Pond5, Dreamstime, BigStockPhoto, Alamy**
+   - Robustní search, preview, portfolio, nízké riziko false positives.
+   - **Doporučeno začít zde.**
+
+2. **Freepik, Vecteezy, StoryBlocks, Envato, PIXTA, MostPhotos, 500px, Stocksy, EyeEm**
+   - Omezenější možnosti, vyšší riziko false positives/negatives.
+   - **Implementovat až po ověření Tier 1.**
+
+3. **CanStockPhoto a další neaktivní/omezené banky**
+   - **Neinvestovat.**
+
+---
+
+## 9. Závěrečné doporučení
+
+**Nejvyšší spolehlivosti dosáhnete hybridní strategií:**
+
+- **Candidate discovery:** Textové vyhledávání + portfolio contributorů.
+- **Verification:** Download preview + perceptuální hash (pHash, CLIP, SSIM).
+- **Scoring:** Kombinace vizuální a textové shody, konzervativní prahy.
+- **Audit:** Ukládání všech důkazů, logování rozhodnutí.
+- **Fallback:** Reverse image search (Google Images, TinEye) pro případy, kdy není preview dostupné.
+
+**Produkční pipeline musí být robustní, auditovatelná a konzervativní, s důrazem na minimalizaci falešných pozitiv a možnost ručního review v nejistých případech.**
+
+---
+
+**Tento dokument je připraven jako plnohodnotný Markdown soubor, připravený k uložení a použití jako referenční základ pro implementaci automatizovaného systému ověřování přítomnosti fotografií na fotobankách.**

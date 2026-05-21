@@ -83,6 +83,62 @@ They are **shared** across all modules; local specifics may be added at script l
 
 ---
 
+## Validators
+
+Every photobank in the system **must** have a corresponding standalone validation script
+(e.g. `validate_pond5.py`, `validate_shutterstock.py`, …).  This applies regardless of
+which detection technique the bank uses (web crawl, API, screenshot comparison, etc.).
+Validators are permanent, first-class parts of the codebase — not throwaway debug tools.
+
+### Purpose
+
+Banks regularly change their HTML structure, CDN URLs, anti-bot measures, and portfolio layout.
+Validators are the early-warning system for these changes.  **A validator that starts failing
+is a signal that the detection algorithm must be updated before it produces wrong results in
+production.**  Run validators after every significant change to a bank adapter and after any
+suspected site change.
+
+### Three-file output (mandatory for all validators)
+
+Each validator run produces exactly **3 output files**.  Two should be empty on a healthy system:
+
+| File | Content | Healthy state |
+|------|---------|---------------|
+| `validate_{Bank}_matched.txt` | CSV records matched to a portfolio asset (File 1, main report) | ~95%+ of approved records |
+| `validate_{Bank}_csv_not_on_web.txt` | Approved in CSV but NOT found on the bank (File 2) | **Empty** |
+| `validate_{Bank}_web_not_in_csv.txt` | Bank asset NOT matched to any CSV record (File 3) | **Empty** |
+
+### Match rate threshold
+
+* **Target: ≥ 95% of approved CSV records matched** (File 1 ≥ 95%).
+* If rate drops below 95 % → warn prominently; likely the bank changed its implementation.
+* Files 2 and 3 should ideally be completely empty.
+
+### Interpretation of non-empty control files
+
+* **File 2 non-empty** — records marked `schváleno` in PhotoMedia.csv that have no matching asset
+  on the bank.  Most likely cause: **the user incorrectly marked a file as approved**.
+  Claude must call this out explicitly and demand correction of PhotoMedia.csv.
+
+* **File 3 non-empty** — bank assets that have no matching `schváleno` record in PhotoMedia.csv.
+  Most likely cause: **the user approved a photo on the bank but forgot to update PhotoMedia.csv**.
+  Claude must call this out explicitly and demand correction of PhotoMedia.csv.
+
+### Edit-type filtering
+
+Validators intentionally process **all** approved records regardless of filename edit tags
+(`_bw`, `_negative`, `_sharpen`, etc.).  Edit-type filters are an internal heuristic for the
+main pipeline; the bank itself is the ground truth for the validator.
+
+### `--include-edited` flag (main detection script)
+
+The main `markphotomediaapprovalstatusauto.py` uses `--include-edited` to optionally include
+alternative edits (`_bw`, `_negative`, `_misty`, `_blurred`) in detection runs.  This flag name
+is **standardised** across all Fotobanking scripts (`exportpreparedmedia` uses the same flag);
+do not rename it.
+
+---
+
 ## Git workflow
 
 * Claude-only branches: `claude/<type>/<action>` (e.g., `claude/feature/upload`).

@@ -6,37 +6,29 @@ It displays information about the photo, asks the user if the photo was approved
 and saves the result back to the CSV and to a log.
 """
 
-import os
 import argparse
 import logging
 
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory, load_csv, save_csv_with_backup
+from shared.file_operations import ensure_directory, load_csv
 from shared.logging_config import setup_logging
 
 from markphotomediaapprovalstatuslib.constants import (
-    BANKS,
     DEFAULT_PHOTO_CSV_PATH,
     DEFAULT_LOG_DIR,
     STATUS_CHECKED,
-    STATUS_COLUMN_KEYWORD,
-    STATUS_APPROVED,
-    STATUS_REJECTED,
-    STATUS_MAYBE
 )
 from markphotomediaapprovalstatuslib.status_handler import (
     filter_checked_entries,
-    filter_records_by_edit_type
+    filter_records_by_edit_type,
 )
 from markphotomediaapprovalstatuslib.media_helper import process_approval_records
 
 
 def parse_arguments():
-    """
-    Parse command line arguments.
+    """Parse command line arguments.
 
-    Returns:
-        Parsed arguments
+    :return: Parsed argument namespace.
     """
     parser = argparse.ArgumentParser(
         description="Mark photo media approval status in CSV database."
@@ -52,45 +44,34 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
-    """
-    Main function of the script.
-    """
-    # Parse arguments
+def main() -> None:
+    """Entry point: load CSV, run GUI approval flow, and save results."""
     args = parse_arguments()
 
-    # Setup logging
     ensure_directory(args.log_dir)
     log_file = get_log_filename(args.log_dir)
     setup_logging(debug=args.debug, log_file=log_file)
     logging.info("Starting photo media approval status marking process")
 
-    # Load CSV data
     try:
         all_data = load_csv(args.csv_path)
-        logging.info(f"Loaded {len(all_data)} records from {args.csv_path}")
-    except Exception as e:
-        logging.error(f"Failed to load CSV file: {e}")
+        logging.info("Loaded %s records from %s", len(all_data), args.csv_path)
+    except Exception as exc:
+        logging.error("Failed to load CSV file: %s", exc)
         return
 
-    # Filter by edit type for processing (exclude alternative edits, optionally exclude edited photos)
-    # Note: This creates a filtered VIEW for processing, but we keep all_data for saving
     data_to_process = filter_records_by_edit_type(all_data, include_edited=args.include_edited)
     if not data_to_process:
         logging.info("No records to process after filtering")
         return
 
-    # Filter entries with STATUS_CHECKED status (from processable records only)
     filtered_data = filter_checked_entries(data_to_process)
     if not filtered_data:
-        logging.info(f"No entries with '{STATUS_CHECKED}' status found in processable records. Nothing to process.")
+        logging.info("No entries with '%s' status found in processable records. Nothing to process.", STATUS_CHECKED)
         return
 
-    # Process approval records using GUI (saves after each file)
-    # Pass all_data so changes are made to the complete dataset
     changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
 
-    # Final summary (individual saves are done during processing)
     if changes_made:
         logging.info("All changes have been saved during processing")
     else:
