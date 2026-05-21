@@ -121,7 +121,7 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
         raise
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-,    Copy *src* to *dest*, preserving metadata. Overwrites if *overwrite* is True.
+    Copy *src* to *dest*, preserving metadata. Overwrites if *overwrite* is True.
 
     Uses an atomic write pattern (temp file → fsync → os.replace) so that *dest*
     never contains partial data if the operation is interrupted by a full disk,
