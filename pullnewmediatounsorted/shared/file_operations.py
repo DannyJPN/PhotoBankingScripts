@@ -20,6 +20,23 @@ if sys.platform == "win32":
     _WIN32_OPEN_EXISTING = 3
     _WIN32_FILE_ATTRIBUTE_NORMAL = 0x80
     _WIN32_FILETIME_EPOCH_DIFF = 116_444_736_000_000_000
+    _WIN32_INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.CreateFileW.argtypes = [
+        _wt.LPCWSTR, _wt.DWORD, _wt.DWORD, ctypes.c_void_p,
+        _wt.DWORD, _wt.DWORD, _wt.HANDLE,
+    ]
+    _kernel32.CreateFileW.restype = _wt.HANDLE
+    _kernel32.SetFileTime.argtypes = [
+        _wt.HANDLE,
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+    ]
+    _kernel32.SetFileTime.restype = _wt.BOOL
+    _kernel32.CloseHandle.argtypes = [_wt.HANDLE]
+    _kernel32.CloseHandle.restype = _wt.BOOL
 
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
@@ -140,27 +157,10 @@ def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
     if sys.platform != "win32":
         raise NotImplementedError("_set_creation_time_windows is only supported on Windows")
 
-    kernel32 = ctypes.windll.kernel32
-    kernel32.CreateFileW.argtypes = [
-        _wt.LPCWSTR, _wt.DWORD, _wt.DWORD, ctypes.c_void_p,
-        _wt.DWORD, _wt.DWORD, _wt.HANDLE,
-    ]
-    kernel32.CreateFileW.restype = _wt.HANDLE
-    kernel32.SetFileTime.argtypes = [
-        _wt.HANDLE,
-        ctypes.POINTER(_wt.FILETIME),
-        ctypes.POINTER(_wt.FILETIME),
-        ctypes.POINTER(_wt.FILETIME),
-    ]
-    kernel32.SetFileTime.restype = _wt.BOOL
-    kernel32.CloseHandle.argtypes = [_wt.HANDLE]
-    kernel32.CloseHandle.restype = _wt.BOOL
-
-    # Convert Unix timestamp to Windows FILETIME (100-ns intervals since 1601-01-01)
     t100ns = int(ctime_unix * 10_000_000) + _WIN32_FILETIME_EPOCH_DIFF
     ft = _wt.FILETIME(t100ns & 0xFFFFFFFF, t100ns >> 32)
 
-    handle = kernel32.CreateFileW(
+    handle = _kernel32.CreateFileW(
         os.path.abspath(path),
         _WIN32_FILE_WRITE_ATTRIBUTES,
         0,
@@ -169,14 +169,13 @@ def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
         _WIN32_FILE_ATTRIBUTE_NORMAL,
         None,
     )
-    if handle == _wt.HANDLE(-1).value:
-        raise OSError(f"SetFileTime: cannot open {path!r} (WinError {kernel32.GetLastError()})")
+    if handle == _WIN32_INVALID_HANDLE_VALUE:
+        raise OSError(f"SetFileTime: cannot open {path!r} (WinError {_kernel32.GetLastError()})")
     try:
-        # Pass None for atime and mtime — Win32 treats NULL as "do not change"
-        if not kernel32.SetFileTime(handle, ctypes.byref(ft), None, None):
-            raise OSError(f"SetFileTime failed on {path!r} (WinError {kernel32.GetLastError()})")
+        if not _kernel32.SetFileTime(handle, ctypes.byref(ft), None, None):
+            raise OSError(f"SetFileTime failed on {path!r} (WinError {_kernel32.GetLastError()})")
     finally:
-        kernel32.CloseHandle(handle)
+        _kernel32.CloseHandle(handle)
 
 
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
@@ -202,7 +201,6 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     dest_folder = os.path.dirname(dest) or "."
     ensure_directory(dest_folder)
 
-    # Read creation time before the copy — on Windows st_ctime is creation time
     src_ctime: float | None = os.stat(src).st_ctime if sys.platform == "win32" else None
 
     temp_path = None
@@ -215,15 +213,20 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
         os.replace(temp_path, dest)
         temp_path = None
         if src_ctime is not None:
-            _set_creation_time_windows(dest, src_ctime)
+            try:
+                _set_creation_time_windows(dest, src_ctime)
+            except OSError as ctime_err:
+                logging.warning("Could not preserve creation time for %s: %s", dest, ctime_err)
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
     finally:
-        if temp_path and os.path.exists(temp_path):
+        if temp_path:
             try:
                 os.remove(temp_path)
+            except FileNotFoundError:
+                pass
             except OSError:
                 logging.warning("Failed to clean up temp file: %s", temp_path)
 
