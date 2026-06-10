@@ -23,6 +23,8 @@ from pullnewmediatounsortedlib.constants import (
     DEFAULT_LOG_DIR,
     SCREENSHOT_MARKERS,
     PREFIXES_TO_NORMALIZE,
+    DEFAULT_NUMBER_WIDTH,
+    MAX_NUMBER,
 )
 
 from pullnewmediatounsortedlib.renaming         import replace_in_filenames
@@ -48,8 +50,8 @@ def parse_arguments():
     parser.add_argument("--log_dir",         type=str, default=DEFAULT_LOG_DIR)
     parser.add_argument("--debug",           action="store_true")
     parser.add_argument("--index_prefix",    type=str, default="PICT", help="Prefix for indexed filenames")
-    parser.add_argument("--index_width",     type=int, default=4, help="Width of numeric suffix")
-    parser.add_argument("--index_max",       type=int, default=9999, help="Max index number to scan")
+    parser.add_argument("--index_width",     type=int, default=DEFAULT_NUMBER_WIDTH, help="Width of numeric suffix")
+    parser.add_argument("--index_max",       type=int, default=MAX_NUMBER, help="Max index number to scan")
     return parser.parse_args()
 
 

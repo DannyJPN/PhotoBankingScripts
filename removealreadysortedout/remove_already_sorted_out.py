@@ -12,6 +12,8 @@ from removealreadysortedoutlib.constants import (
     DEFAULT_TARGET_FOLDER,
     DEFAULT_LOG_DIR,
     PREFIXES_TO_NORMALIZE,
+    DEFAULT_NUMBER_WIDTH,
+    MAX_NUMBER,
 )
 
 from removealreadysortedoutlib.removal_operations import (
@@ -42,9 +44,9 @@ def parse_arguments():
                         help="Enable debug logging")
     parser.add_argument("--index_prefix", type=str, default="PICT", 
                         help="Prefix for indexed filenames")
-    parser.add_argument("--index_width", type=int, default=4, 
+    parser.add_argument("--index_width", type=int, default=DEFAULT_NUMBER_WIDTH,
                         help="Width of numeric suffix")
-    parser.add_argument("--index_max", type=int, default=9999, 
+    parser.add_argument("--index_max", type=int, default=MAX_NUMBER,
                         help="Max index number to scan")
     return parser.parse_args()
 
