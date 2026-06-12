@@ -40,12 +40,6 @@ def parse_arguments():
                         help="Overwrite files with different sizes")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
-    parser.add_argument("--index_prefix", type=str, default="PICT", 
-                        help="Prefix for indexed filenames")
-    parser.add_argument("--index_width", type=int, default=4, 
-                        help="Width of numeric suffix")
-    parser.add_argument("--index_max", type=int, default=9999, 
-                        help="Max index number to scan")
     return parser.parse_args()
 
 def main():
@@ -82,8 +76,6 @@ def main():
             source_folder=args.unsorted_folder,
             reference_folder=args.target_folder,
             prefix=prefix,
-            width=args.index_width,
-            max_number=args.index_max,
         )
     
     # Step 4: Get list of files from unsorted folder (after preprocessing)
