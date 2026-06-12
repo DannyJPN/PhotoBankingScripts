@@ -23,7 +23,7 @@ from shared.exif_handler import get_best_creation_date
 from shared.exif_downloader import ensure_exiftool
 from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory
+from shared.file_operations import ensure_directory, move_file
 from shared.name_utils import (
     extract_camera_number,
     extract_dated_parts,
@@ -113,7 +113,12 @@ def migrate(folder: str, dry_run: bool) -> None:
 
         # Remove old name from used_names so it doesn't block itself
         used_names.discard(name)
-        new_name = resolve_name_conflict(base_new_name, used_names)
+        try:
+            new_name = resolve_name_conflict(base_new_name, used_names)
+        except ValueError:
+            logging.error("No name variant available for %s, skipping", base_new_name)
+            skipped += 1
+            continue
         used_names.add(new_name)
 
         if new_name == name:
@@ -127,9 +132,10 @@ def migrate(folder: str, dry_run: bool) -> None:
         dst = file_path.parent / new_name
         if dry_run:
             logging.info("[DRY-RUN] %s -> %s", name, new_name)
+            renamed += 1
         else:
             try:
-                os.rename(str(file_path), str(dst))
+                move_file(str(file_path), str(dst), overwrite=False)
                 logging.info("Renamed %s -> %s", name, new_name)
                 renamed += 1
             except Exception as e:

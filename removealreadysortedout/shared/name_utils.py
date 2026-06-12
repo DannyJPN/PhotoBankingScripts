@@ -14,8 +14,12 @@ from removealreadysortedoutlib.constants import (
 
 
 def extract_camera_number(filename: str, prefix: str = "PICT") -> Optional[int]:
-    """Extract the 4-digit camera sequence number from a legacy filename (e.g. NIK_8888.JPG)."""
-    pattern = rf"^{re.escape(prefix)}(\d{{{CAMERA_SEQ_WIDTH}}})\."
+    """
+    Extract the camera sequence number from a legacy filename (e.g. NIK_8888.JPG).
+    Accepts 4-6 digits to handle files that may have been assigned wider numbers by
+    earlier script versions; the canonical camera counter is exactly 4 digits (0001-9999).
+    """
+    pattern = rf"^{re.escape(prefix)}(\d{{{MIN_NUMBER_WIDTH},{MAX_NUMBER_WIDTH}}})\."
     m = re.match(pattern, filename, re.IGNORECASE)
     if m:
         num = int(m.group(1))

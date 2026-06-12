@@ -84,8 +84,9 @@ def normalize_indexed_filenames(
             hash_to_canon[h] = os.path.basename(path)
     logging.debug("Reference provides %d canonical names", len(hash_to_canon))
 
-    # 3) Seed used_names from all filenames already present in the reference folder
+    # 3) Seed used_names from reference folder AND existing source folder filenames
     used_names: set[str] = {os.path.basename(p) for p in ref_hash_map}
+    used_names |= {os.path.basename(p) for p in paths}
 
     # 4) Locate ExifTool once
     try:
@@ -136,14 +137,18 @@ def normalize_indexed_filenames(
 
             date_str = path_to_date[src_path].strftime(DATE_FORMAT)
             base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
-            new_name = resolve_name_conflict(base_name, used_names)
+            try:
+                new_name = resolve_name_conflict(base_name, used_names)
+            except ValueError:
+                logging.error("No name variant available for %s, skipping", base_name)
+                continue
             used_names.add(new_name)
             logging.debug("No hash match: assigned dated name %s", new_name)
 
         if new_name != name:
             dst = os.path.join(os.path.dirname(src_path), new_name)
             try:
-                os.rename(src_path, dst)
+                move_file(src_path, dst, overwrite=False)
                 logging.debug("Renamed %s -> %s", name, new_name)
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)
