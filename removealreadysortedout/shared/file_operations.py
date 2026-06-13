@@ -65,6 +65,19 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
         raise
 
+def delete_file(path: str) -> None:
+    """
+    Smaže soubor na dané cestě.
+    """
+    logging.debug("Deleting file: %s", path)
+    try:
+        os.remove(path)
+        logging.debug("Deleted file: %s", path)
+    except Exception as e:
+        logging.error("Failed to delete file %s: %s", path, e)
+        raise
+
+
 def delete_folder(path: str) -> None:
     """
     Smaže celou složku a její obsah.

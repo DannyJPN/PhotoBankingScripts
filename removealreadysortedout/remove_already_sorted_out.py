@@ -1,4 +1,3 @@
-import os
 import argparse
 import logging
 from tqdm import tqdm
@@ -11,20 +10,17 @@ from removealreadysortedoutlib.constants import (
     DEFAULT_UNSORTED_FOLDER,
     DEFAULT_TARGET_FOLDER,
     DEFAULT_LOG_DIR,
-    PREFIXES_TO_NORMALIZE,
 )
 
 from removealreadysortedoutlib.removal_operations import (
-    get_target_files_map,
+    get_target_hash_map,
     find_duplicates,
     handle_duplicate,
-    remove_desktop_ini
+    remove_desktop_ini,
 )
 
-from removealreadysortedoutlib.renaming import (
-    replace_in_filenames,
-    normalize_indexed_filenames
-)
+from removealreadysortedoutlib.renaming import replace_in_filenames
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -36,71 +32,59 @@ def parse_arguments():
                         help="Target folder with sorted files")
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR,
                         help="Directory for log files")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="Overwrite files with different sizes")
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
     return parser.parse_args()
 
+
 def main():
-    # Parse command line arguments
     args = parse_arguments()
-    
-    # Setup logging
+
     ensure_directory(args.log_dir)
     log_file = get_log_filename(args.log_dir)
     setup_logging(debug=args.debug, log_file=log_file)
-    
+
     logging.info("Starting RemoveAlreadySortedOut process")
-    logging.info(f"Unsorted folder: {args.unsorted_folder}")
-    logging.info(f"Target folder: {args.target_folder}")
-    logging.info(f"Overwrite mode: {args.overwrite}")
-    
+    logging.info("Unsorted folder: %s", args.unsorted_folder)
+    logging.info("Target folder: %s", args.target_folder)
+
     # Remove desktop.ini if it exists
     remove_desktop_ini(args.unsorted_folder)
-    
-    # Step 1: Unify duplicate files in both folders (same as pullnew)
+
+    # Step 1: Unify duplicate files in both folders
     logging.info("Step 1: Unifying duplicate files...")
     unify_duplicate_files(args.unsorted_folder, recursive=True)
     unify_duplicate_files(args.target_folder, recursive=True)
-    
+
     # Step 2: Generic filename replacements (_NIK -> NIK_ by default)
     logging.info("Step 2: Replacing filename patterns...")
     replace_in_filenames(args.unsorted_folder, "_NIK", "NIK_", recursive=True)
     replace_in_filenames(args.target_folder, "_NIK", "NIK_", recursive=True)
-    
-    # Step 3: Normalize indexed filenames in unsorted vs target
-    logging.info("Step 3: Normalizing indexed filenames...")
-    for prefix in PREFIXES_TO_NORMALIZE:
-        normalize_indexed_filenames(
-            source_folder=args.unsorted_folder,
-            reference_folder=args.target_folder,
-            prefix=prefix,
-        )
-    
-    # Step 4: Get list of files from unsorted folder (after preprocessing)
+
+    # Step 3: Build content-hash map of target folder
+    logging.info("Step 3: Building hash map of target folder...")
+    target_hash_map = get_target_hash_map(args.target_folder)
+    logging.info("Found %d unique file hashes in target folder", len(target_hash_map))
+
+    # Step 4: List files in unsorted folder
     logging.info("Step 4: Listing files in unsorted folder...")
     unsorted_files = list_files(args.unsorted_folder, recursive=True)
-    logging.info(f"Found {len(unsorted_files)} files in unsorted folder")
-    
-    # Get map of files in target folder
-    logging.info("Building map of files in target folder...")
-    target_files_map = get_target_files_map(args.target_folder)
-    logging.info(f"Found {len(target_files_map)} unique filenames in target folder")
-    
-    # Find duplicates
-    logging.info("Finding duplicates...")
-    duplicates = find_duplicates(unsorted_files, target_files_map)
-    logging.info(f"Found {len(duplicates)} files that exist in both folders")
-    
-    # Process duplicates
-    logging.info("Processing duplicates...")
+    logging.info("Found %d files in unsorted folder", len(unsorted_files))
+
+    # Step 5: Find duplicates by content hash
+    logging.info("Step 5: Finding duplicates...")
+    duplicates = find_duplicates(unsorted_files, target_hash_map)
+    logging.info("Found %d files that exist in both folders", len(duplicates))
+
+    # Step 6: Remove duplicates
+    logging.info("Step 6: Removing duplicates...")
     with tqdm(total=len(duplicates), desc="Removing duplicates", unit="files") as pbar:
         for source_path, target_paths in duplicates.items():
-            handle_duplicate(source_path, target_paths, args.overwrite, log_file)
+            handle_duplicate(source_path, target_paths)
             pbar.update(1)
-    
+
     logging.info("RemoveAlreadySortedOut process completed successfully")
+
 
 if __name__ == "__main__":
     main()
