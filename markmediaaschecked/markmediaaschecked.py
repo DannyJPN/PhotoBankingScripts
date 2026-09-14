@@ -19,6 +19,8 @@ from markmediaascheckedlib.mark_handler import (
     extract_status_columns,
     filter_ready_records,
     filter_records_by_edit_type,
+    filter_status_columns,
+    parse_banks,
     update_statuses
 )
 
@@ -91,7 +93,7 @@ def main():
     # 3. Find status columns
     status_columns = extract_status_columns(all_records)
     if args.banks:
-        status_columns = _filter_status_columns(status_columns, _parse_banks(args.banks))
+        status_columns = filter_status_columns(status_columns, parse_banks(args.banks))
     if not status_columns:
         logging.error("No status columns found in the CSV file")
         return
@@ -117,36 +119,6 @@ def main():
     save_csv(all_records, args.photo_csv_file)
 
     logging.info("MarkMediaAsChecked process completed successfully")
-
-
-def _parse_banks(banks_value: str) -> list[str]:
-    """
-    Parse a comma-separated bank list.
-    """
-    return [item.strip() for item in banks_value.split(",") if item.strip()]
-
-
-def _filter_status_columns(status_columns: list[str], banks: list[str]) -> list[str]:
-    """
-    Filter status columns to selected banks.
-
-    Returns an empty list if `banks` is empty, so a `--banks` value that parses
-    to no names (e.g. ',' or ' ') fails closed instead of matching every column.
-    """
-    filtered: list[str] = []
-    lower_columns = {col.lower(): col for col in status_columns}
-
-    for bank in banks:
-        matched = False
-        for col_lower, col in lower_columns.items():
-            if col_lower.startswith(bank.lower()):
-                if col not in filtered:
-                    filtered.append(col)
-                matched = True
-        if not matched:
-            logging.warning(f"No status column found for bank: {bank}")
-
-    return filtered
 
 
 if __name__ == "__main__":

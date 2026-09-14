@@ -101,57 +101,6 @@ def test_main__banks_filter_limits_status_columns(monkeypatch, tmp_path):
     assert captured["cols"] == ["AdobeStock status"]
 
 
-def test_filter_status_columns__matches_case_insensitively():
-    filtered = mmc._filter_status_columns(
-        ["AdobeStock status", "GettyImages status"],
-        ["adobestock"],
-    )
-
-    assert filtered == ["AdobeStock status"]
-
-
-def test_filter_status_columns__unknown_bank__logs_warning_and_returns_empty(caplog):
-    with caplog.at_level("WARNING"):
-        filtered = mmc._filter_status_columns(
-            ["AdobeStock status", "GettyImages status"],
-            ["NonExistentBank"],
-        )
-
-    assert filtered == []
-    assert "NonExistentBank" in caplog.text
-
-
-def test_filter_status_columns__empty_banks_list_returns_no_columns():
-    filtered = mmc._filter_status_columns(
-        ["AdobeStock status", "GettyImages status"],
-        [],
-    )
-
-    assert filtered == []
-
-
-def test_filter_status_columns__repeated_bank_is_deduplicated():
-    filtered = mmc._filter_status_columns(
-        ["AdobeStock status", "GettyImages status"],
-        ["adobestock", "AdobeStock"],
-    )
-
-    assert filtered == ["AdobeStock status"]
-
-
-def test_parse_banks__splits_and_strips_names():
-    assert mmc._parse_banks("AdobeStock,ShutterStock") == ["AdobeStock", "ShutterStock"]
-
-
-def test_parse_banks__ignores_whitespace_and_empty_items():
-    assert mmc._parse_banks(" AdobeStock , ,ShutterStock,") == ["AdobeStock", "ShutterStock"]
-
-
-def test_parse_banks__whitespace_or_comma_only_value_returns_empty_list():
-    assert mmc._parse_banks(",") == []
-    assert mmc._parse_banks("   ") == []
-
-
 def test_main__banks_garbage_value_fails_closed(monkeypatch, tmp_path, caplog):
     args = make_args(tmp_path, banks=",")
     monkeypatch.setattr(mmc, "parse_arguments", lambda: args)

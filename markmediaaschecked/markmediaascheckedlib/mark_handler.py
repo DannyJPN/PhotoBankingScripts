@@ -143,3 +143,33 @@ def filter_records_by_edit_type(records: list[dict], include_edited: bool = Fals
                 f"(excluded {excluded_edited} edited photos)")
 
     return filtered
+
+
+def parse_banks(banks_value: str) -> list[str]:
+    """
+    Parse a comma-separated bank list.
+    """
+    return [item.strip() for item in banks_value.split(",") if item.strip()]
+
+
+def filter_status_columns(status_columns: list[str], banks: list[str]) -> list[str]:
+    """
+    Filter status columns to selected banks.
+
+    Returns an empty list if `banks` is empty, so a `--banks` value that parses
+    to no names (e.g. ',' or ' ') fails closed instead of matching every column.
+    """
+    filtered: list[str] = []
+    lower_columns = {col.lower(): col for col in status_columns}
+
+    for bank in banks:
+        matched = False
+        for col_lower, col in lower_columns.items():
+            if col_lower.startswith(bank.lower()):
+                if col not in filtered:
+                    filtered.append(col)
+                matched = True
+        if not matched:
+            logging.warning(f"No status column found for bank: {bank}")
+
+    return filtered
