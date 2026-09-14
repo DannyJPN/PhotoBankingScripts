@@ -129,10 +129,10 @@ def _parse_banks(banks_value: str) -> list[str]:
 def _filter_status_columns(status_columns: list[str], banks: list[str]) -> list[str]:
     """
     Filter status columns to selected banks.
-    """
-    if not banks:
-        return status_columns
 
+    Returns an empty list if `banks` is empty, so a `--banks` value that parses
+    to no names (e.g. ',' or ' ') fails closed instead of matching every column.
+    """
     filtered: list[str] = []
     lower_columns = {col.lower(): col for col in status_columns}
 
@@ -140,14 +140,14 @@ def _filter_status_columns(status_columns: list[str], banks: list[str]) -> list[
         matched = False
         for col_lower, col in lower_columns.items():
             if col_lower.startswith(bank.lower()):
-                filtered.append(col)
+                if col not in filtered:
+                    filtered.append(col)
                 matched = True
         if not matched:
-            logging.warning("No status column found for bank: %s", bank)
+            logging.warning(f"No status column found for bank: {bank}")
 
     return filtered
 
 
 if __name__ == "__main__":
     main()
-

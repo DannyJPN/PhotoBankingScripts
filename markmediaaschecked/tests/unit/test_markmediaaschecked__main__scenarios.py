@@ -119,3 +119,58 @@ def test_filter_status_columns__unknown_bank__logs_warning_and_returns_empty(cap
 
     assert filtered == []
     assert "NonExistentBank" in caplog.text
+
+
+def test_filter_status_columns__empty_banks_list_returns_no_columns():
+    filtered = mmc._filter_status_columns(
+        ["AdobeStock status", "GettyImages status"],
+        [],
+    )
+
+    assert filtered == []
+
+
+def test_filter_status_columns__repeated_bank_is_deduplicated():
+    filtered = mmc._filter_status_columns(
+        ["AdobeStock status", "GettyImages status"],
+        ["adobestock", "AdobeStock"],
+    )
+
+    assert filtered == ["AdobeStock status"]
+
+
+def test_parse_banks__splits_and_strips_names():
+    assert mmc._parse_banks("AdobeStock,ShutterStock") == ["AdobeStock", "ShutterStock"]
+
+
+def test_parse_banks__ignores_whitespace_and_empty_items():
+    assert mmc._parse_banks(" AdobeStock , ,ShutterStock,") == ["AdobeStock", "ShutterStock"]
+
+
+def test_parse_banks__whitespace_or_comma_only_value_returns_empty_list():
+    assert mmc._parse_banks(",") == []
+    assert mmc._parse_banks("   ") == []
+
+
+def test_main__banks_garbage_value_fails_closed(monkeypatch, tmp_path, caplog):
+    args = make_args(tmp_path, banks=",")
+    monkeypatch.setattr(mmc, "parse_arguments", lambda: args)
+    monkeypatch.setattr(mmc, "ensure_directory", lambda _p: None)
+    monkeypatch.setattr(mmc, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(mmc, "setup_logging", lambda **_k: None)
+
+    records = [{"AdobeStock status": constants.STATUS_READY}]
+    monkeypatch.setattr(mmc, "load_csv", lambda _p: records)
+    monkeypatch.setattr(mmc, "filter_records_by_edit_type", lambda recs, include_edited=False: recs)
+    monkeypatch.setattr(mmc, "extract_status_columns", lambda _recs: ["AdobeStock status"])
+
+    updated = {"called": False}
+    monkeypatch.setattr(mmc, "update_statuses", lambda *_a, **_k: updated.update({"called": True}) or 0)
+    monkeypatch.setattr(mmc, "save_csv", lambda *_a, **_k: updated.update({"saved": True}))
+
+    with caplog.at_level("ERROR"):
+        mmc.main()
+
+    assert updated["called"] is False
+    assert "saved" not in updated
+    assert "No status columns found" in caplog.text
