@@ -108,3 +108,14 @@ def test_filter_status_columns__matches_case_insensitively():
     )
 
     assert filtered == ["AdobeStock status"]
+
+
+def test_filter_status_columns__unknown_bank__logs_warning_and_returns_empty(caplog):
+    with caplog.at_level("WARNING"):
+        filtered = mmc._filter_status_columns(
+            ["AdobeStock status", "GettyImages status"],
+            ["NonExistentBank"],
+        )
+
+    assert filtered == []
+    assert "NonExistentBank" in caplog.text

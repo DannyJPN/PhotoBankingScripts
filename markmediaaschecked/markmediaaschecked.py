@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 """
 MarkMediaAsChecked - Script to mark media as checked in CSV files.
 
@@ -53,7 +53,7 @@ def parse_arguments():
     parser.add_argument(
         "--include-edited",
         action="store_true",
-        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)"
+        help="Include edited photos from 'upravené' folders (default: only original photos)"
     )
     parser.add_argument(
         "--banks",
