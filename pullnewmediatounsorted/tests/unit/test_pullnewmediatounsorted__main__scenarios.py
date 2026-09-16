@@ -33,6 +33,7 @@ def make_args(tmp_path, **overrides):
         index_prefix="PICT",
         index_width=4,
         index_max=10,
+        move=False,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -69,3 +70,30 @@ def test_main__calls_copy_and_flatten(monkeypatch, tmp_path):
 
     assert called["copy"] > 0
     assert called["flatten"] == 2
+
+
+def test_main__move_mode_uses_move_folder_contents(monkeypatch, tmp_path):
+    args = make_args(tmp_path, move=True)
+    monkeypatch.setattr(pnu, "parse_arguments", lambda: args)
+    monkeypatch.setattr(pnu, "ensure_directory", lambda _p: None)
+    monkeypatch.setattr(pnu, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(pnu, "setup_logging", lambda **_k: None)
+    monkeypatch.setattr(pnu, "unify_duplicate_files", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "replace_in_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "normalize_indexed_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(pnu, "flatten_folder", lambda *_a, **_k: None)
+
+    copy_calls = []
+    move_calls = []
+
+    monkeypatch.setattr(pnu, "copy_folder", lambda *_a, **_k: copy_calls.append(True))
+    monkeypatch.setattr(
+        pnu,
+        "move_folder_contents",
+        lambda *_a, **_k: move_calls.append((_a, _k)),
+    )
+
+    pnu.main()
+
+    assert copy_calls == []
+    assert len(move_calls) == 16
