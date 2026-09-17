@@ -51,7 +51,11 @@ def is_media_file(file_path: str) -> bool:
     return ext in media_extensions
 
 
-def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dict[str, str]], csv_path: str) -> bool:
+def process_approval_records(
+    data: List[Dict[str, str]],
+    filtered_data: List[Dict[str, str]],
+    csv_path: str
+) -> tuple[bool, List[Dict[str, str]]]:
     """
     Process approval records bank-by-bank, file-by-file using MediaViewer GUI.
 
@@ -75,6 +79,7 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
         return False
 
     changes_made = False
+    decision_records: List[Dict[str, str]] = []
     total_banks = len(BANKS)
 
     logging.info(f"Starting bank-first iteration across {total_banks} banks")
@@ -130,6 +135,11 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
 
                         # Log the change
                         logging.info(f"APPROVAL_CHANGE: {file_name} : {bank} : {old_value} -> {decision}")
+                        decision_records.append({
+                            "file": file_name,
+                            "bank": bank,
+                            "decision": decision
+                        })
 
                         # Update _sharpen status if needed
                         sharpen_changed = update_sharpen_status(record, data, bank, decision)
@@ -149,4 +159,4 @@ def process_approval_records(data: List[Dict[str, str]], filtered_data: List[Dic
         logging.info(f"Completed bank {bank}")
 
     logging.info(f"=== Completed all {total_banks} banks, changes made: {changes_made} ===")
-    return changes_made
+    return changes_made, decision_records
