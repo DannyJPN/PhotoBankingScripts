@@ -20,9 +20,9 @@ DEFAULT_LOG_DIR = "H:/Logs"
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
 
 # Media file extensions (consistent with givephotobankreadymediafiles)
-IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw', '.psd']
-VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
-VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
+IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng", ".nef", ".raw", ".cr2", ".arw", ".psd"]
+VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".wmv", ".mkv"]
+VECTOR_EXTENSIONS = [".svg", ".eps", ".ai"]
 
 # CSV column names (Czech - matching PhotoMedia.csv structure)
 COLUMN_FILENAME = "Soubor"
@@ -111,3 +111,6 @@ MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing f
 MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
 DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
 MAX_NUMBER = 999999  # Maximum number with 6 digits
+
+COLUMN_DELETED = "Smazano"
+DELETED_VALUE = "ano"

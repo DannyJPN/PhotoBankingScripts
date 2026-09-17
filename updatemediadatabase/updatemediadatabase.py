@@ -28,7 +28,10 @@ from updatemedialdatabaselib.constants import (
     DEFAULT_EDIT_PHOTO_DIR,
     DEFAULT_EDIT_VIDEO_DIR,
     DEFAULT_LOG_DIR,
-    COLUMN_FILENAME
+    COLUMN_FILENAME,
+    COLUMN_PATH,
+    COLUMN_DELETED,
+    DELETED_VALUE
 )
 from updatemedialdatabaselib.exif_downloader import ensure_exiftool
 from updatemedialdatabaselib.media_processor import process_media_file
@@ -105,6 +108,8 @@ def parse_arguments():
     # ExifTool path is now managed via constants, no longer a parameter
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
+    parser.add_argument("--detect-deleted", action="store_true",
+                        help="Mark records with missing files in the database")
     return parser.parse_args()
 
 def main():
@@ -133,6 +138,10 @@ def main():
     except Exception as e:
         logging.error(f"Failed to load media database: {e}")
         database = []
+
+    if args.detect_deleted and database:
+        deleted_count = _mark_deleted_records(database)
+        logging.info("Marked %d records as deleted", deleted_count)
 
     # Extract filenames from database for efficient lookup
     existing_filenames = set()
@@ -181,6 +190,12 @@ def main():
     if not all_files:
         print("No files found to process")
         logging.info("No files found to process")
+        if args.detect_deleted and database:
+            try:
+                save_csv_with_backup(database, args.media_csv)
+                logging.info("Saved database with deleted flags")
+            except Exception as e:
+                logging.error("Failed to save database after deleted detection: %s", e)
         return
 
     # Step 2: Split files by type (JPG, videos, non-JPG images)
@@ -339,6 +354,25 @@ def main():
     
     print("\n✅ UpdateMediaDatabase completed successfully")
     logging.info("UpdateMediaDatabase completed successfully")
+
+def _mark_deleted_records(records: List[Dict[str, str]]) -> int:
+    """
+    Mark records whose file paths no longer exist.
+    """
+    deleted_count = 0
+    for record in records:
+        path = record.get(COLUMN_PATH, "")
+        if not path:
+            continue
+        if not os.path.exists(path):
+            if record.get(COLUMN_DELETED) != DELETED_VALUE:
+                record[COLUMN_DELETED] = DELETED_VALUE
+                deleted_count += 1
+        else:
+            if record.get(COLUMN_DELETED):
+                record[COLUMN_DELETED] = ""
+    return deleted_count
+
 
 if __name__ == "__main__":
     main()

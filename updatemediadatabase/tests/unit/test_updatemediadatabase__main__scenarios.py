@@ -36,6 +36,7 @@ def test_main__exiftool_missing(monkeypatch):
         edit_video_dir="C:/edit/videos",
         log_dir="C:/logs",
         debug=False,
+        detect_deleted=False,
     )
     monkeypatch.setattr(main_module, "parse_arguments", lambda: args)
     monkeypatch.setattr(main_module, "ensure_directory", lambda _p: None)
@@ -43,3 +44,31 @@ def test_main__exiftool_missing(monkeypatch):
     monkeypatch.setattr(main_module, "ensure_exiftool", lambda: (_ for _ in ()).throw(RuntimeError("missing")))
 
     assert main_module.main() is None
+
+
+def test_parse_arguments__detect_deleted_flag(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["updatemediadatabase.py", "--detect-deleted"])
+
+    args = main_module.parse_arguments()
+
+    assert args.detect_deleted is True
+
+
+def test_mark_deleted_records__marks_missing_and_clears_existing(monkeypatch):
+    records = [
+        {"Cesta": "C:/exists.jpg", "Smazano": "ano"},
+        {"Cesta": "C:/missing.jpg", "Smazano": ""},
+        {"Cesta": "", "Smazano": ""},
+    ]
+
+    monkeypatch.setattr(
+        main_module.os.path,
+        "exists",
+        lambda path: path == "C:/exists.jpg",
+    )
+
+    count = main_module._mark_deleted_records(records)
+
+    assert count == 1
+    assert records[0]["Smazano"] == ""
+    assert records[1]["Smazano"] == "ano"
