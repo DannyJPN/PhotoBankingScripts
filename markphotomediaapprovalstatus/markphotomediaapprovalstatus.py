@@ -1,4 +1,4 @@
-"""
+﻿"""
 Mark Photo Media Approval Status
 
 This script allows manual evaluation of photo statuses in a CSV database for each defined photobank.
@@ -48,7 +48,7 @@ def parse_arguments():
     parser.add_argument("--debug", action="store_true",
                         help="Enable debug logging")
     parser.add_argument("--include-edited", action="store_true",
-                        help="Include edited photos from 'upravené' folders (default: only original photos)")
+                        help="Include edited photos from 'upravenĂ©' folders (default: only original photos)")
     return parser.parse_args()
 
 
@@ -88,7 +88,8 @@ def main():
 
     # Process approval records using GUI (saves after each file)
     # Pass all_data so changes are made to the complete dataset
-    changes_made = process_approval_records(all_data, filtered_data, args.csv_path)
+    banks_override = _parse_banks(args.banks)
+    changes_made = process_approval_records(all_data, filtered_data, args.csv_path, banks_override)
 
     # Final summary (individual saves are done during processing)
     if changes_made:
@@ -99,5 +100,15 @@ def main():
     logging.info("Photo media approval status marking process completed")
 
 
+def _parse_banks(banks_value: str) -> list[str]:
+    """
+    Parse a comma-separated bank list.
+    """
+    if not banks_value:
+        return []
+    return [item.strip() for item in banks_value.split(",") if item.strip()]
+
+
 if __name__ == "__main__":
     main()
+
