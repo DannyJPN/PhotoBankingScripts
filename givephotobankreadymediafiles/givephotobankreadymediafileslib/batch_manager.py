@@ -69,13 +69,14 @@ def _validate_dreamstime_categories(
     if not selected or not valid_categories:
         return selected if selected else []
 
-    valid_set = set(valid_categories)
+    valid_lower = {v.lower(): v for v in valid_categories}
     validated = []
 
     for cat in selected:
         cat_str = str(cat).strip()
-        if cat_str in valid_set:
-            validated.append(cat_str)
+        canonical = valid_lower.get(cat_str.lower())
+        if canonical:
+            validated.append(canonical)
         else:
             logging.warning("Invalid Dreamstime category filtered: '%s'", cat_str)
 
