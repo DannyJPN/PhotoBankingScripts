@@ -55,6 +55,8 @@ fix_*.ps1
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/*.md
+.claude/skills/
 
 # Build artifacts
 build/
@@ -70,6 +72,10 @@ htmlcov/
 *.csv.bak
 *.json.bak
 backup_*
+
+# Local notes
+PR_69_ISSUES.md
+.github/issues/issue_csv_backup_naming_convention_consistency.md
 
 # CUDA/GPU artifacts
 

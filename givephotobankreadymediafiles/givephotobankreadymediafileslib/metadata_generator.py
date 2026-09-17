@@ -6,6 +6,7 @@ for images and videos based on visual content analysis and prompts.
 """
 
 import os
+import re
 import logging
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
@@ -580,16 +581,24 @@ class MetadataGenerator:
         
         categories = {}
         
+        image_ext = os.path.splitext(image_path)[1].lower()
         for photobank, available_categories in self.photobank_categories.items():
             if not available_categories:
                 continue
+
+            filtered_categories = available_categories
+            if photobank.lower() == "dreamstime" and image_ext in [".jpg", ".jpeg"]:
+                filtered_categories = [
+                    cat for cat in available_categories
+                    if not cat.lower().startswith("web design graphics")
+                ]
                 
-            prompt = self.prompt_manager.get_categories_prompt(photobank, available_categories, 
+            prompt = self.prompt_manager.get_categories_prompt(photobank, filtered_categories, 
                                                               title, description)
             
             try:
                 response = self.ai_provider.analyze_image(image_path, prompt)
-                selected = self._parse_categories(response, available_categories, photobank)
+                selected = self._parse_categories(response, filtered_categories, photobank)
                 
                 if selected:
                     categories[photobank] = selected
@@ -882,17 +891,17 @@ class MetadataGenerator:
     def _find_best_category_match(self, target: str, available: List[str]) -> Optional[str]:
         """Find best matching category from available list."""
         target_lower = target.lower()
+        target_lower = re.sub(r"\s*->\s*", " -> ", target_lower)
+        target_lower = " ".join(target_lower.split())
         
         # Exact match first
         for cat in available:
-            if cat.lower() == target_lower:
+            cat_lower = cat.lower()
+            cat_lower = re.sub(r"\s*->\s*", " -> ", cat_lower)
+            cat_lower = " ".join(cat_lower.split())
+            if cat_lower == target_lower:
                 return cat
-        
-        # Partial match
-        for cat in available:
-            if target_lower in cat.lower() or cat.lower() in target_lower:
-                return cat
-        
+
         return None
     
     def _parse_editorial_response(self, response: str) -> bool:

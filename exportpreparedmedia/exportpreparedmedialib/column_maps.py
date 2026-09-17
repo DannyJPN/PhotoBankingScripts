@@ -50,7 +50,7 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Releases", "value": ""},
     ],
 
-    "DreamsTime": [
+    "Dreamstime": [
         {"target": "Filename", "source": "filename"},
         {"target": "Image Name", "source": "title"},
         {"target": "Description", "source": "description"},
@@ -144,6 +144,34 @@ BANK_COLUMN_MAPS: Dict[str, BankColumnMap] = {
         {"target": "Image Type", "value": "P"},
         {"target": "Exclusive to Alamy", "value": "N"},
         {"target": "Additional Info", "value": ""},
+    ],
+
+    # New banks with CSV export support
+    "Pixta": [
+        {"target": "Filename", "source": "filename"},
+        {"target": "Title", "source": "title"},
+        {"target": "Comment", "source": "description"},
+        {"target": "Keywords", "source": "keywords"},
+    ],
+
+    "Freepik": [
+        {"target": "Filename", "source": "filename"},
+        {"target": "Title", "source": "title"},
+        {"target": "Description", "source": "description"},
+        {"target": "Keywords", "source": "keywords"},
+    ],
+
+    "Vecteezy": [
+        {"target": "Filename", "source": "filename"},
+        {"target": "Title", "source": "title"},
+        {"target": "Description", "source": "description"},
+        {"target": "Keywords", "source": "keywords"},
+    ],
+
+    "StoryBlocks": [
+        {"target": "Headline", "source": "title"},
+        {"target": "Description", "source": "description"},
+        {"target": "Keywords", "source": "keywords"},
     ]
 }
 

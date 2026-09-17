@@ -17,7 +17,7 @@ HEADER_MAPPINGS = {
         "Category": "category",
         "Releases": "releases"
     },
-    "DreamsTime": {
+    "Dreamstime": {
         "Filename": "filename",
         "Image Name": "image_name",
         "Description": "description",
@@ -99,5 +99,29 @@ HEADER_MAPPINGS = {
         "brief code": "brief_code",
         "title": "title",
         "keywords": "keywords"
+    },
+    # New banks with CSV export support
+    "Pixta": {
+        "Filename": "filename",
+        "Title": "title",
+        "Comment": "description",
+        "Keywords": "keywords"
+    },
+    "Freepik": {
+        "Filename": "filename",
+        "Title": "title",
+        "Description": "description",
+        "Keywords": "keywords"
+    },
+    "Vecteezy": {
+        "Filename": "filename",
+        "Title": "title",
+        "Description": "description",
+        "Keywords": "keywords"
+    },
+    "StoryBlocks": {
+        "Headline": "headline",
+        "Description": "description",
+        "Keywords": "keywords"
     }
 }

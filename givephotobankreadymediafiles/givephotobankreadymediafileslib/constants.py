@@ -167,7 +167,15 @@ DEFAULT_OLLAMA_MODELS = [
     "bakllava:7b",
     "llama3.2-vision:11b",
     "llama3.2-vision:90b",
-    "cogvlm:17b"
+    "cogvlm:17b",
+    "gemma3:12b",
+    "gemma3:27b",
+    "qwen2.5-vl:7b",
+    "qwen2.5-vl:72b",
+    "llama4:scout",
+    "llama4:maverick",
+    "minicpm-v:8b",
+    "moondream2",
 ]
 
 DEFAULT_OLLAMA_VISION_MODEL = "llava:7b-v1.6"
@@ -183,5 +191,13 @@ PHOTOBANK_CATEGORY_COUNTS = {
     '123rf': 0,
     'canstockphoto': 0,
     'pond5': 0,
-    'gettyimages': 0
+    'gettyimages': 0,
+    # New banks
+    'pixta': 0,
+    'freepik': 0,
+    'vecteezy': 0,
+    'storyblocks': 0,
+    'envato': 0,
+    '500px': 0,
+    'mostphotos': 0
 }

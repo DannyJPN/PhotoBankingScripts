@@ -12,6 +12,49 @@ from givephotobankreadymediafileslib.constants import (
 )
 
 
+def parse_dreamstime_hierarchy(categories: List[str]) -> Dict[str, List[str]]:
+    """
+    Parse Dreamstime categories from flat list into hierarchical structure.
+
+    Dreamstime categories have format "MainCategory -> SubCategory".
+    This function groups them by main category for better prompt formatting.
+
+    Args:
+        categories: List of category strings like ["Abstract -> Aerial", "Animals -> Birds"]
+
+    Returns:
+        Dict mapping main category to list of sub-categories, e.g.:
+        {"Abstract": ["Aerial", "Backgrounds"], "Animals": ["Birds", "Farm"]}
+    """
+    hierarchy: Dict[str, List[str]] = {}
+
+    for category in categories:
+        if " -> " not in category:
+            continue
+
+        parts = category.split(" -> ", 1)
+        if len(parts) != 2:
+            continue
+
+        main_cat = parts[0].strip()
+        sub_cat = parts[1].strip()
+
+        if not main_cat or not sub_cat:
+            continue
+
+        if main_cat not in hierarchy:
+            hierarchy[main_cat] = []
+
+        if sub_cat not in hierarchy[main_cat]:
+            hierarchy[main_cat].append(sub_cat)
+
+    sorted_hierarchy: Dict[str, List[str]] = {}
+    for main_cat in sorted(hierarchy.keys()):
+        sorted_hierarchy[main_cat] = sorted(hierarchy[main_cat])
+
+    return sorted_hierarchy
+
+
 def load_media_records(csv_path: str) -> List[Dict[str, str]]:
     """
     Load all media records from PhotoMedia.csv.

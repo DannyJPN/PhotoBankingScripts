@@ -144,6 +144,71 @@ PHOTOBANK_CONFIGS = {
         "discontinued": True,
         "discontinued_date": "2024",
         "discontinuation_message": "CanStockPhoto has been discontinued and is no longer accepting uploads."
+    },
+    "BigStockPhoto": {
+        "protocol": "discontinued",
+        "host": None,
+        "port": None,
+        "directory": None,
+        "supported_formats": [],
+        "discontinued": True,
+        "discontinued_date": "2024",
+        "discontinuation_message": "BigStockPhoto has been deprecated."
+    },
+    # New banks
+    "Freepik": {
+        "protocol": "sftp",
+        "host": "contributor-ftp.freepik.com",
+        "port": 60022,
+        "directory": "/",
+        "supported_formats": ['.jpg', '.eps', '.psd'],
+        "requires_level": 3,
+        "requires_published_files": 500,
+        "min_mp": 3,
+        "note": "Requires Level 3 contributor status (500+ published files)"
+    },
+    "MostPhotos": {
+        "protocol": "ftp",
+        "host": None,  # Obtain from contributor dashboard
+        "port": 21,
+        "directory": "/",
+        "directories": {
+            "photos": "/",
+            "vectors": "/vectorimages"
+        },
+        "supported_formats": ['.jpg', '.eps', '.ai'],
+        "note": "FTP credentials must be obtained from contributor dashboard or support@mostphotos.com"
+    },
+    # Web-only banks (no FTP/SFTP upload support)
+    "Pixta": {
+        "protocol": "web",
+        "upload_method": "csv",
+        "supported_formats": ['.jpg', '.png', '.eps'],
+        "note": "CSV metadata upload via web interface"
+    },
+    "Vecteezy": {
+        "protocol": "web",
+        "upload_method": "manual",
+        "supported_formats": ['.jpg', '.eps'],
+        "note": "Web upload only"
+    },
+    "StoryBlocks": {
+        "protocol": "web",
+        "upload_method": "portal",
+        "supported_formats": ['.mov', '.mp4'],
+        "note": "Contributor portal upload only"
+    },
+    "Envato": {
+        "protocol": "web",
+        "upload_method": "portfolio_manager",
+        "supported_formats": ['.jpg'],
+        "note": "Portfolio Manager upload (IPTC metadata only)"
+    },
+    "500px": {
+        "protocol": "web",
+        "upload_method": "manual",
+        "supported_formats": ['.jpg'],
+        "note": "Web upload only (API deprecated 2018)"
     }
 }
 

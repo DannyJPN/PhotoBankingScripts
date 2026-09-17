@@ -11,8 +11,43 @@ from exportpreparedmedialib.constants import (
     VALID_STATUS,
     DEFAULT_LOCATION,
     DEFAULT_USERNAME,
-    DEFAULT_COPYRIGHT_AUTHOR
+    DEFAULT_COPYRIGHT_AUTHOR,
+    BANKS_NO_EDITORIAL
 )
+
+
+def is_editorial_item(item: dict[str, str]) -> bool:
+    """
+    Check if an item is editorial content based on title or description.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+
+    Returns:
+        True if item matches editorial regex pattern
+    """
+    title = item.get('Název', item.get('title', item.get('Title', '')))
+    description = item.get('Popis', item.get('description', item.get('Description', '')))
+
+    return bool(re.search(EDITORIAL_REGEX, title)) or bool(re.search(EDITORIAL_REGEX, description))
+
+
+def should_skip_editorial(item: dict[str, str], bank_name: str) -> bool:
+    """
+    Determine if an editorial item should be skipped for a given bank.
+
+    Args:
+        item: Item dictionary from PhotoMedia.csv
+        bank_name: Name of the photobank
+
+    Returns:
+        True if item is editorial and bank doesn't accept editorial
+    """
+    if bank_name not in BANKS_NO_EDITORIAL:
+        return False
+
+    return is_editorial_item(item)
+
 
 def get_enabled_banks(args: Namespace) -> list[str]:
     """
@@ -34,7 +69,7 @@ def get_enabled_banks(args: Namespace) -> list[str]:
         enabled_banks.append("AdobeStock")
 
     if hasattr(args, 'dreamstime') and args.dreamstime:
-        enabled_banks.append("DreamsTime")
+        enabled_banks.append("Dreamstime")
 
     if hasattr(args, 'depositphotos') and args.depositphotos:
         enabled_banks.append("DepositPhotos")
@@ -42,7 +77,7 @@ def get_enabled_banks(args: Namespace) -> list[str]:
     if hasattr(args, 'bigstockphoto') and args.bigstockphoto:
         enabled_banks.append("BigStockPhoto")
 
-    if hasattr(args, '123rf') and args._123rf:
+    if hasattr(args, '_123rf') and args._123rf:
         enabled_banks.append("123RF")
 
     if hasattr(args, 'canstockphoto') and args.canstockphoto:
@@ -56,6 +91,19 @@ def get_enabled_banks(args: Namespace) -> list[str]:
 
     if hasattr(args, 'alamy') and args.alamy:
         enabled_banks.append("Alamy")
+
+    # New banks
+    if hasattr(args, 'pixta') and args.pixta:
+        enabled_banks.append("Pixta")
+
+    if hasattr(args, 'freepik') and args.freepik:
+        enabled_banks.append("Freepik")
+
+    if hasattr(args, 'vecteezy') and args.vecteezy:
+        enabled_banks.append("Vecteezy")
+
+    if hasattr(args, 'storyblocks') and args.storyblocks:
+        enabled_banks.append("StoryBlocks")
 
     logging.info(f"Enabled banks: {', '.join(enabled_banks)}")
     return enabled_banks
@@ -282,23 +330,32 @@ def extract_media_properties(item: dict[str, str], category_maps: dict[str, dict
     is_editorial = bool(re.search(EDITORIAL_REGEX, title)) or bool(re.search(EDITORIAL_REGEX, description))
     is_vector = bool(re.search(VECTOREXT_REGEX, filename, re.IGNORECASE)) if filename else False
 
-    # Kategorie pro DreamsTime
+    # Kategorie pro DreamsTime (ID kategorií)
     dreamstime_cats = []
-    dreamstime_category = item.get('DreamsTime kategorie', '').strip()
-    if dreamstime_category:
-        # Použij kategorie z položky, pokud existují
-        dreamstime_cats = dreamstime_category.split(',')
-    elif 'dreamstime' in category_maps and keywords:
-        # Hledání až 3 kategorií podle klíčových slov
-        for keyword in keywords.split(','):
-            keyword = keyword.strip()
-            for path, cat_id in category_maps['dreamstime'].items():
-                if keyword.lower() in path.lower():
+    dreamstime_category = item.get('Dreamstime kategorie', '').strip()
+    if dreamstime_category and 'dreamstime' in category_maps:
+        # Použij kategorie z položky - konverze NAME→ID přes case-insensitive exact match
+        dreamstime_map_lower = {path.lower(): cat_id for path, cat_id in category_maps['dreamstime'].items()}
+        for cat_name in dreamstime_category.split(','):
+            cat_name = cat_name.strip()
+            if cat_name:
+                cat_id = dreamstime_map_lower.get(cat_name.lower())
+                if cat_id:
                     dreamstime_cats.append(cat_id)
-                    if len(dreamstime_cats) >= 3:  # Maximálně 3 kategorie
-                        break
+                    logging.debug(f"Dreamstime category '{cat_name}' -> ID {cat_id}")
+                else:
+                    logging.warning(f"Dreamstime category '{cat_name}' not found in category map")
             if len(dreamstime_cats) >= 3:
                 break
+    elif 'dreamstime' in category_maps and keywords:
+        # Fallback: hledání kategorie podle přesné case-insensitive shody klíčového slova s názvem kategorie
+        dreamstime_map_lower = {path.lower(): cat_id for path, cat_id in category_maps['dreamstime'].items()}
+        for keyword in keywords.split(','):
+            keyword = keyword.strip().lower()
+            if keyword in dreamstime_map_lower:
+                dreamstime_cats.append(dreamstime_map_lower[keyword])
+                if len(dreamstime_cats) >= 3:
+                    break
 
     # Kategorie pro Adobe Stock
     adobe_cat_id = ""
