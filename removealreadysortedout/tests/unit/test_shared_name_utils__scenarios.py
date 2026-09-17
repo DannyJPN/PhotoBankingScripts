@@ -14,23 +14,52 @@ sys.path.insert(0, str(package_root))
 import shared.name_utils as name_utils
 
 
-def test_extract_numeric_suffix():
+def test_extract_camera_number__matches_four_digit_prefix():
+    assert name_utils.extract_camera_number("NIK_0001.JPG", prefix="NIK_") == 1
+
+
+def test_extract_camera_number__matches_five_and_six_digit_legacy():
+    assert name_utils.extract_camera_number("NIK_012345.JPG", prefix="NIK_") == 12345
+    assert name_utils.extract_camera_number("NIK_123456.JPG", prefix="NIK_") == 123456
+
+
+def test_extract_camera_number__no_match_returns_none():
+    assert name_utils.extract_camera_number("NOPE.jpg", prefix="NIK_") is None
+    assert name_utils.extract_camera_number("NIK_20260612_0001.JPG", prefix="NIK_") is None
+
+
+def test_extract_dated_parts__valid_dated_filename():
+    assert name_utils.extract_dated_parts("NIK_20260612_8888.JPG", prefix="NIK_") == ("20260612", 8888)
+
+
+def test_extract_dated_parts__legacy_filename_returns_none():
+    assert name_utils.extract_dated_parts("NIK_0001.JPG", prefix="NIK_") is None
+
+
+def test_generate_dated_filename__formats_with_padding():
+    assert name_utils.generate_dated_filename(12, "20260612", ".JPG", prefix="NIK_") == "NIK_20260612_0012.JPG"
+
+
+def test_resolve_name_conflict__no_conflict_returns_base_name():
+    assert name_utils.resolve_name_conflict("NIK_20260612_0001.JPG", set()) == "NIK_20260612_0001.JPG"
+
+
+def test_resolve_name_conflict__single_conflict_appends_suffix():
+    used = {"NIK_20260612_0001.JPG"}
+    assert name_utils.resolve_name_conflict("NIK_20260612_0001.JPG", used) == "NIK_20260612_0001_B.JPG"
+
+
+def test_resolve_name_conflict__exhaustion_raises_value_error():
+    base = "NIK_20260612_0001.JPG"
+    stem, ext = base.rsplit(".", 1)
+    used = {base} | {f"{stem}_{suffix}.{ext}" for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    try:
+        name_utils.resolve_name_conflict(base, used)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_extract_numeric_suffix__matches_prefix():
     assert name_utils.extract_numeric_suffix("PICT0012.jpg") == 12
     assert name_utils.extract_numeric_suffix("NOPE.jpg") is None
-
-
-def test_generate_indexed_filename():
-    assert name_utils.generate_indexed_filename(3, ".jpg") == "PICT0003.jpg"
-
-
-def test_generate_indexed_filename__invalid():
-    try:
-        name_utils.generate_indexed_filename(0, ".jpg")
-    except ValueError as exc:
-        assert "must be positive" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError")
-
-
-def test_find_next_available_number():
-    assert name_utils.find_next_available_number({1, 2, 3}, max_number=5) == 4

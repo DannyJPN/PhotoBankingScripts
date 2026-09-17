@@ -1,57 +1,89 @@
 import re
 import logging
-from typing import Optional, Set
+from typing import Optional, Set, Tuple
 
-# Import numbering constants from parent module
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from removealreadysortedoutlib.constants import (
+    DATE_FORMAT,
+    CAMERA_SEQ_WIDTH,
     MIN_NUMBER_WIDTH,
     MAX_NUMBER_WIDTH,
-    DEFAULT_NUMBER_WIDTH,
-    MAX_NUMBER
 )
 
 
-
-def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = DEFAULT_NUMBER_WIDTH) -> Optional[int]:
-    logging.debug("Extracting numeric suffix from filename: %s, prefix=%s, width=%d", filename, prefix, width)
-    pattern = rf"^{re.escape(prefix)}(\d{{{MIN_NUMBER_WIDTH},{MAX_NUMBER_WIDTH}}})"
-    m = re.match(pattern, filename)
+def extract_camera_number(filename: str, prefix: str = "PICT") -> Optional[int]:
+    """
+    Extract the camera sequence number from a legacy filename (e.g. NIK_8888.JPG).
+    Accepts 4-6 digits to handle files that may have been assigned wider numbers by
+    earlier script versions; the canonical camera counter is exactly 4 digits (0001-9999).
+    """
+    pattern = rf"^{re.escape(prefix)}(\d{{{MIN_NUMBER_WIDTH},{MAX_NUMBER_WIDTH}}})\."
+    m = re.match(pattern, filename, re.IGNORECASE)
     if m:
         num = int(m.group(1))
-        logging.debug("Extracted suffix %0*d from %s", width, num, filename)
+        logging.debug("Extracted camera number %d from %s", num, filename)
         return num
-    logging.debug("No numeric suffix in filename: %s", filename)
+    logging.debug("No camera number found in %s", filename)
     return None
 
 
-def generate_indexed_filename(number: int, extension: str, prefix: str = "PICT", width: int = DEFAULT_NUMBER_WIDTH) -> str:
-    if number > MAX_NUMBER:
-        error_msg = f"Number {number} exceeds maximum allowed value {MAX_NUMBER}"
-        logging.error(error_msg)
-        raise ValueError(error_msg)
-    if number < 1:
-        error_msg = f"Number {number} must be positive"
-        logging.error(error_msg)
-        raise ValueError(error_msg)
-    name = f"{prefix}{number:0{width}d}{extension}"
-    logging.debug("Generated indexed filename: %s", name)
+def extract_dated_parts(filename: str, prefix: str = "PICT") -> Optional[Tuple[str, int]]:
+    """
+    Parse a dated filename (e.g. NIK_20260612_8888.JPG) into (date_str, cam_num).
+    Returns None if the filename does not match the dated format.
+    """
+    pattern = rf"^{re.escape(prefix)}(\d{{8}})_(\d{{{CAMERA_SEQ_WIDTH}}})\."
+    m = re.match(pattern, filename, re.IGNORECASE)
+    if m:
+        date_str, cam_num = m.group(1), int(m.group(2))
+        logging.debug("Extracted dated parts (%s, %d) from %s", date_str, cam_num, filename)
+        return date_str, cam_num
+    logging.debug("No dated parts found in %s", filename)
+    return None
+
+
+def generate_dated_filename(cam_num: int, date_str: str, ext: str, prefix: str = "PICT") -> str:
+    """
+    Generate a dated filename from camera sequence number and shoot date.
+
+    Example: cam_num=8888, date_str='20260612', ext='.JPG', prefix='NIK_'
+             -> 'NIK_20260612_8888.JPG'
+    """
+    name = f"{prefix}{date_str}_{cam_num:0{CAMERA_SEQ_WIDTH}d}{ext}"
+    logging.debug("Generated dated filename: %s", name)
     return name
 
 
-def find_next_available_number(used: Set[int], max_number: int = MAX_NUMBER) -> int:
-    logging.debug("Finding next available number, used set size: %d", len(used))
-    for num in range(1, max_number + 1):
-        if num not in used:
-            logging.debug("Next available number found: %d", num)
-            return num
-    error_msg = "No available numbers left"
-    logging.error(error_msg)
-    raise ValueError(error_msg)
+def resolve_name_conflict(base_name: str, used_names: Set[str]) -> str:
+    """
+    Return base_name if it is not in used_names. Otherwise append _B, _C, ...
+    until a free variant is found. Only triggered when the camera counter rolled
+    over within the same calendar day (extremely rare).
+    """
+    if base_name not in used_names:
+        return base_name
+    if "." in base_name:
+        stem, ext = base_name.rsplit(".", 1)
+        ext = f".{ext}"
+    else:
+        stem, ext = base_name, ""
+    for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ":
+        candidate = f"{stem}_{suffix}{ext}"
+        if candidate not in used_names:
+            logging.warning("Name conflict resolved: %s -> %s", base_name, candidate)
+            return candidate
+    raise ValueError(f"No available name variant for {base_name}")
 
 
-
-
-
+def extract_numeric_suffix(filename: str, prefix: str = "PICT", width: int = 6) -> Optional[int]:
+    """
+    Extract a 4-6 digit numeric suffix from a legacy filename for backward-compatible
+    hash-map lookup against old-format files still present in the reference folder.
+    """
+    pattern = rf"^{re.escape(prefix)}(\d{{{MIN_NUMBER_WIDTH},{MAX_NUMBER_WIDTH}}})\."
+    m = re.match(pattern, filename, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None

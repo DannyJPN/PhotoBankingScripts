@@ -30,7 +30,7 @@ DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH = os.path.join(BASE_DIR, "exportpreparedme
 DEFAULT_POND_PRICES_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "pond_prices.csv")
 
 # Regulární výrazy pro detekci typů souborů
-EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
+EDITORIAL_REGEX = r"^[A-Za-z]+(?:\s[A-Za-z]+)*, [A-Za-z]+ - \d{2} \d{2} \d{4}:"
 VECTOREXT_REGEX = r"(cdr|ai|eps|svg)$"
 
 # Validní hodnota pro status

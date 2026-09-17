@@ -1,5 +1,5 @@
 """
-Security-focused tests for replacement guard logic.
+Security-focused tests for duplicate-removal guard logic.
 """
 
 import sys
@@ -9,13 +9,18 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "removealreadysortedout"
 sys.path.insert(0, str(package_root))
 
-from removealreadysortedoutlib.removal_operations import should_replace_file
+from removealreadysortedoutlib.removal_operations import handle_duplicate
 
 
-def test_should_replace_file_rejects_empty_source(tmp_path):
+def test_handle_duplicate__does_not_delete_source_when_no_target_exists_on_disk(tmp_path):
+    """
+    A stale or incorrect hash-map entry pointing at a target path that no longer
+    exists must never cause the source file to be deleted.
+    """
     source = tmp_path / "source.jpg"
-    target = tmp_path / "target.jpg"
-    source.write_bytes(b"")
-    target.write_bytes(b"data")
+    source.write_bytes(b"data")
+    missing_target = tmp_path / "missing_target.jpg"
 
-    assert should_replace_file(str(source), str(target)) is False
+    handle_duplicate(str(source), [str(missing_target)])
+
+    assert source.exists()

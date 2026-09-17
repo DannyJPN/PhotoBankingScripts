@@ -3,18 +3,22 @@ import logging
 import os
 from datetime import datetime
 from shared.file_operations import get_hash_map_from_folder, compute_file_hash
-from shared.name_utils import extract_numeric_suffix, generate_indexed_filename, find_next_available_number
+from shared.name_utils import (
+    extract_camera_number,
+    extract_dated_parts,
+    generate_dated_filename,
+    resolve_name_conflict,
+)
 from shared.exif_handler import get_best_creation_date
 from shared.exif_downloader import ensure_exiftool
 from tqdm import tqdm
-from shared.file_operations import list_files
-from pullnewmediatounsortedlib.constants import DEFAULT_NUMBER_WIDTH, MAX_NUMBER
+from pullnewmediatounsortedlib.constants import DATE_FORMAT
 
 
 def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool = True) -> None:
     """
-    Přejmenuje soubory v `folder`, kde jejich název obsahuje `search`,
-    nahraď tuto část řetězcem `replace`.
+    Rename files in `folder` whose name contains `search` by substituting `replace`.
+    If the target name already exists the source file is removed as a duplicate.
     """
     logging.info("Replacing '%s' with '%s' in filenames under: %s", search, replace, folder)
     paths = list_files(folder, pattern=search, recursive=recursive)
@@ -38,60 +42,53 @@ def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool
                 raise
 
 
-
 def normalize_indexed_filenames(
     source_folder: str,
     reference_folder: str,
     prefix: str = "PICT",
-    width: int = DEFAULT_NUMBER_WIDTH,
-    max_number: int = MAX_NUMBER
 ) -> None:
     """
-    Upraví názvy souborů s daným `prefix` a číselným suffixem v `source_folder`:
-      - Shodné obsahy podle hashů přejmenuje na stávající jméno z `reference_folder`.
-      - Jiné přejmenuje na nejnižší dostupné číslo se zadanou `width`.
-      - Soubory jsou seřazeny chronologicky (nejstarší první), aby čísla odpovídala pořadí vytvoření.
-    Renaming proběhne přímo na místě (změní se jen název, ne cesta ke složce).
+    Rename files with the given `prefix` in `source_folder` to the dated format
+    ``<prefix><YYYYMMDD>_<cam_seq>.<ext>`` (e.g. ``NIK_20260612_8888.JPG``).
+
+    Rules:
+    - If the file's hash is found in `reference_folder`, use the reference's canonical name.
+    - Otherwise derive the shoot date from EXIF (oldest available tag, same algorithm used
+      for chronological sorting) and keep the original 4-digit camera sequence number.
+    - Files already in the dated format are idempotent: the generated name equals the
+      current name and no rename is performed.
+    - Same-day counter collision (camera rollover within one day) is resolved by appending
+      _B, _C, … to the stem – this case is practically impossible in normal use.
     """
     logging.info(
-        "Normalizing indexed filenames in %s against %s (prefix=%s, width=%d)",
-        source_folder, reference_folder, prefix, width
+        "Normalizing indexed filenames in %s against %s (prefix=%s)",
+        source_folder, reference_folder, prefix,
     )
 
-    # 1) Early check: skip if no files with prefix in source folder
+    # 1) Skip early if nothing to do
     paths = list_files(source_folder, pattern=prefix, recursive=True)
     if not paths:
         logging.info("No files matching '%s*' in %s, skipping.", prefix, source_folder)
         return
 
-    # 2) Sestav reference mapu: path -> hash
+    # 2) Build reference hash map and derive canonical names
     try:
         ref_hash_map = get_hash_map_from_folder(reference_folder, pattern=prefix)
     except Exception as e:
         logging.error("Failed to build reference hash map: %s", e)
         return
 
-    # 3) Otoč ji v hash->canonical_name (basenames)
     hash_to_canon: dict[str, str] = {}
     for path, h in ref_hash_map.items():
         if h not in hash_to_canon:
             hash_to_canon[h] = os.path.basename(path)
     logging.debug("Reference provides %d canonical names", len(hash_to_canon))
 
-    # 4) Sestav množinu použitých čísel z referencí i aktuálních názvů
-    used_nums = set(
-        num
-        for canon in hash_to_canon.values()
-        if (num := extract_numeric_suffix(canon, prefix=prefix, width=width)) is not None
-    )
-    for path in paths:
-        name = os.path.basename(path)
-        if (num := extract_numeric_suffix(name, prefix=prefix, width=width)) is not None:
-            used_nums.add(num)
-    logging.debug("Combined used numbers: %s", sorted(used_nums))
+    # 3) Seed used_names from reference folder AND existing source folder filenames
+    used_names: set[str] = {os.path.basename(p) for p in ref_hash_map}
+    used_names |= {os.path.basename(p) for p in paths}
 
-    # 5) Sort files chronologically (oldest first) to ensure correct numbering order
-    # Find ExifTool once at the beginning (not in every loop iteration)
+    # 4) Locate ExifTool once
     try:
         exiftool_path = ensure_exiftool()
         logging.debug("ExifTool located at: %s", exiftool_path)
@@ -99,47 +96,60 @@ def normalize_indexed_filenames(
         logging.warning("ExifTool not found, will use filesystem dates only: %s", e)
         exiftool_path = None
 
-    def get_file_date(path: str) -> datetime:
-        """Returns file creation date (EXIF or filesystem)"""
+    def _file_date(path: str) -> datetime:
         date = get_best_creation_date(path, tool_path=exiftool_path)
         if date is None:
-            # Fallback to file modification time
             try:
                 date = datetime.fromtimestamp(os.path.getmtime(path))
             except Exception:
-                # Last resort: use epoch time to put problematic files at the beginning
                 date = datetime.fromtimestamp(0)
         return date
 
-    logging.info("Sorting %d files chronologically for correct numbering...", len(paths))
-    sorted_paths = sorted(paths, key=get_file_date)
+    # 5) Sort chronologically and cache dates to avoid double EXIF reads
+    logging.info("Reading EXIF dates for %d files...", len(paths))
+    path_to_date: dict[str, datetime] = {p: _file_date(p) for p in paths}
+    sorted_paths = sorted(paths, key=lambda p: path_to_date[p])
 
-    # 6) Projdi každý soubor a zjisti jeho hash
+    # 6) Rename each file
     for src_path in tqdm(sorted_paths, desc="Normalizing indexed files", unit="file"):
         name = os.path.basename(src_path)
         try:
             h = compute_file_hash(src_path)
-            logging.debug("Computed hash %s for %s", h, name)
         except Exception as e:
             logging.error("Skipping %s due to hash error: %s", src_path, e)
             continue
 
-        # 6) Vyber správné jméno
         if h in hash_to_canon:
             new_name = hash_to_canon[h]
-            logging.debug("Hash match: using existing name %s", new_name)
+            logging.debug("Hash match: using canonical name %s", new_name)
         else:
             ext = os.path.splitext(name)[1]
-            num = find_next_available_number(used_nums, max_number)
-            used_nums.add(num)
-            new_name = generate_indexed_filename(num, ext, prefix=prefix, width=width)
-            logging.debug("No match: assigned new index %d -> %s", num, new_name)
 
-        # 7) Přejmenuj soubor in‑place, pokud je třeba
+            # Derive camera sequence number – support both old and new filename formats
+            dated = extract_dated_parts(name, prefix=prefix)
+            if dated:
+                cam_num = dated[1]
+            else:
+                cam_num = extract_camera_number(name, prefix=prefix)
+                if cam_num is None:
+                    logging.warning("Cannot extract camera number from '%s', skipping", name)
+                    continue
+
+            date_str = path_to_date[src_path].strftime(DATE_FORMAT)
+            base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+            used_names.discard(name)
+            try:
+                new_name = resolve_name_conflict(base_name, used_names)
+            except ValueError:
+                logging.error("No name variant available for %s, skipping", base_name)
+                continue
+            used_names.add(new_name)
+            logging.debug("No hash match: assigned dated name %s", new_name)
+
         if new_name != name:
             dst = os.path.join(os.path.dirname(src_path), new_name)
             try:
-                os.rename(src_path, dst)
+                move_file(src_path, dst, overwrite=False)
                 logging.debug("Renamed %s -> %s", name, new_name)
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)

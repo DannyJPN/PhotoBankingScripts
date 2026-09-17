@@ -5,11 +5,11 @@ DEFAULT_LOG_DIR = "H:/Logs"
 # ExifTool path
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
 
-# File numbering system constants
-MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
-MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
-DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
-MAX_NUMBER = 999999  # Maximum number with 6 digits
+# File naming constants
+DATE_FORMAT = "%Y%m%d"      # YYYYMMDD date portion of dated filenames
+CAMERA_SEQ_WIDTH = 4        # Camera counter width (0001-9999)
+MIN_NUMBER_WIDTH = 4        # Minimum digit width accepted when parsing legacy filenames
+MAX_NUMBER_WIDTH = 6        # Maximum digit width accepted when parsing legacy filenames
 
 # Prefixes to normalize (renumber files with these prefixes)
 PREFIXES_TO_NORMALIZE = ["PICT", "NIK_"]  # PICT from Bunaty Micro 4K, NIK_ from Nikon cameras
