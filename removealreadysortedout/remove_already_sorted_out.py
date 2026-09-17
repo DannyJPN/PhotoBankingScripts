@@ -46,6 +46,8 @@ def parse_arguments():
                         help="Width of numeric suffix")
     parser.add_argument("--index_max", type=int, default=9999, 
                         help="Max index number to scan")
+    parser.add_argument("--quarantine-dir", type=str, default="",
+                        help="Move duplicates to quarantine instead of deleting")
     return parser.parse_args()
 
 def main():
@@ -105,7 +107,7 @@ def main():
     logging.info("Processing duplicates...")
     with tqdm(total=len(duplicates), desc="Removing duplicates", unit="files") as pbar:
         for source_path, target_paths in duplicates.items():
-            handle_duplicate(source_path, target_paths, args.overwrite, log_file)
+            handle_duplicate(source_path, target_paths, args.overwrite, log_file, args.quarantine_dir)
             pbar.update(1)
     
     logging.info("RemoveAlreadySortedOut process completed successfully")
