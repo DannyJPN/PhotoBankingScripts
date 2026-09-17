@@ -57,7 +57,11 @@ class OllamaProvider(LocalAIProvider):
             'llava:7b-v1.6', 'llava:13b-v1.6', 'llava:34b-v1.6',
             'bakllava', 'bakllava:7b',
             'cogvlm', 'cogvlm:17b',
-            'llama3.2-vision', 'llama3.2-vision:11b', 'llama3.2-vision:90b'
+            'llama3.2-vision', 'llama3.2-vision:11b', 'llama3.2-vision:90b',
+            'qwen2.5-vl:7b', 'qwen2.5-vl:72b',
+            'minicpm-v', 'minicpm-v:8b',
+            'moondream2',
+            'llama4:scout', 'llama4:maverick',
         }
 
         self.session = requests.Session()
