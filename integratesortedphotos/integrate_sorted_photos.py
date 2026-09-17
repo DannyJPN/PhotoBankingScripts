@@ -13,6 +13,9 @@ def parse_arguments():
     parser.add_argument('--targetFolder', type=str, nargs='?', default=DEFAULT_TARGET_FOLDER, help="Path to the target folder.")
     parser.add_argument('--log_dir', type=str, default=DEFAULT_LOG_DIR, help="Directory for log files")
     parser.add_argument('--debug', action='store_true', help="Enable debug mode.")
+    parser.add_argument('--conflict-strategy', type=str, default='skip',
+                        choices=['skip', 'overwrite', 'rename'],
+                        help="Conflict strategy: skip, overwrite, rename")
     return parser.parse_args()
 
 def main():
@@ -33,7 +36,7 @@ def main():
         return
 
     # Call the copy function
-    copy_files_with_preserved_dates(args.sortedFolder, args.targetFolder)
+    copy_files_with_preserved_dates(args.sortedFolder, args.targetFolder, args.conflict_strategy)
 
 if __name__ == '__main__':
     main()
