@@ -17,6 +17,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from tqdm import tqdm
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from shared.exif_handler import get_best_creation_date
@@ -96,7 +98,11 @@ def migrate(folder: str, dry_run: bool) -> None:
     skipped = 0
     conflicts = 0
 
-    for file_path in sorted(files, key=lambda p: _date(str(p))):
+    path_to_date: dict[Path, datetime] = {}
+    for file_path in tqdm(files, desc="Reading EXIF dates", unit="file"):
+        path_to_date[file_path] = _date(str(file_path))
+
+    for file_path in tqdm(sorted(files, key=lambda p: path_to_date[p]), desc="Migrating filenames", unit="file"):
         name = file_path.name
         ext = file_path.suffix
 
@@ -108,7 +114,7 @@ def migrate(folder: str, dry_run: bool) -> None:
             continue
 
         cam_num = extract_camera_number(name, prefix=prefix)
-        date_str = _date(str(file_path)).strftime(DATE_FORMAT)
+        date_str = path_to_date[file_path].strftime(DATE_FORMAT)
         base_new_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
 
         # Remove old name from used_names so it doesn't block itself

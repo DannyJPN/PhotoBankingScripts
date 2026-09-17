@@ -137,6 +137,7 @@ def normalize_indexed_filenames(
 
             date_str = path_to_date[src_path].strftime(DATE_FORMAT)
             base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+            used_names.discard(name)
             try:
                 new_name = resolve_name_conflict(base_name, used_names)
             except ValueError:

@@ -9,17 +9,74 @@ project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "pullnewmediatounsorted"
 sys.path.insert(0, str(package_root))
 
-from shared.name_utils import extract_numeric_suffix, generate_indexed_filename, find_next_available_number
+from shared.name_utils import (
+    extract_camera_number,
+    extract_dated_parts,
+    generate_dated_filename,
+    resolve_name_conflict,
+    extract_numeric_suffix,
+)
+
+
+def test_extract_camera_number__matches_four_digit_prefix():
+    assert extract_camera_number("NIK_0001.JPG", prefix="NIK_") == 1
+
+
+def test_extract_camera_number__matches_five_and_six_digit_legacy():
+    assert extract_camera_number("NIK_012345.JPG", prefix="NIK_") == 12345
+    assert extract_camera_number("NIK_123456.JPG", prefix="NIK_") == 123456
+
+
+def test_extract_camera_number__case_insensitive():
+    assert extract_camera_number("nik_0001.jpg", prefix="NIK_") == 1
+
+
+def test_extract_camera_number__no_match_returns_none():
+    assert extract_camera_number("OTHER0001.jpg", prefix="NIK_") is None
+    assert extract_camera_number("NIK_20260612_0001.JPG", prefix="NIK_") is None
+
+
+def test_extract_dated_parts__valid_dated_filename():
+    assert extract_dated_parts("NIK_20260612_8888.JPG", prefix="NIK_") == ("20260612", 8888)
+
+
+def test_extract_dated_parts__legacy_filename_returns_none():
+    assert extract_dated_parts("NIK_0001.JPG", prefix="NIK_") is None
+
+
+def test_extract_dated_parts__partial_match_returns_none():
+    assert extract_dated_parts("NIK_2026061_8888.JPG", prefix="NIK_") is None
+
+
+def test_generate_dated_filename__formats_with_padding():
+    assert generate_dated_filename(12, "20260612", ".JPG", prefix="NIK_") == "NIK_20260612_0012.JPG"
+
+
+def test_resolve_name_conflict__no_conflict_returns_base_name():
+    assert resolve_name_conflict("NIK_20260612_0001.JPG", set()) == "NIK_20260612_0001.JPG"
+
+
+def test_resolve_name_conflict__single_conflict_appends_suffix():
+    used = {"NIK_20260612_0001.JPG"}
+    assert resolve_name_conflict("NIK_20260612_0001.JPG", used) == "NIK_20260612_0001_B.JPG"
+
+
+def test_resolve_name_conflict__no_extension_filename():
+    used = {"NIK_20260612_0001"}
+    assert resolve_name_conflict("NIK_20260612_0001", used) == "NIK_20260612_0001_B"
+
+
+def test_resolve_name_conflict__exhaustion_raises_value_error():
+    base = "NIK_20260612_0001.JPG"
+    stem, ext = base.rsplit(".", 1)
+    used = {base} | {f"{stem}_{suffix}.{ext}" for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    try:
+        resolve_name_conflict(base, used)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
 
 
 def test_extract_numeric_suffix__matches_prefix():
     assert extract_numeric_suffix("PICT0001.jpg", prefix="PICT") == 1
     assert extract_numeric_suffix("OTHER0001.jpg", prefix="PICT") is None
-
-
-def test_generate_indexed_filename__formats():
-    assert generate_indexed_filename(12, ".jpg", prefix="PICT", width=4) == "PICT0012.jpg"
-
-
-def test_find_next_available_number__returns_first_free():
-    assert find_next_available_number({1, 2, 3}, max_number=5) == 4
