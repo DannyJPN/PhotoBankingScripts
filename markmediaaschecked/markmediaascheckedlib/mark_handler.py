@@ -81,6 +81,35 @@ def update_statuses(records: list[dict], status_columns: list[str]) -> int:
     return change_count
 
 
+def update_statuses_with_report(records: list[dict], status_columns: list[str]) -> list[dict]:
+    """
+    Update statuses and return detailed change records for reporting.
+    """
+    if not records:
+        logging.warning("No records provided to update")
+        return []
+
+    if not status_columns:
+        logging.warning("No status columns provided for updating")
+        return []
+
+    changes: list[dict] = []
+    for record in records:
+        file_name = record.get(COL_FILE, "")
+        for col in status_columns:
+            if col in record and record[col] == STATUS_READY:
+                record[col] = STATUS_CHECKED
+                changes.append({
+                    "file": file_name,
+                    "status_column": col,
+                    "old_status": STATUS_READY,
+                    "new_status": STATUS_CHECKED
+                })
+
+    logging.info("Updated %d status values with report", len(changes))
+    return changes
+
+
 def is_edited_photo(record: dict) -> bool:
     """
     Check if record is an edited photo based on filename edit tags.
