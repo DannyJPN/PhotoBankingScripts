@@ -61,7 +61,7 @@ def build_batch_prompt(user_description: str, editorial_data: Optional[Dict[str,
             hierarchy = parse_dreamstime_hierarchy(dreamstime_cats)
             if hierarchy:
                 for main_cat, sub_cats in hierarchy.items():
-                    categories_block += f"{main_cat.upper()}: {', '.join(sub_cats)}\n"
+                    categories_block += f"{main_cat}: {', '.join(sub_cats)}\n"
                 categories_block += "\n"
             else:
                 # Fallback to flat list if parsing fails
