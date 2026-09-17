@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 import shutil
+import csv
+import json
 import tempfile
 
 if sys.platform == "win32":
@@ -34,7 +36,7 @@ if sys.platform == "win32":
 def ensure_directory(directory: str) -> None:
     """
     Ensure that a directory exists, creating it if necessary.
-    
+
     Args:
         directory: Path to the directory to ensure exists
     """
@@ -131,3 +133,24 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
                 pass
             except OSError:
                 logging.warning("Failed to clean up temp file: %s", temp_path)
+
+
+def save_csv(records: list[dict[str, str]], path: str, fieldnames: list[str]) -> None:
+    """
+    Save records to a CSV file.
+    """
+    ensure_directory(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8-sig", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=",", quotechar="\"")
+        writer.writeheader()
+        for row in records:
+            writer.writerow(row)
+
+
+def save_json(data: object, path: str) -> None:
+    """
+    Save data to a JSON file.
+    """
+    ensure_directory(os.path.dirname(path))
+    with open(path, "w", encoding="utf-8") as json_file:
+        json.dump(data, json_file, indent=2, ensure_ascii=True)
