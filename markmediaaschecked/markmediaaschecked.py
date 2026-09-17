@@ -19,6 +19,8 @@ from markmediaascheckedlib.mark_handler import (
     extract_status_columns,
     filter_ready_records,
     filter_records_by_edit_type,
+    filter_status_columns,
+    parse_banks,
     update_statuses
 )
 
@@ -55,6 +57,12 @@ def parse_arguments():
         action="store_true",
         help="Include edited photos from 'upravené' folders (default: only original photos)"
     )
+    parser.add_argument(
+        "--banks",
+        type=str,
+        default="",
+        help="Comma-separated list of photobanks to include (default: all status columns)"
+    )
     return parser.parse_args()
 
 
@@ -84,6 +92,8 @@ def main():
 
     # 3. Find status columns
     status_columns = extract_status_columns(all_records)
+    if args.banks:
+        status_columns = filter_status_columns(status_columns, parse_banks(args.banks))
     if not status_columns:
         logging.error("No status columns found in the CSV file")
         return

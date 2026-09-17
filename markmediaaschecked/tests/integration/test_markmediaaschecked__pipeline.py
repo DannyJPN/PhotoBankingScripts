@@ -36,6 +36,7 @@ def test_main_updates_status_and_creates_backup(tmp_path, monkeypatch):
         debug=False,
         log_dir=str(tmp_path / "logs"),
         include_edited=False,
+        banks="",
     )
 
     monkeypatch.setattr(markmediaaschecked, "parse_arguments", lambda: args)
