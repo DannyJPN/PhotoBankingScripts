@@ -16,7 +16,9 @@ import integrate_sorted_photos as main_module
 
 
 def test_main__missing_sorted_folder(monkeypatch):
-    args = SimpleNamespace(sortedFolder="C:/missing", targetFolder="C:/target", log_dir="C:/logs", debug=False)
+    args = SimpleNamespace(
+        sortedFolder="C:/missing", targetFolder="C:/target", log_dir="C:/logs", debug=False, export_report=False
+    )
     monkeypatch.setattr(main_module, "parse_arguments", lambda: args)
     monkeypatch.setattr(main_module, "ensure_directory", lambda _p: None)
     monkeypatch.setattr(main_module, "setup_logging", lambda **_k: None)
@@ -26,7 +28,9 @@ def test_main__missing_sorted_folder(monkeypatch):
 
 
 def test_main__calls_copy(monkeypatch):
-    args = SimpleNamespace(sortedFolder="C:/sorted", targetFolder="C:/target", log_dir="C:/logs", debug=False)
+    args = SimpleNamespace(
+        sortedFolder="C:/sorted", targetFolder="C:/target", log_dir="C:/logs", debug=False, export_report=False
+    )
     monkeypatch.setattr(main_module, "parse_arguments", lambda: args)
     monkeypatch.setattr(main_module, "ensure_directory", lambda _p: None)
     monkeypatch.setattr(main_module, "setup_logging", lambda **_k: None)

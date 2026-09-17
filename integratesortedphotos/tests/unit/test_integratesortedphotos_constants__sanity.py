@@ -13,5 +13,8 @@ from integratesortedphotoslib import constants
 
 
 def test_constants__types():
-    assert isinstance(constants.SOURCE_DIR, str)
-    assert isinstance(constants.DEST_DIR, str)
+    assert isinstance(constants.DEFAULT_SORTED_FOLDER, str)
+    assert isinstance(constants.DEFAULT_TARGET_FOLDER, str)
+    assert isinstance(constants.DEFAULT_LOG_DIR, str)
+    assert isinstance(constants.DEFAULT_REPORT_DIR, str)
+    assert isinstance(constants.DEFAULT_REPORT_FORMAT, str)
