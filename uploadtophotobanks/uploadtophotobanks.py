@@ -14,6 +14,7 @@ import os
 import sys
 import argparse
 import logging
+from typing import Dict
 
 # Add the parent directory to the Python path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,11 +27,13 @@ from uploadtophotobanksslib.constants import (
     DEFAULT_PROCESSED_MEDIA_FOLDER,
     DEFAULT_EXPORT_DIR,
     DEFAULT_LOG_DIR,
+    DEFAULT_UPLOAD_LOG_DIR,
     DEFAULT_CREDENTIALS_FILE,
     PHOTOBANK_CONFIGS
 )
 from uploadtophotobanksslib.uploader import PhotobankUploader
 from uploadtophotobanksslib.credentials_manager import CredentialsManager
+from shared.file_operations import save_csv
 
 
 def parse_arguments():
@@ -72,6 +75,10 @@ Security notes:
                         help="Enable debug logging")
     parser.add_argument("--dry-run", action="store_true",
                         help="Validate files and test connections without uploading")
+    parser.add_argument("--export-upload-log", action="store_true",
+                        help="Export per-file upload results to CSV")
+    parser.add_argument("--upload-log-dir", type=str, default=DEFAULT_UPLOAD_LOG_DIR,
+                        help="Directory for upload logs")
 
     # Photobank selection
     photobank_group = parser.add_argument_group("Photobank Selection")
@@ -171,6 +178,9 @@ def main():
 
         # Display results
         display_results(results, args.dry_run)
+
+        if args.export_upload_log:
+            _write_upload_log(results, args.upload_log_dir)
 
         # Determine exit code
         total_failures = sum(stats.get("failure", 0) + stats.get("error", 0)
@@ -417,6 +427,33 @@ def show_credentials_info(credentials_manager):
     if logging.getLogger().level <= logging.DEBUG:
         print("Credentials source priority: 1) Environment variables, 2) Config file")
         print(f"Photobanks configured: {', '.join(photobanks)}")
+
+
+def _write_upload_log(results: Dict[str, Dict[str, int]], upload_log_dir: str) -> None:
+    """
+    Write per-file upload results to CSV.
+    """
+    log_records: list[dict[str, str]] = []
+    for photobank, stats in results.items():
+        files = stats.get("files", [])
+        for record in files:
+            log_records.append({
+                "photobank": record.get("photobank", photobank),
+                "filename": record.get("filename", ""),
+                "status": record.get("status", ""),
+                "message": record.get("message", "")
+            })
+
+    if not log_records:
+        return
+
+    if not os.path.exists(upload_log_dir):
+        os.makedirs(upload_log_dir, exist_ok=True)
+
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_path = os.path.join(upload_log_dir, f"UploadLog_{timestamp}.csv")
+    save_csv(log_records, log_path)
 
 
 if __name__ == "__main__":
