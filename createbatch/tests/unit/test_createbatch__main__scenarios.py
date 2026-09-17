@@ -74,6 +74,7 @@ def make_args(tmp_path, **overrides):
         debug=False,
         include_edited=False,
         include_alternative_formats=False,
+        preview=False,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -101,6 +102,7 @@ def test_createbatch__parse_arguments__defaults(monkeypatch):
     assert args.debug is False
     assert args.include_edited is False
     assert args.include_alternative_formats is False
+    assert args.preview is False
 
 
 def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
@@ -119,6 +121,7 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
             "--debug",
             "--include-edited",
             "--include-alternative-formats",
+            "--preview",
         ],
     )
     args = createbatch_module.parse_arguments()
@@ -130,6 +133,7 @@ def test_createbatch__parse_arguments__flags(monkeypatch, tmp_path):
     assert args.debug is True
     assert args.include_edited is True
     assert args.include_alternative_formats is True
+    assert args.preview is True
 
 
 def test_createbatch__main__no_prepared_records_exits(common_patches, monkeypatch, caplog):
@@ -235,3 +239,23 @@ def test_createbatch__main__zero_total_does_not_crash(common_patches, monkeypatc
     monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Alamy": 0})
 
     createbatch_module.main()
+
+
+def test_createbatch__main__preview_skips_prepare_media_file(common_patches, monkeypatch):
+    records = [{"Cesta": "a.jpg"}]
+    DummyProcessor.return_map = {"AdobeStock": records}
+
+    monkeypatch.setattr(createbatch_module, "parse_arguments", lambda: make_args(common_patches, preview=True))
+    monkeypatch.setattr(createbatch_module, "load_csv", lambda _path: records)
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"AdobeStock": 0})
+
+    def should_not_run(*_args, **_kwargs):
+        raise AssertionError("prepare_media_file should not run in preview mode")
+
+    monkeypatch.setattr(createbatch_module, "prepare_media_file", should_not_run)
+
+    createbatch_module.main()
+
+    tracker = DummyProgressTracker.last_instance
+    assert tracker.started_banks == ["AdobeStock"]
+    assert tracker.update_calls == [1]
