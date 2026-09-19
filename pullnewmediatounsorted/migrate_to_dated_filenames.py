@@ -115,7 +115,12 @@ def migrate(folder: str, dry_run: bool) -> None:
 
         cam_num = extract_camera_number(name, prefix=prefix)
         date_str = path_to_date[file_path].strftime(DATE_FORMAT)
-        base_new_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+        try:
+            base_new_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+        except ValueError as e:
+            logging.warning("Cannot build dated name for %s: %s, skipping", name, e)
+            skipped += 1
+            continue
 
         # Remove old name from used_names so it doesn't block itself
         used_names.discard(name)
@@ -142,8 +147,14 @@ def migrate(folder: str, dry_run: bool) -> None:
         else:
             try:
                 move_file(str(file_path), str(dst), overwrite=False)
-                logging.info("Renamed %s -> %s", name, new_name)
-                renamed += 1
+                if file_path.exists():
+                    logging.warning("Rename skipped, destination already exists: %s -> %s", name, new_name)
+                    used_names.discard(new_name)
+                    used_names.add(name)
+                    skipped += 1
+                else:
+                    logging.info("Renamed %s -> %s", name, new_name)
+                    renamed += 1
             except Exception as e:
                 logging.error("Failed to rename %s: %s", name, e)
                 skipped += 1

@@ -50,7 +50,21 @@ def generate_dated_filename(cam_num: int, date_str: str, ext: str, prefix: str =
 
     Example: cam_num=8888, date_str='20260612', ext='.JPG', prefix='NIK_'
              -> 'NIK_20260612_8888.JPG'
+
+    :param cam_num: Camera sequence number, must fit into CAMERA_SEQ_WIDTH digits.
+    :param date_str: Shoot date formatted with DATE_FORMAT.
+    :param ext: File extension including the leading dot.
+    :param prefix: Filename prefix (e.g. ``NIK_``).
+    :return: The dated filename.
+    :raises ValueError: If cam_num does not fit into CAMERA_SEQ_WIDTH digits. A wider number
+        would produce a name that extract_dated_parts cannot parse back, so the file would
+        never be recognised as already dated.
     """
+    max_num = 10 ** CAMERA_SEQ_WIDTH - 1
+    if not 0 <= cam_num <= max_num:
+        raise ValueError(
+            f"Camera number {cam_num} does not fit into {CAMERA_SEQ_WIDTH} digits (max {max_num})"
+        )
     name = f"{prefix}{date_str}_{cam_num:0{CAMERA_SEQ_WIDTH}d}{ext}"
     logging.debug("Generated dated filename: %s", name)
     return name

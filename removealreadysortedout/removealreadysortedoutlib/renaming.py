@@ -136,7 +136,11 @@ def normalize_indexed_filenames(
                     continue
 
             date_str = path_to_date[src_path].strftime(DATE_FORMAT)
-            base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+            try:
+                base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
+            except ValueError as e:
+                logging.error("Cannot build dated name for '%s': %s, skipping", name, e)
+                continue
             used_names.discard(name)
             try:
                 new_name = resolve_name_conflict(base_name, used_names)
@@ -150,7 +154,10 @@ def normalize_indexed_filenames(
             dst = os.path.join(os.path.dirname(src_path), new_name)
             try:
                 move_file(src_path, dst, overwrite=False)
-                logging.debug("Renamed %s -> %s", name, new_name)
+                if os.path.exists(src_path):
+                    logging.warning("Rename skipped, destination already exists: %s -> %s", src_path, dst)
+                else:
+                    logging.debug("Renamed %s -> %s", name, new_name)
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)
 

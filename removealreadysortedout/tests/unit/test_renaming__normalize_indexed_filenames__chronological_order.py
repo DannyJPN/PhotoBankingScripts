@@ -149,3 +149,32 @@ def test_normalize__exiftool_unavailable_falls_back_to_filesystem_mtime(test_fol
     normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["PICT20260612_0007.JPG"]
+
+
+def test_normalize__camera_number_above_9999_is_skipped_and_left_untouched(test_folders, caplog):
+    """A legacy name whose number cannot fit into four digits must not be renamed to an unparseable name."""
+    source_dir, reference_dir = test_folders
+
+    create_test_file(source_dir, "PICT012345.JPG", "wide number", datetime(2026, 6, 12))
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == ["PICT012345.JPG"]
+    assert "does not fit" in caplog.text
+
+
+def test_normalize__rename_skipped_when_destination_exists_logs_warning(test_folders, caplog):
+    """If the canonical name already exists in the source folder, move_file no-ops; that must be reported."""
+    source_dir, reference_dir = test_folders
+    now = datetime.now()
+
+    create_test_file(reference_dir, "PICT20260101_0001.JPG", "reference content", now - timedelta(days=10))
+    create_test_file(source_dir, "PICT9999.JPG", "reference content", now - timedelta(days=1))
+    create_test_file(source_dir, "PICT20260101_0001.JPG", "different content", datetime(2026, 1, 1))
+
+    with caplog.at_level("WARNING"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(source_dir)) == ["PICT20260101_0001.JPG", "PICT9999.JPG"]
+    assert "Rename skipped, destination already exists" in caplog.text

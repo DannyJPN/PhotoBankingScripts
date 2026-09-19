@@ -63,3 +63,35 @@ def test_resolve_name_conflict__exhaustion_raises_value_error():
 def test_extract_numeric_suffix__matches_prefix():
     assert name_utils.extract_numeric_suffix("PICT0012.jpg") == 12
     assert name_utils.extract_numeric_suffix("NOPE.jpg") is None
+
+
+def test_generate_dated_filename__max_camera_number_round_trips():
+    name = name_utils.generate_dated_filename(9999, "20260612", ".JPG", prefix="NIK_")
+    assert name == "NIK_20260612_9999.JPG"
+    assert name_utils.extract_dated_parts(name, prefix="NIK_") == ("20260612", 9999)
+
+
+def test_generate_dated_filename__number_above_four_digits_raises():
+    for too_wide in (10000, 12345, 123456):
+        try:
+            name_utils.generate_dated_filename(too_wide, "20260612", ".JPG", prefix="NIK_")
+            assert False, "expected ValueError"
+        except ValueError as exc:
+            assert "does not fit" in str(exc)
+
+
+def test_generate_dated_filename__negative_number_raises():
+    try:
+        name_utils.generate_dated_filename(-1, "20260612", ".JPG", prefix="NIK_")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_wide_legacy_number_is_parsed_but_cannot_be_dated():
+    assert name_utils.extract_camera_number("NIK_012345.JPG", prefix="NIK_") == 12345
+    try:
+        name_utils.generate_dated_filename(12345, "20260612", ".JPG", prefix="NIK_")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
