@@ -20,5 +20,4 @@ Last updated: 2026-09-20
 ## Known limitations
 - Legacy 5-6 digit names are parsed, but only numbers up to 9999 can be converted to the dated format.
 - Files without EXIF dates get their date from file-system timestamps, which may not be the shoot date. QuickTime tags are stored in UTC, so videos shot around midnight can get the previous day.
-- `shared/name_utils.py` and `renaming.py` are duplicated in `removealreadysortedout/`; changes must be applied to both copies (to be merged in the planned consolidation).
 - Filename pattern replacement (`replace_in_filenames`, `_NIK` -> `NIK_`) is still case-sensitive.
