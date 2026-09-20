@@ -158,3 +158,34 @@ def test_main__runs_migrate_with_parsed_arguments(monkeypatch, tmp_path):
     migrate_module.main()
 
     assert calls == {"folder": str(tmp_path), "dry_run": True}
+
+
+def test_migrate__failed_rename_does_not_leave_a_stale_claim_on_the_new_name(tmp_path, monkeypatch):
+    create_file(tmp_path / "a", "NIK_0607.NEF", content="first")
+    create_file(tmp_path / "b", "NIK_0607.NEF", content="second")
+    real_move = migrate_module.move_file
+
+    def flaky_move(src, dst, overwrite=False):
+        if Path(src).parent.name == "a":
+            raise PermissionError("locked")
+        return real_move(src, dst, overwrite=overwrite)
+
+    monkeypatch.setattr(migrate_module, "move_file", flaky_move)
+
+    migrate_module.migrate(str(tmp_path), dry_run=False)
+
+    assert names(tmp_path / "a") == ["NIK_0607.NEF"]
+    assert names(tmp_path / "b") == ["NIK_20260612_0607.NEF"]
+
+
+def test_migrate__exhausted_name_variants_skip_the_file(tmp_path, caplog):
+    taken = ["NIK_20260612_0042.JPG"] + [f"NIK_20260612_0042_{letter}.JPG" for letter in "BCDEFGHIJKLMNOPQRSTUVWXYZ"]
+    for index, name in enumerate(taken):
+        create_file(tmp_path, name, content=f"content {index}")
+    create_file(tmp_path, "NIK_0042.JPG", content="legacy, different content")
+
+    with caplog.at_level("ERROR"):
+        migrate_module.migrate(str(tmp_path), dry_run=False)
+
+    assert names(tmp_path) == sorted(taken + ["NIK_0042.JPG"])
+    assert "No name variant available" in caplog.text

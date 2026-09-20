@@ -157,7 +157,8 @@ def normalize_indexed_filenames(
                 logging.error("Cannot build dated name for '%s': %s, skipping", name, e)
                 continue
             own_key = name_key(name)
-            if used_names.get(own_key) == src_path:
+            owned = used_names.get(own_key) == src_path
+            if owned:
                 del used_names[own_key]
             try:
                 new_name = resolve_name_conflict(
@@ -165,15 +166,17 @@ def normalize_indexed_filenames(
                 )
             except ValueError:
                 logging.error("No name variant available for %s, skipping", base_name)
+                if owned:
+                    used_names[own_key] = src_path
                 continue
             used_names[name_key(new_name)] = src_path
             logging.debug("No hash match: assigned dated name %s", new_name)
 
         if name_key(new_name) != name_key(name):
             dst = os.path.join(os.path.dirname(src_path), new_name)
+            new_key = name_key(new_name)
             try:
                 move_file(src_path, dst, overwrite=False)
-                new_key = name_key(new_name)
                 if os.path.exists(src_path):
                     logging.warning("Rename skipped, destination already exists: %s -> %s", src_path, dst)
                     if used_names.get(new_key) == src_path:
@@ -186,5 +189,8 @@ def normalize_indexed_filenames(
                         known_hash[dst] = known_hash[src_path]
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)
+                if used_names.get(new_key) == src_path:
+                    del used_names[new_key]
+                    used_names[name_key(name)] = src_path
 
     logging.info("Completed normalization for %s", source_folder)

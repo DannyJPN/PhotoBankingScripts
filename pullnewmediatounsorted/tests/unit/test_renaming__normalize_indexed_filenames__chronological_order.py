@@ -256,3 +256,42 @@ def test_normalize__identical_legacy_copies_that_both_need_renaming_keep_the_sam
     assert os.listdir(os.path.join(source_dir, "a")) == ["PICT20260612_0042.JPG"]
     assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
     assert "Cannot hash" not in caplog.text
+
+
+def test_normalize__exhausted_name_variants_leave_the_file_untouched_and_log_an_error(test_folders, caplog):
+    """When every _B.._Z variant is taken the file is skipped, not renamed into an existing name."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    taken = ["PICT20260612_0042.JPG"] + [f"PICT20260612_0042_{letter}.JPG" for letter in "BCDEFGHIJKLMNOPQRSTUVWXYZ"]
+    for index, name in enumerate(taken):
+        create_test_file(source_dir, name, f"content {index}", file_date)
+    create_test_file(source_dir, "PICT0042.JPG", "legacy, different content", file_date)
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(source_dir)) == sorted(taken + ["PICT0042.JPG"])
+    assert "No name variant available" in caplog.text
+
+
+def test_normalize__failed_rename_does_not_leave_a_stale_claim_on_the_new_name(test_folders, monkeypatch):
+    """If moving one file raises, its target name must be free for the next file (no spurious _B)."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub, content in (("a", "first"), ("b", "second")):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT0042.JPG", content, file_date)
+
+    real_move = renaming.move_file
+
+    def flaky_move(src, dst, overwrite=False):
+        if os.path.basename(os.path.dirname(src)) == "a":
+            raise PermissionError("locked")
+        return real_move(src, dst, overwrite=overwrite)
+
+    monkeypatch.setattr(renaming, "move_file", flaky_move)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(os.path.join(source_dir, "a")) == ["PICT0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]

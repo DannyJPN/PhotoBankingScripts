@@ -26,7 +26,7 @@ from shared.exif_handler import get_best_creation_date
 from shared.exif_downloader import ensure_exiftool
 from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
-from shared.file_operations import compute_file_hash, ensure_directory, move_file
+from shared.file_operations import compute_file_hash, ensure_directory, list_files, move_file
 from shared.name_utils import (
     extract_camera_number,
     generate_dated_filename,
@@ -55,9 +55,8 @@ def parse_arguments() -> argparse.Namespace:
 def collect_legacy_files(folder: str, prefixes: list[str]) -> list[Path]:
     """Return all files that match a legacy prefix + 4-digit suffix pattern."""
     result = []
-    for f in Path(folder).rglob("*"):
-        if not f.is_file():
-            continue
+    for path in list_files(folder, recursive=True):
+        f = Path(path)
         for prefix in prefixes:
             if extract_camera_number(f.name, prefix=prefix) is not None:
                 result.append(f)
@@ -90,9 +89,9 @@ def migrate(folder: str, dry_run: bool) -> None:
 
     # Case-insensitive name key -> owning file, seeded with ALL existing files (legacy and already dated)
     used_names: dict[str, Path] = {}
-    for f in Path(folder).rglob("*"):
-        if f.is_file():
-            used_names[name_key(f.name)] = f
+    for path in list_files(folder, recursive=True):
+        f = Path(path)
+        used_names[name_key(f.name)] = f
 
     known_hash: dict[Path, str] = {}
 
@@ -131,7 +130,8 @@ def migrate(folder: str, dry_run: bool) -> None:
 
         # Release the file's own name so it does not block itself
         own_key = name_key(name)
-        if used_names.get(own_key) == file_path:
+        owned = used_names.get(own_key) == file_path
+        if owned:
             del used_names[own_key]
         try:
             new_name = resolve_name_conflict(
@@ -141,7 +141,8 @@ def migrate(folder: str, dry_run: bool) -> None:
             )
         except ValueError:
             logging.error("No name variant available for %s, skipping", base_new_name)
-            used_names[own_key] = file_path
+            if owned:
+                used_names[own_key] = file_path
             skipped += 1
             continue
         used_names[name_key(new_name)] = file_path
@@ -164,7 +165,8 @@ def migrate(folder: str, dry_run: bool) -> None:
                 if file_path.exists():
                     logging.warning("Rename skipped, destination already exists: %s -> %s", name, new_name)
                     used_names.pop(name_key(new_name), None)
-                    used_names[own_key] = file_path
+                    if owned:
+                        used_names[own_key] = file_path
                     skipped += 1
                 else:
                     logging.info("Renamed %s -> %s", name, new_name)
@@ -172,6 +174,9 @@ def migrate(folder: str, dry_run: bool) -> None:
                     renamed += 1
             except Exception as e:
                 logging.error("Failed to rename %s: %s", name, e)
+                used_names.pop(name_key(new_name), None)
+                if owned:
+                    used_names[own_key] = file_path
                 skipped += 1
 
     logging.info(
