@@ -47,9 +47,6 @@ def parse_arguments():
     parser.add_argument("--final_target",    type=str, default=DEFAULT_FINAL_TARGET_FOLDER)
     parser.add_argument("--log_dir",         type=str, default=DEFAULT_LOG_DIR)
     parser.add_argument("--debug",           action="store_true")
-    parser.add_argument("--index_prefix",    type=str, default="PICT", help="Prefix for indexed filenames")
-    parser.add_argument("--index_width",     type=int, default=4, help="Width of numeric suffix")
-    parser.add_argument("--index_max",       type=int, default=9999, help="Max index number to scan")
     return parser.parse_args()
 
 
@@ -88,8 +85,6 @@ def main():
             source_folder=args.target,
             reference_folder=args.final_target,
             prefix=prefix,
-            width=args.index_width,
-            max_number=args.index_max,
         )
 
     # 3) Normalize indexed filenames in sources vs target
@@ -99,8 +94,6 @@ def main():
                 source_folder=folder,
                 reference_folder=args.target,
                 prefix=prefix,
-                width=args.index_width,
-                max_number=args.index_max,
             )
 
     # 4) Copy media files to target

@@ -1,278 +1,297 @@
 """
-Unit tests for chronological sorting in normalize_indexed_filenames function.
+Unit tests for normalize_indexed_filenames in pullnewmediatounsortedlib/renaming.py.
 
-Tests verify that files are renumbered in chronological order (oldest first),
-ensuring that lower numbers are assigned to older files.
+Covers the dated-filename format (NIK_YYYYMMDD_XXXX): hash-match against a reference
+folder, legacy-format migration, idempotency on already-dated files, missing camera
+number handling, and the ExifTool-unavailable fallback to filesystem mtime.
 """
 
 import os
 import sys
 import tempfile
 import shutil
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import pytest
 
-# Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from pullnewmediatounsortedlib import renaming
 from pullnewmediatounsortedlib.renaming import normalize_indexed_filenames
-from shared.file_operations import compute_file_hash
 
 
-class TestNormalizeIndexedFilenamesChronologicalOrder:
-    """Test suite for chronological ordering in file normalization."""
+@pytest.fixture
+def test_folders():
+    """Create temporary source/reference directories."""
+    source_dir = tempfile.mkdtemp(prefix="test_source_")
+    reference_dir = tempfile.mkdtemp(prefix="test_reference_")
 
-    @pytest.fixture
-    def test_folders(self):
-        """Create temporary test directories."""
-        source_dir = tempfile.mkdtemp(prefix="test_source_")
-        reference_dir = tempfile.mkdtemp(prefix="test_reference_")
+    yield source_dir, reference_dir
 
-        yield source_dir, reference_dir
-
-        # Cleanup
-        shutil.rmtree(source_dir, ignore_errors=True)
-        shutil.rmtree(reference_dir, ignore_errors=True)
-
-    def create_test_file(self, directory: str, filename: str, content: str, mtime: datetime) -> str:
-        """
-        Create a test file with specific content and modification time.
-
-        Args:
-            directory: Directory to create file in
-            filename: Name of the file
-            content: Content to write to file
-            mtime: Modification time to set
-
-        Returns:
-            Full path to created file
-        """
-        filepath = os.path.join(directory, filename)
-        with open(filepath, 'w') as f:
-            f.write(content)
-
-        # Set modification time
-        timestamp = mtime.timestamp()
-        os.utime(filepath, (timestamp, timestamp))
-
-        return filepath
-
-    def test_chronological_ordering_basic(self, test_folders):
-        """
-        Test that files are numbered chronologically (oldest first).
-
-        Scenario:
-        - Create 3 files with different timestamps
-        - Older files should get lower numbers
-        """
-        source_dir, reference_dir = test_folders
-
-        # Create test files with known timestamps
-        now = datetime.now()
-
-        # File 1: Oldest (should become PICT000001)
-        oldest_file = self.create_test_file(
-            source_dir,
-            "PICT9999.JPG",
-            "oldest content",
-            now - timedelta(days=3)
-        )
-
-        # File 2: Middle (should become PICT000002)
-        middle_file = self.create_test_file(
-            source_dir,
-            "PICT0001.JPG",
-            "middle content",
-            now - timedelta(days=2)
-        )
-
-        # File 3: Newest (should become PICT000003)
-        newest_file = self.create_test_file(
-            source_dir,
-            "PICT0100.JPG",
-            "newest content",
-            now - timedelta(days=1)
-        )
-
-        # Run normalization
-        normalize_indexed_filenames(
-            source_folder=source_dir,
-            reference_folder=reference_dir,
-            prefix="PICT",
-            width=6,
-            max_number=999999
-        )
-
-        # Check resulting filenames
-        files_in_dir = sorted(os.listdir(source_dir))
-
-        assert "PICT000001.JPG" in files_in_dir, "Oldest file should be numbered 000001"
-        assert "PICT000002.JPG" in files_in_dir, "Middle file should be numbered 000002"
-        assert "PICT000003.JPG" in files_in_dir, "Newest file should be numbered 000003"
-
-        # Verify content matches (oldest -> PICT000001)
-        with open(os.path.join(source_dir, "PICT000001.JPG"), 'r') as f:
-            assert f.read() == "oldest content", "PICT000001 should contain oldest content"
-
-        with open(os.path.join(source_dir, "PICT000002.JPG"), 'r') as f:
-            assert f.read() == "middle content", "PICT000002 should contain middle content"
-
-        with open(os.path.join(source_dir, "PICT000003.JPG"), 'r') as f:
-            assert f.read() == "newest content", "PICT000003 should contain newest content"
-
-    def test_chronological_ordering_with_reference(self, test_folders):
-        """
-        Test that existing files in reference folder are preserved.
-
-        Scenario:
-        - Reference folder has PICT000001.JPG (existing file)
-        - Source has same file (by hash) + new files
-        - Existing file should keep its number, new files numbered chronologically
-        """
-        source_dir, reference_dir = test_folders
-        now = datetime.now()
-
-        # Create reference file
-        ref_content = "existing reference content"
-        ref_file = self.create_test_file(
-            reference_dir,
-            "PICT000001.JPG",
-            ref_content,
-            now - timedelta(days=10)
-        )
-
-        # Create source files
-        # File 1: Same content as reference (should keep PICT000001)
-        same_file = self.create_test_file(
-            source_dir,
-            "PICT9999.JPG",
-            ref_content,
-            now - timedelta(days=5)
-        )
-
-        # File 2: New old file (should become PICT000002)
-        old_new_file = self.create_test_file(
-            source_dir,
-            "PICT0050.JPG",
-            "old new content",
-            now - timedelta(days=3)
-        )
-
-        # File 3: New recent file (should become PICT000003)
-        recent_new_file = self.create_test_file(
-            source_dir,
-            "PICT0200.JPG",
-            "recent new content",
-            now - timedelta(days=1)
-        )
-
-        # Run normalization
-        normalize_indexed_filenames(
-            source_folder=source_dir,
-            reference_folder=reference_dir,
-            prefix="PICT",
-            width=6,
-            max_number=999999
-        )
-
-        # Check resulting filenames
-        files_in_dir = sorted(os.listdir(source_dir))
-
-        assert "PICT000001.JPG" in files_in_dir, "Reference file should keep its number"
-        assert "PICT000002.JPG" in files_in_dir, "Old new file should be 000002"
-        assert "PICT000003.JPG" in files_in_dir, "Recent new file should be 000003"
-
-        # Verify content
-        with open(os.path.join(source_dir, "PICT000001.JPG"), 'r') as f:
-            assert f.read() == ref_content, "PICT000001 should be reference content"
-
-        with open(os.path.join(source_dir, "PICT000002.JPG"), 'r') as f:
-            assert f.read() == "old new content", "PICT000002 should be old new content"
-
-        with open(os.path.join(source_dir, "PICT000003.JPG"), 'r') as f:
-            assert f.read() == "recent new content", "PICT000003 should be recent new content"
-
-    def test_chronological_ordering_many_files(self, test_folders):
-        """
-        Test chronological ordering with many files.
-
-        Scenario:
-        - Create 10 files with random-looking names but chronological timestamps
-        - Verify all are numbered in chronological order
-        """
-        source_dir, reference_dir = test_folders
-        now = datetime.now()
-
-        # Create files with decreasing age (oldest to newest)
-        file_data = []
-        for i in range(10):
-            content = f"content_{i}"
-            filename = f"PICT{9000 + i * 100}.JPG"  # Random-looking numbers
-            mtime = now - timedelta(days=10 - i)  # Oldest = 10 days ago, newest = 1 day ago
-
-            filepath = self.create_test_file(source_dir, filename, content, mtime)
-            file_data.append((content, mtime))
-
-        # Run normalization
-        normalize_indexed_filenames(
-            source_folder=source_dir,
-            reference_folder=reference_dir,
-            prefix="PICT",
-            width=6,
-            max_number=999999
-        )
-
-        # Verify files are numbered chronologically
-        for i in range(10):
-            expected_filename = f"PICT{i+1:06d}.JPG"
-            expected_content = f"content_{i}"
-
-            filepath = os.path.join(source_dir, expected_filename)
-            assert os.path.exists(filepath), f"{expected_filename} should exist"
-
-            with open(filepath, 'r') as f:
-                actual_content = f.read()
-                assert actual_content == expected_content, \
-                    f"{expected_filename} should contain {expected_content}, got {actual_content}"
-
-    def test_chronological_ordering_same_timestamp(self, test_folders):
-        """
-        Test handling of files with identical timestamps.
-
-        Scenario:
-        - Multiple files created at the same time
-        - Should not crash and assign sequential numbers
-        """
-        source_dir, reference_dir = test_folders
-        now = datetime.now()
-
-        # Create 3 files with same timestamp
-        for i in range(3):
-            self.create_test_file(
-                source_dir,
-                f"PICT{1000 + i}.JPG",
-                f"content_{i}",
-                now - timedelta(days=1)
-            )
-
-        # Should not crash
-        normalize_indexed_filenames(
-            source_folder=source_dir,
-            reference_folder=reference_dir,
-            prefix="PICT",
-            width=6,
-            max_number=999999
-        )
-
-        # All files should be renumbered
-        files_in_dir = sorted(os.listdir(source_dir))
-        assert len(files_in_dir) == 3, "Should have 3 files"
-        assert all("PICT" in f for f in files_in_dir), "All files should have PICT prefix"
+    shutil.rmtree(source_dir, ignore_errors=True)
+    shutil.rmtree(reference_dir, ignore_errors=True)
 
 
-if __name__ == "__main__":
-    # Run tests with pytest
-    pytest.main([__file__, "-v"])
+def create_test_file(directory: str, filename: str, content: str, mtime: datetime) -> str:
+    """Create a test file with specific content and modification time."""
+    filepath = os.path.join(directory, filename)
+    with open(filepath, "w") as f:
+        f.write(content)
+    timestamp = mtime.timestamp()
+    os.utime(filepath, (timestamp, timestamp))
+    return filepath
+
+
+@pytest.fixture(autouse=True)
+def no_real_exiftool(monkeypatch):
+    """
+    Force normalize_indexed_filenames to fall back to filesystem mtime instead of
+    depending on a real ExifTool installation, so file mtime fully controls the
+    derived date in every test below.
+    """
+    monkeypatch.setattr(renaming, "ensure_exiftool", lambda: None)
+    monkeypatch.setattr(renaming, "get_best_creation_date", lambda _path, tool_path=None: None)
+
+
+def test_normalize__hash_match_uses_reference_canonical_name(test_folders):
+    """A file whose content hash matches a reference file is renamed to that canonical name."""
+    source_dir, reference_dir = test_folders
+    now = datetime.now()
+
+    content = "same content"
+    create_test_file(reference_dir, "PICT20260101_0001.JPG", content, now - timedelta(days=10))
+    create_test_file(source_dir, "PICT9999.JPG", content, now - timedelta(days=1))
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    files = os.listdir(source_dir)
+    assert files == ["PICT20260101_0001.JPG"]
+
+
+def test_normalize__legacy_format_gets_dated_name_from_own_mtime(test_folders):
+    """A legacy PICTxxxx file with no reference hash match is renamed using its own mtime and camera number."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+
+    create_test_file(source_dir, "PICT0042.JPG", "legacy content", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    files = os.listdir(source_dir)
+    assert files == ["PICT20260612_0042.JPG"]
+
+
+def test_normalize__already_dated_file_is_idempotent_across_repeated_runs(test_folders):
+    """
+    A file already in dated format with no reference hash match must not be renamed,
+    even across repeated runs (regression test for the used_names self-collision bug).
+    """
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+
+    create_test_file(source_dir, "PICT20260612_0042.JPG", "already dated", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    assert os.listdir(source_dir) == ["PICT20260612_0042.JPG"]
+
+    # Run again: the file must still be recognized as correctly named, not shifted to _B.
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    assert os.listdir(source_dir) == ["PICT20260612_0042.JPG"]
+
+
+def test_normalize__missing_camera_number_is_skipped(test_folders):
+    """A file matching the prefix but with no parseable camera number is left untouched."""
+    source_dir, reference_dir = test_folders
+
+    create_test_file(source_dir, "PICT_not_a_number.JPG", "content", datetime.now())
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == ["PICT_not_a_number.JPG"]
+
+
+def test_normalize__same_day_camera_number_conflict_gets_suffix(test_folders):
+    """Two different-hash files that would generate the same dated name get a _B suffix on the second."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+
+    # Pre-existing correctly-named file for camera number 0042 on the same day.
+    create_test_file(source_dir, "PICT20260612_0042.JPG", "first", file_date)
+    # Legacy file that would resolve to the same camera number and date, but different content.
+    create_test_file(source_dir, "PICT0042.JPG", "second, different content", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    files = sorted(os.listdir(source_dir))
+    assert files == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
+
+
+def test_normalize__no_matching_files_is_noop(test_folders):
+    """An empty (or non-matching) source folder is a no-op and does not raise."""
+    source_dir, reference_dir = test_folders
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == []
+
+
+def test_normalize__exiftool_unavailable_falls_back_to_filesystem_mtime(test_folders, monkeypatch):
+    """When ExifTool cannot be located, the function must still complete using mtime."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+
+    monkeypatch.setattr(renaming, "ensure_exiftool", lambda: (_ for _ in ()).throw(FileNotFoundError("no exiftool")))
+
+    create_test_file(source_dir, "PICT0007.JPG", "content", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == ["PICT20260612_0007.JPG"]
+
+
+def test_normalize__camera_number_above_9999_is_skipped_and_left_untouched(test_folders, caplog):
+    """A legacy name whose number cannot fit into four digits must not be renamed to an unparseable name."""
+    source_dir, reference_dir = test_folders
+
+    create_test_file(source_dir, "PICT012345.JPG", "wide number", datetime(2026, 6, 12))
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == ["PICT012345.JPG"]
+    assert "does not fit" in caplog.text
+
+
+def test_normalize__rename_skipped_when_destination_exists_logs_warning(test_folders, caplog):
+    """If the canonical name is already taken by another source copy, move_file no-ops; that must be reported."""
+    source_dir, reference_dir = test_folders
+    now = datetime.now()
+
+    create_test_file(reference_dir, "PICT20260101_0001.JPG", "reference content", now - timedelta(days=10))
+    create_test_file(source_dir, "PICT9999.JPG", "reference content", now - timedelta(days=1))
+    create_test_file(source_dir, "PICT20260101_0001.JPG", "reference content", datetime(2026, 1, 1))
+
+    with caplog.at_level("WARNING"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(source_dir)) == ["PICT20260101_0001.JPG", "PICT9999.JPG"]
+    assert "Rename skipped, destination already exists" in caplog.text
+
+
+def test_normalize__identical_duplicates_in_different_subfolders_keep_the_same_name(test_folders):
+    """Byte-identical copies in different folders are duplicates, not a name conflict (no _B suffix)."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub in ("a", "b"):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT20260612_0042.JPG", "identical content", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(os.path.join(source_dir, "a"))) == ["PICT20260612_0042.JPG"]
+    assert sorted(os.listdir(os.path.join(source_dir, "b"))) == ["PICT20260612_0042.JPG"]
+
+
+def test_normalize__same_name_different_content_in_different_subfolders_gets_suffix(test_folders):
+    """Different files that would share one name keep names unique across the whole tree."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub, content in (("a", "first"), ("b", "second")):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT20260612_0042.JPG", content, file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    names = sorted(os.listdir(os.path.join(source_dir, "a")) + os.listdir(os.path.join(source_dir, "b")))
+    assert names == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
+
+
+def test_normalize__suffixed_file_is_recognised_and_stays_stable(test_folders):
+    """A file that already carries a conflict suffix must not be skipped, renamed or changed on later runs."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    create_test_file(source_dir, "PICT20260612_0042.JPG", "first", file_date)
+    create_test_file(source_dir, "PICT20260612_0042_B.JPG", "second", file_date)
+
+    for _ in range(2):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        assert sorted(os.listdir(source_dir)) == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
+
+
+def test_normalize__name_conflict_check_is_case_insensitive(test_folders):
+    """A legacy file must not take a name that differs from an existing one only by letter case."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    create_test_file(source_dir, "PICT20260612_0042.jpg", "first", file_date)
+    create_test_file(source_dir, "PICT0042.JPG", "second, different content", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(source_dir)) == ["PICT20260612_0042.jpg", "PICT20260612_0042_B.JPG"]
+
+
+def test_normalize__case_only_difference_is_not_a_rename(test_folders):
+    """Names are compared case-insensitively, so a name differing only by case needs no rename."""
+    source_dir, reference_dir = test_folders
+    create_test_file(source_dir, "pict20260612_0042.JPG", "content", datetime(2026, 6, 12))
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(source_dir) == ["pict20260612_0042.JPG"]
+
+
+def test_normalize__identical_legacy_copies_that_both_need_renaming_keep_the_same_dated_name(test_folders, caplog):
+    """Two byte-identical legacy files in different folders must both get the base name (no _B, no hash error)."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub in ("a", "b"):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT0042.JPG", "identical content", file_date)
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(os.path.join(source_dir, "a")) == ["PICT20260612_0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
+    assert "Cannot hash" not in caplog.text
+
+
+def test_normalize__exhausted_name_variants_leave_the_file_untouched_and_log_an_error(test_folders, caplog):
+    """When every _B.._Z variant is taken the file is skipped, not renamed into an existing name."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    taken = ["PICT20260612_0042.JPG"] + [f"PICT20260612_0042_{letter}.JPG" for letter in "BCDEFGHIJKLMNOPQRSTUVWXYZ"]
+    for index, name in enumerate(taken):
+        create_test_file(source_dir, name, f"content {index}", file_date)
+    create_test_file(source_dir, "PICT0042.JPG", "legacy, different content", file_date)
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert sorted(os.listdir(source_dir)) == sorted(taken + ["PICT0042.JPG"])
+    assert "No name variant available" in caplog.text
+
+
+def test_normalize__failed_rename_does_not_leave_a_stale_claim_on_the_new_name(test_folders, monkeypatch):
+    """If moving one file raises, its target name must be free for the next file (no spurious _B)."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub, content in (("a", "first"), ("b", "second")):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT0042.JPG", content, file_date)
+
+    real_move = renaming.move_file
+
+    def flaky_move(src, dst, overwrite=False):
+        if os.path.basename(os.path.dirname(src)) == "a":
+            raise PermissionError("locked")
+        return real_move(src, dst, overwrite=overwrite)
+
+    monkeypatch.setattr(renaming, "move_file", flaky_move)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(os.path.join(source_dir, "a")) == ["PICT0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
