@@ -52,7 +52,10 @@ def handle_duplicate(source_path: str, target_paths: list[str]) -> None:
     for target_path in target_paths:
         if os.path.exists(target_path):
             logging.info("Removing duplicate %s (identical to %s)", source_path, target_path)
-            delete_file(source_path)
+            try:
+                delete_file(source_path)
+            except OSError as e:
+                logging.error("Failed to remove duplicate %s: %s", source_path, e)
             return
     logging.warning("No target file exists on disk for duplicate %s — keeping source", source_path)
 

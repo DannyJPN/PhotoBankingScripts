@@ -71,3 +71,21 @@ def test_remove_desktop_ini__removes(tmp_path):
     ops.remove_desktop_ini(str(tmp_path))
 
     assert not desktop_ini.exists()
+
+
+def test_handle_duplicate__failed_deletion_is_logged_and_does_not_raise(tmp_path, monkeypatch, caplog):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    def refuse(_path):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(ops, "delete_file", refuse)
+
+    with caplog.at_level("ERROR"):
+        ops.handle_duplicate(str(source), [str(target)])
+
+    assert source.exists()
+    assert "Failed to remove duplicate" in caplog.text

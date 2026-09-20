@@ -173,10 +173,17 @@ def normalize_indexed_filenames(
             dst = os.path.join(os.path.dirname(src_path), new_name)
             try:
                 move_file(src_path, dst, overwrite=False)
+                new_key = name_key(new_name)
                 if os.path.exists(src_path):
                     logging.warning("Rename skipped, destination already exists: %s -> %s", src_path, dst)
+                    if used_names.get(new_key) == src_path:
+                        del used_names[new_key]
+                        used_names[name_key(name)] = src_path
                 else:
                     logging.debug("Renamed %s -> %s", name, new_name)
+                    if used_names.get(new_key) == src_path:
+                        used_names[new_key] = dst
+                        known_hash[dst] = known_hash[src_path]
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)
 

@@ -100,7 +100,9 @@ def resolve_name_conflict(
         Such a collision is an identical duplicate copy, not a real conflict, so base_name is
         returned unchanged.
     :return: A filename that is not taken.
-    :raises ValueError: If no free variant is left.
+    :raises ValueError: If no free variant is left. Only the suffixes B..Z (25 variants) are
+        tried; the cap is deliberate because more than a handful of conflicts on one day
+        indicates a real problem that needs manual attention.
     """
     key = name_key(base_name)
     if key not in used_names:

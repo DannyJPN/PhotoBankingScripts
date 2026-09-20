@@ -240,3 +240,19 @@ def test_normalize__case_only_difference_is_not_a_rename(test_folders):
     normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["pict20260612_0042.JPG"]
+
+
+def test_normalize__identical_legacy_copies_that_both_need_renaming_keep_the_same_dated_name(test_folders, caplog):
+    """Two byte-identical legacy files in different folders must both get the base name (no _B, no hash error)."""
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    for sub in ("a", "b"):
+        os.makedirs(os.path.join(source_dir, sub))
+        create_test_file(os.path.join(source_dir, sub), "PICT0042.JPG", "identical content", file_date)
+
+    with caplog.at_level("ERROR"):
+        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(os.path.join(source_dir, "a")) == ["PICT20260612_0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
+    assert "Cannot hash" not in caplog.text

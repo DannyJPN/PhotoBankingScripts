@@ -12,7 +12,7 @@ sys.path.insert(0, str(package_root))
 from removealreadysortedoutlib.removal_operations import handle_duplicate
 
 
-def test_handle_duplicate__does_not_delete_source_when_no_target_exists_on_disk(tmp_path):
+def test_removal_operations__handle_duplicate__keeps_source_when_no_target_exists(tmp_path):
     """
     A stale or incorrect hash-map entry pointing at a target path that no longer
     exists must never cause the source file to be deleted.
