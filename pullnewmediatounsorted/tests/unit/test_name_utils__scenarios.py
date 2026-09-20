@@ -13,8 +13,8 @@ from shared.name_utils import (
     extract_camera_number,
     extract_dated_parts,
     generate_dated_filename,
+    name_key,
     resolve_name_conflict,
-    extract_numeric_suffix,
 )
 
 
@@ -57,29 +57,24 @@ def test_resolve_name_conflict__no_conflict_returns_base_name():
 
 
 def test_resolve_name_conflict__single_conflict_appends_suffix():
-    used = {"NIK_20260612_0001.JPG"}
+    used = {name_key("NIK_20260612_0001.JPG")}
     assert resolve_name_conflict("NIK_20260612_0001.JPG", used) == "NIK_20260612_0001_B.JPG"
 
 
 def test_resolve_name_conflict__no_extension_filename():
-    used = {"NIK_20260612_0001"}
+    used = {name_key("NIK_20260612_0001")}
     assert resolve_name_conflict("NIK_20260612_0001", used) == "NIK_20260612_0001_B"
 
 
 def test_resolve_name_conflict__exhaustion_raises_value_error():
     base = "NIK_20260612_0001.JPG"
     stem, ext = base.rsplit(".", 1)
-    used = {base} | {f"{stem}_{suffix}.{ext}" for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    used = {name_key(base)} | {name_key(f"{stem}_{suffix}.{ext}") for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ"}
     try:
         resolve_name_conflict(base, used)
         assert False, "expected ValueError"
     except ValueError:
         pass
-
-
-def test_extract_numeric_suffix__matches_prefix():
-    assert extract_numeric_suffix("PICT0001.jpg", prefix="PICT") == 1
-    assert extract_numeric_suffix("OTHER0001.jpg", prefix="PICT") is None
 
 
 def test_generate_dated_filename__max_camera_number_round_trips():
@@ -112,3 +107,46 @@ def test_wide_legacy_number_is_parsed_but_cannot_be_dated():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_extract_dated_parts__accepts_conflict_suffix():
+    assert extract_dated_parts("NIK_20260612_0042_B.JPG", prefix="NIK_") == ("20260612", 42)
+    assert extract_dated_parts("NIK_20260612_0042_c.jpg", prefix="NIK_") == ("20260612", 42)
+
+
+def test_extract_dated_parts__rejects_longer_suffix():
+    assert extract_dated_parts("NIK_20260612_0042_BB.JPG", prefix="NIK_") is None
+
+
+def test_name_key__is_case_insensitive():
+    assert name_key("NIK_20260612_0001.JPG") == name_key("nik_20260612_0001.jpg")
+
+
+def test_resolve_name_conflict__comparison_is_case_insensitive():
+    used = {name_key("NIK_20260612_0001.jpg")}
+    assert resolve_name_conflict("NIK_20260612_0001.JPG", used) == "NIK_20260612_0001_B.JPG"
+
+
+def test_resolve_name_conflict__suffix_candidate_checked_case_insensitively():
+    used = {name_key("NIK_20260612_0001.JPG"), name_key("nik_20260612_0001_b.jpg")}
+    assert resolve_name_conflict("NIK_20260612_0001.JPG", used) == "NIK_20260612_0001_C.JPG"
+
+
+def test_resolve_name_conflict__identical_content_keeps_base_name():
+    used = {name_key("NIK_20260612_0001.JPG")}
+    assert (
+        resolve_name_conflict("NIK_20260612_0001.JPG", used, same_content=lambda _key: True) == "NIK_20260612_0001.JPG"
+    )
+
+
+def test_resolve_name_conflict__different_content_still_gets_suffix():
+    used = {name_key("NIK_20260612_0001.JPG")}
+    result = resolve_name_conflict("NIK_20260612_0001.JPG", used, same_content=lambda _key: False)
+    assert result == "NIK_20260612_0001_B.JPG"
+
+
+def test_resolve_name_conflict__same_content_not_consulted_when_name_is_free():
+    def fail(_key):
+        raise AssertionError("same_content must not be called for a free name")
+
+    assert resolve_name_conflict("NIK_20260612_0001.JPG", set(), same_content=fail) == "NIK_20260612_0001.JPG"

@@ -1,6 +1,5 @@
 import os
 import logging
-from typing import Dict, List
 
 from shared.file_operations import get_hash_map_from_folder, delete_file
 from shared.hash_utils import compute_file_hash
@@ -55,14 +54,12 @@ def handle_duplicate(source_path: str, target_paths: list[str]) -> None:
             logging.info("Removing duplicate %s (identical to %s)", source_path, target_path)
             delete_file(source_path)
             return
-    logging.warning(
-        "No target file exists on disk for duplicate %s — keeping source", source_path
-    )
+    logging.warning("No target file exists on disk for duplicate %s — keeping source", source_path)
 
 
 def remove_desktop_ini(folder: str) -> None:
     """
-    Odstraní `desktop.ini`, pokud existuje.
+    Remove `desktop.ini` from the folder if it exists.
     """
     desktop_ini_path = os.path.join(folder, "desktop.ini")
     if os.path.exists(desktop_ini_path):

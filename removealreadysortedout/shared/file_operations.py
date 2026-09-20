@@ -67,7 +67,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
 
 def delete_file(path: str) -> None:
     """
-    Smaže soubor na dané cestě.
+    Delete the file at the given path.
     """
     logging.debug("Deleting file: %s", path)
     try:

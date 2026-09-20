@@ -7,6 +7,7 @@ from shared.name_utils import (
     extract_camera_number,
     extract_dated_parts,
     generate_dated_filename,
+    name_key,
     resolve_name_conflict,
 )
 from shared.exif_handler import get_best_creation_date
@@ -62,7 +63,9 @@ def normalize_indexed_filenames(
     """
     logging.info(
         "Normalizing indexed filenames in %s against %s (prefix=%s)",
-        source_folder, reference_folder, prefix,
+        source_folder,
+        reference_folder,
+        prefix,
     )
 
     # 1) Skip early if nothing to do
@@ -84,9 +87,20 @@ def normalize_indexed_filenames(
             hash_to_canon[h] = os.path.basename(path)
     logging.debug("Reference provides %d canonical names", len(hash_to_canon))
 
-    # 3) Seed used_names from reference folder AND existing source folder filenames
-    used_names: set[str] = {os.path.basename(p) for p in ref_hash_map}
-    used_names |= {os.path.basename(p) for p in paths}
+    # 3) Seed used_names (case-insensitive name key -> owning path) from source AND reference
+    #    folders; the reference wins because final names live there.
+    used_names: dict[str, str] = {name_key(os.path.basename(p)): p for p in paths}
+    used_names.update({name_key(os.path.basename(p)): p for p in ref_hash_map})
+    known_hash: dict[str, str] = dict(ref_hash_map)
+
+    def _hash_of(path: str) -> str | None:
+        if path not in known_hash:
+            try:
+                known_hash[path] = compute_file_hash(path)
+            except Exception as e:
+                logging.error("Cannot hash %s: %s", path, e)
+                return None
+        return known_hash[path]
 
     # 4) Locate ExifTool once
     try:
@@ -118,6 +132,7 @@ def normalize_indexed_filenames(
         except Exception as e:
             logging.error("Skipping %s due to hash error: %s", src_path, e)
             continue
+        known_hash[src_path] = h
 
         if h in hash_to_canon:
             new_name = hash_to_canon[h]
@@ -141,16 +156,20 @@ def normalize_indexed_filenames(
             except ValueError as e:
                 logging.error("Cannot build dated name for '%s': %s, skipping", name, e)
                 continue
-            used_names.discard(name)
+            own_key = name_key(name)
+            if used_names.get(own_key) == src_path:
+                del used_names[own_key]
             try:
-                new_name = resolve_name_conflict(base_name, used_names)
+                new_name = resolve_name_conflict(
+                    base_name, used_names, same_content=lambda key: _hash_of(used_names[key]) == h
+                )
             except ValueError:
                 logging.error("No name variant available for %s, skipping", base_name)
                 continue
-            used_names.add(new_name)
+            used_names[name_key(new_name)] = src_path
             logging.debug("No hash match: assigned dated name %s", new_name)
 
-        if new_name != name:
+        if name_key(new_name) != name_key(name):
             dst = os.path.join(os.path.dirname(src_path), new_name)
             try:
                 move_file(src_path, dst, overwrite=False)

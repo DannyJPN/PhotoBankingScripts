@@ -10,6 +10,7 @@ Usage:
 
 Pass --dry-run to preview all planned renames without executing them.
 """
+
 import argparse
 import logging
 import os
@@ -25,11 +26,11 @@ from shared.exif_handler import get_best_creation_date
 from shared.exif_downloader import ensure_exiftool
 from shared.logging_config import setup_logging
 from shared.utils import get_log_filename
-from shared.file_operations import ensure_directory, move_file
+from shared.file_operations import compute_file_hash, ensure_directory, move_file
 from shared.name_utils import (
     extract_camera_number,
-    extract_dated_parts,
     generate_dated_filename,
+    name_key,
     resolve_name_conflict,
 )
 from pullnewmediatounsortedlib.constants import (
@@ -42,12 +43,12 @@ from pullnewmediatounsortedlib.constants import (
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Migrate legacy NIK_/PICT_ filenames to dated format.")
-    parser.add_argument("--folder",  type=str, default=DEFAULT_FINAL_TARGET_FOLDER,
-                        help="Folder to migrate (default: J:/)")
+    parser.add_argument(
+        "--folder", type=str, default=DEFAULT_FINAL_TARGET_FOLDER, help="Folder to migrate (default: J:/)"
+    )
     parser.add_argument("--log_dir", type=str, default=DEFAULT_LOG_DIR)
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Preview renames without executing them")
-    parser.add_argument("--debug",   action="store_true")
+    parser.add_argument("--dry-run", action="store_true", help="Preview renames without executing them")
+    parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
 
 
@@ -87,12 +88,18 @@ def migrate(folder: str, dry_run: bool) -> None:
     files = collect_legacy_files(folder, PREFIXES_TO_NORMALIZE)
     logging.info("Found %d legacy files to migrate in %s", len(files), folder)
 
-    used_names: set[str] = set()
-
-    # Seed used_names with ALL existing filenames in the folder (both legacy and already-dated)
+    # Case-insensitive name key -> owning file, seeded with ALL existing files (legacy and already dated)
+    used_names: dict[str, Path] = {}
     for f in Path(folder).rglob("*"):
         if f.is_file():
-            used_names.add(f.name)
+            used_names[name_key(f.name)] = f
+
+    known_hash: dict[Path, str] = {}
+
+    def _hash_of(path: Path) -> str:
+        if path not in known_hash:
+            known_hash[path] = compute_file_hash(str(path))
+        return known_hash[path]
 
     renamed = 0
     skipped = 0
@@ -122,17 +129,24 @@ def migrate(folder: str, dry_run: bool) -> None:
             skipped += 1
             continue
 
-        # Remove old name from used_names so it doesn't block itself
-        used_names.discard(name)
+        # Release the file's own name so it does not block itself
+        own_key = name_key(name)
+        if used_names.get(own_key) == file_path:
+            del used_names[own_key]
         try:
-            new_name = resolve_name_conflict(base_new_name, used_names)
+            new_name = resolve_name_conflict(
+                base_new_name,
+                used_names,
+                same_content=lambda key: _hash_of(used_names[key]) == _hash_of(file_path),
+            )
         except ValueError:
             logging.error("No name variant available for %s, skipping", base_new_name)
+            used_names[own_key] = file_path
             skipped += 1
             continue
-        used_names.add(new_name)
+        used_names[name_key(new_name)] = file_path
 
-        if new_name == name:
+        if name_key(new_name) == name_key(name):
             skipped += 1
             continue
 
@@ -149,11 +163,12 @@ def migrate(folder: str, dry_run: bool) -> None:
                 move_file(str(file_path), str(dst), overwrite=False)
                 if file_path.exists():
                     logging.warning("Rename skipped, destination already exists: %s -> %s", name, new_name)
-                    used_names.discard(new_name)
-                    used_names.add(name)
+                    used_names.pop(name_key(new_name), None)
+                    used_names[own_key] = file_path
                     skipped += 1
                 else:
                     logging.info("Renamed %s -> %s", name, new_name)
+                    used_names[name_key(new_name)] = dst
                     renamed += 1
             except Exception as e:
                 logging.error("Failed to rename %s: %s", name, e)
@@ -161,7 +176,9 @@ def migrate(folder: str, dry_run: bool) -> None:
 
     logging.info(
         "Migration complete. Renamed: %d  Skipped: %d  Conflicts resolved: %d",
-        renamed, skipped, conflicts,
+        renamed,
+        skipped,
+        conflicts,
     )
 
 
