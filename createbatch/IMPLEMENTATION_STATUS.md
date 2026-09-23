@@ -15,6 +15,11 @@ The createbatch script processes media records from PhotoMedia.csv and creates b
 
 ## Recent Changes
 
+### 2026-01-06 - Bank Filter
+
+- Added `--banks` argument to limit processing to selected photobanks.
+- Filters prepared records based on case-insensitive bank matching.
+
 ### Version 2.0 - Performance Optimization (2025-11-29)
 
 **Major Performance Improvement:**
