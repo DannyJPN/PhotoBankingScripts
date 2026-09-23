@@ -23,6 +23,7 @@ def make_args(tmp_path, **overrides):
         index_prefix="PICT",
         index_width=4,
         index_max=10,
+        quarantine_dir="",
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -32,6 +33,20 @@ def test_parse_arguments__defaults(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["remove_already_sorted_out.py"])
     args = ras.parse_arguments()
     assert args.unsorted_folder
+    assert args.quarantine_dir == ""
+
+
+def test_parse_arguments__quarantine_dir(monkeypatch, tmp_path):
+    quarantine_dir = tmp_path / "quarantine"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["remove_already_sorted_out.py", "--quarantine-dir", str(quarantine_dir)],
+    )
+
+    args = ras.parse_arguments()
+
+    assert args.quarantine_dir == str(quarantine_dir)
 
 
 def test_main__calls_operations(monkeypatch, tmp_path):
@@ -51,3 +66,32 @@ def test_main__calls_operations(monkeypatch, tmp_path):
     monkeypatch.setattr(ras, "handle_duplicate", lambda *_a, **_k: None)
 
     ras.main()
+
+
+def test_main__passes_quarantine_dir_to_duplicate_handler(monkeypatch, tmp_path):
+    args = make_args(tmp_path, quarantine_dir=str(tmp_path / "quarantine"))
+    monkeypatch.setattr(ras, "parse_arguments", lambda: args)
+    monkeypatch.setattr(ras, "ensure_directory", lambda _p: None)
+    monkeypatch.setattr(ras, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(ras, "setup_logging", lambda **_k: None)
+
+    monkeypatch.setattr(ras, "remove_desktop_ini", lambda *_a, **_k: None)
+    monkeypatch.setattr(ras, "unify_duplicate_files", lambda *_a, **_k: None)
+    monkeypatch.setattr(ras, "replace_in_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(ras, "normalize_indexed_filenames", lambda *_a, **_k: None)
+    monkeypatch.setattr(ras, "list_files", lambda *_a, **_k: ["source.jpg"])
+    monkeypatch.setattr(ras, "get_target_files_map", lambda *_a, **_k: {"source.jpg": ["target.jpg"]})
+    monkeypatch.setattr(ras, "find_duplicates", lambda *_a, **_k: {"source.jpg": ["target.jpg"]})
+
+    received = []
+    monkeypatch.setattr(
+        ras,
+        "handle_duplicate",
+        lambda source_path, target_paths, overwrite, log_file, quarantine_dir="": received.append(
+            (source_path, target_paths, overwrite, quarantine_dir)
+        ),
+    )
+
+    ras.main()
+
+    assert received == [("source.jpg", ["target.jpg"], False, args.quarantine_dir)]
