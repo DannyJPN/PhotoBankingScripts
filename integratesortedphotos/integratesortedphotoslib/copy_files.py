@@ -38,3 +38,18 @@ def copy_files_with_preserved_dates(src_folder, dest_folder):
     except Exception as e:
         logging.error(f"An error occurred while copying files: {e}", exc_info=True)
         raise
+
+
+def find_conflicts(src_folder: str, dest_folder: str) -> list[dict[str, str]]:
+    """
+    Find files that would conflict in the destination.
+    """
+    conflicts: list[dict[str, str]] = []
+    for root, _, files in os.walk(src_folder):
+        for file in files:
+            src_file = os.path.join(root, file)
+            rel_path = os.path.relpath(root, src_folder)
+            dest_file = os.path.join(dest_folder, rel_path, file)
+            if os.path.exists(dest_file):
+                conflicts.append({"source_path": src_file, "dest_path": dest_file})
+    return conflicts
