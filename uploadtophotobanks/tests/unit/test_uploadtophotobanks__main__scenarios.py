@@ -33,3 +33,23 @@ def test_validate_input_files(monkeypatch):
     args = SimpleNamespace(media_folder="C:/media", export_dir="C:/export")
     monkeypatch.setattr(main_module.os.path, "exists", lambda _p: False)
     assert main_module.validate_input_files(args) is False
+
+
+def test_write_upload_log__writes_per_file_rows(monkeypatch, tmp_path):
+    saved = {}
+    monkeypatch.setattr(main_module, "save_csv", lambda records, path: saved.update({"records": records, "path": path}))
+
+    results = {
+        "ShutterStock": {
+            "files": [
+                {"photobank": "ShutterStock", "filename": "a.jpg", "status": "success", "message": ""},
+                {"photobank": "ShutterStock", "filename": "b.jpg", "status": "failure", "message": "ftp"},
+            ]
+        }
+    }
+
+    main_module._write_upload_log(results, str(tmp_path))
+
+    assert len(saved["records"]) == 2
+    assert saved["records"][1]["status"] == "failure"
+    assert saved["path"].endswith(".csv")
