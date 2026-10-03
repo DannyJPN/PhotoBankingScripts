@@ -95,10 +95,24 @@ def migrate(folder: str, dry_run: bool) -> None:
 
     known_hash: dict[Path, str] = {}
 
-    def _hash_of(path: Path) -> str:
+    def _hash_of(path: Path) -> str | None:
+        """
+        Return the cached content hash of ``path``, computing it on first use.
+
+        :param path: File to hash.
+        :return: Hex digest, or None if the file cannot be read.
+        """
         if path not in known_hash:
-            known_hash[path] = compute_file_hash(str(path))
+            try:
+                known_hash[path] = compute_file_hash(str(path))
+            except Exception as e:
+                logging.error("Cannot hash %s: %s", path, e)
+                return None
         return known_hash[path]
+
+    def _same_content(a: Path, b: Path) -> bool:
+        ha, hb = _hash_of(a), _hash_of(b)
+        return ha is not None and ha == hb
 
     renamed = 0
     skipped = 0
@@ -137,7 +151,7 @@ def migrate(folder: str, dry_run: bool) -> None:
             new_name = resolve_name_conflict(
                 base_new_name,
                 used_names,
-                same_content=lambda key: _hash_of(used_names[key]) == _hash_of(file_path),
+                same_content=lambda key: _same_content(used_names[key], file_path),
             )
         except ValueError:
             logging.error("No name variant available for %s, skipping", base_new_name)

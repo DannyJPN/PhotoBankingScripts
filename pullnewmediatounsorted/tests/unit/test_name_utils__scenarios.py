@@ -150,3 +150,13 @@ def test_resolve_name_conflict__same_content_not_consulted_when_name_is_free():
         raise AssertionError("same_content must not be called for a free name")
 
     assert resolve_name_conflict("NIK_20260612_0001.JPG", set(), same_content=fail) == "NIK_20260612_0001.JPG"
+
+
+def test_resolve_name_conflict__identical_content_reuses_an_already_taken_suffix():
+    used = {name_key("NIK_20260612_0001.JPG"), name_key("NIK_20260612_0001_B.JPG")}
+    result = resolve_name_conflict(
+        "NIK_20260612_0001.JPG",
+        used,
+        same_content=lambda key: key == name_key("NIK_20260612_0001_B.JPG"),
+    )
+    assert result == "NIK_20260612_0001_B.JPG"

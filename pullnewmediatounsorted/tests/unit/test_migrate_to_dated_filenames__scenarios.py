@@ -189,3 +189,20 @@ def test_migrate__exhausted_name_variants_skip_the_file(tmp_path, caplog):
 
     assert names(tmp_path) == sorted(taken + ["NIK_0042.JPG"])
     assert "No name variant available" in caplog.text
+
+
+def test_migrate__unreadable_file_during_conflict_check_does_not_crash_the_batch(tmp_path, monkeypatch):
+    create_file(tmp_path / "a", "NIK_0042.JPG", content="first")
+    create_file(tmp_path / "b", "NIK_0042.JPG", content="second, different content")
+    real_hash = migrate_module.compute_file_hash
+
+    def flaky_hash(path):
+        if Path(path).parent.name == "b":
+            raise PermissionError("locked")
+        return real_hash(path)
+
+    monkeypatch.setattr(migrate_module, "compute_file_hash", flaky_hash)
+
+    migrate_module.migrate(str(tmp_path), dry_run=False)
+
+    assert names(tmp_path / "a") == ["NIK_20260612_0042.JPG"]

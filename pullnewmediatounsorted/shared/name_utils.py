@@ -117,7 +117,11 @@ def resolve_name_conflict(
         stem, ext = base_name, ""
     for suffix in "BCDEFGHIJKLMNOPQRSTUVWXYZ":
         candidate = f"{stem}_{suffix}{ext}"
-        if name_key(candidate) not in used_names:
+        candidate_key = name_key(candidate)
+        if candidate_key not in used_names:
             logging.warning("Name conflict resolved: %s -> %s", base_name, candidate)
+            return candidate
+        if same_content is not None and same_content(candidate_key):
+            logging.debug("Name %s is already used by an identical file, keeping it", candidate)
             return candidate
     raise ValueError(f"No available name variant for {base_name}")

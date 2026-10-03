@@ -295,3 +295,20 @@ def test_normalize__failed_rename_does_not_leave_a_stale_claim_on_the_new_name(t
 
     assert os.listdir(os.path.join(source_dir, "a")) == ["PICT0042.JPG"]
     assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
+
+
+def test_normalize__third_identical_copy_reuses_the_existing_suffix(test_folders):
+    source_dir, reference_dir = test_folders
+    file_date = datetime(2026, 6, 12)
+    os.makedirs(os.path.join(source_dir, "first"))
+    create_test_file(os.path.join(source_dir, "first"), "PICT20260612_0042.JPG", "content ONE", file_date)
+    os.makedirs(os.path.join(source_dir, "second"))
+    create_test_file(os.path.join(source_dir, "second"), "PICT0042.JPG", "content TWO", file_date)
+    os.makedirs(os.path.join(source_dir, "third"))
+    create_test_file(os.path.join(source_dir, "third"), "PICT0042.JPG", "content TWO", file_date)
+
+    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+
+    assert os.listdir(os.path.join(source_dir, "first")) == ["PICT20260612_0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "second")) == ["PICT20260612_0042_B.JPG"]
+    assert os.listdir(os.path.join(source_dir, "third")) == ["PICT20260612_0042_B.JPG"]

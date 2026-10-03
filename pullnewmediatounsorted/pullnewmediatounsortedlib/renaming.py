@@ -1,4 +1,4 @@
-from shared.file_operations import list_files, move_file
+from shared.file_operations import delete_file, list_files, move_file
 import logging
 import os
 from datetime import datetime
@@ -33,7 +33,7 @@ def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool
             new_path = os.path.join(os.path.dirname(path), new_name)
             try:
                 if os.path.exists(new_path):
-                    os.remove(path)
+                    delete_file(path)
                     logging.debug("Removed duplicate file: %s", path)
                 else:
                     move_file(path, new_path, overwrite=True)
