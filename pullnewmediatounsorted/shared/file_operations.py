@@ -230,6 +230,19 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
             except OSError:
                 logging.warning("Failed to clean up temp file: %s", temp_path)
 
+def delete_file(path: str) -> None:
+    """
+    Delete the file at the given path.
+    """
+    logging.debug("Deleting file: %s", path)
+    try:
+        os.remove(path)
+        logging.debug("Deleted file: %s", path)
+    except Exception as e:
+        logging.error("Failed to delete file %s: %s", path, e)
+        raise
+
+
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
     Přesune soubor src do dest. Přepíše, pokud overwrite=True.

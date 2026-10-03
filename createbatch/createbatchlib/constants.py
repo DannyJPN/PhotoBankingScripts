@@ -69,7 +69,7 @@ ALTERNATIVE_EDIT_TAGS = {
 }
 
 # Editorial content detection
-EDITORIAL_REGEX = r"^[A-Za-z]{1,}, [A-Za-z]{1,} - \d{2} \d{2} \d{4}:"
+EDITORIAL_REGEX = r"^[A-Za-z]+(?:\s[A-Za-z]+)*, [A-Za-z]+ - \d{2} \d{2} \d{4}:"
 
 # Banks that do NOT accept editorial content
 # Editorial files will be automatically excluded from batch creation for these banks

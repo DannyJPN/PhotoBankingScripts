@@ -18,11 +18,7 @@ def make_args(tmp_path, **overrides):
         unsorted_folder=str(tmp_path / "unsorted"),
         target_folder=str(tmp_path / "target"),
         log_dir=str(tmp_path / "logs"),
-        overwrite=False,
         debug=False,
-        index_prefix="PICT",
-        index_width=4,
-        index_max=10,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -44,9 +40,8 @@ def test_main__calls_operations(monkeypatch, tmp_path):
     monkeypatch.setattr(ras, "remove_desktop_ini", lambda *_a, **_k: None)
     monkeypatch.setattr(ras, "unify_duplicate_files", lambda *_a, **_k: None)
     monkeypatch.setattr(ras, "replace_in_filenames", lambda *_a, **_k: None)
-    monkeypatch.setattr(ras, "normalize_indexed_filenames", lambda *_a, **_k: None)
     monkeypatch.setattr(ras, "list_files", lambda *_a, **_k: [])
-    monkeypatch.setattr(ras, "get_target_files_map", lambda *_a, **_k: {})
+    monkeypatch.setattr(ras, "get_target_hash_map", lambda *_a, **_k: {})
     monkeypatch.setattr(ras, "find_duplicates", lambda *_a, **_k: {})
     monkeypatch.setattr(ras, "handle_duplicate", lambda *_a, **_k: None)
 
