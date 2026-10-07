@@ -129,7 +129,9 @@ File-based approach avoids shell escaping issues and supports full formatting.
 **After pushing:**
 
 **On Windows (PowerShell):**
-- **Restart Dropbox**: `Start-Process "C:\Program Files (x86)\Dropbox\Client\Dropbox.exe"`
+- **Restart Dropbox**: `powershell.exe -NoProfile -Command "& explorer.exe 'C:\Program Files (x86)\Dropbox\Client\Dropbox.exe'"`
+  - **Never use `Start-Process`** from the Claude shell: Dropbox then runs as a child of a short-lived tool process, starts without its UI and hangs.
+  - **Verify**: after ~20 s the main `Dropbox.exe` has parent `explorer.exe` and a `--type=renderer` child process exists.
 
 **On Linux/macOS (bash):**
 - **Restart Dropbox**: `dropbox start` or check system-specific command
