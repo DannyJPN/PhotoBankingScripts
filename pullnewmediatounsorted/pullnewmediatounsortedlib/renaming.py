@@ -1,11 +1,11 @@
 from shared.file_operations import delete_file, list_files, move_file
 import logging
 import os
+import re
 from datetime import datetime
 from shared.file_operations import get_hash_map_from_folder, compute_file_hash
 from shared.name_utils import (
     extract_camera_number,
-    extract_dated_parts,
     generate_dated_filename,
     name_key,
     resolve_name_conflict,
@@ -44,37 +44,43 @@ def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool
 
 
 def normalize_indexed_filenames(
-    source_folder: str,
+    source_folders: list[str],
     reference_folder: str,
     prefix: str = "PICT",
 ) -> None:
     """
-    Rename files with the given `prefix` in `source_folder` to the dated format
+    Rename legacy ``<prefix><number>`` files in all `source_folders` to the dated format
     ``<prefix><YYYYMMDD>_<cam_seq>.<ext>`` (e.g. ``NIK_20260612_8888.JPG``).
 
+    All source folders and the reference folder share one name space, so two different
+    files from two different source folders can never receive the same name.
+
     Rules:
+    - Only legacy names are renamed. A file that already carries a dated name keeps it forever.
     - If the file's hash is found in `reference_folder`, use the reference's canonical name.
     - Otherwise derive the shoot date from EXIF (oldest available tag, same algorithm used
-      for chronological sorting) and keep the original 4-digit camera sequence number.
-    - Files already in the dated format are idempotent: the generated name equals the
-      current name and no rename is performed.
-    - Same-day counter collision (camera rollover within one day) is resolved by appending
-      _B, _C, … to the stem – this case is practically impossible in normal use.
+      for chronological sorting) and keep the original camera sequence number.
+    - A name already taken by an identical file is reused; a name taken by different content
+      gets a _B, _C, … suffix.
+
+    :param source_folders: Folders whose legacy files are renamed in place.
+    :param reference_folder: Folder holding already-final names; it is never modified.
+    :param prefix: Camera filename prefix, e.g. ``NIK_`` or ``PICT``.
     """
     logging.info(
-        "Normalizing indexed filenames in %s against %s (prefix=%s)",
-        source_folder,
+        "Normalizing indexed filenames in %d source folders against %s (prefix=%s)",
+        len(source_folders),
         reference_folder,
         prefix,
     )
 
-    # 1) Skip early if nothing to do
-    paths = list_files(source_folder, pattern=prefix, recursive=True)
+    all_paths = [p for folder in source_folders for p in list_files(folder, pattern=prefix, recursive=True)]
+    legacy_pattern = re.compile(rf"^{re.escape(prefix)}\d{{4,6}}\.", re.IGNORECASE)
+    paths = [p for p in all_paths if legacy_pattern.match(os.path.basename(p))]
     if not paths:
-        logging.info("No files matching '%s*' in %s, skipping.", prefix, source_folder)
+        logging.info("No legacy '%s' files in %s, skipping.", prefix, source_folders)
         return
 
-    # 2) Build reference hash map and derive canonical names
     try:
         ref_hash_map = get_hash_map_from_folder(reference_folder, pattern=prefix)
     except Exception as e:
@@ -87,9 +93,7 @@ def normalize_indexed_filenames(
             hash_to_canon[h] = os.path.basename(path)
     logging.debug("Reference provides %d canonical names", len(hash_to_canon))
 
-    # 3) Seed used_names (case-insensitive name key -> owning path) from source AND reference
-    #    folders; the reference wins because final names live there.
-    used_names: dict[str, str] = {name_key(os.path.basename(p)): p for p in paths}
+    used_names: dict[str, str] = {name_key(os.path.basename(p)): p for p in all_paths}
     used_names.update({name_key(os.path.basename(p)): p for p in ref_hash_map})
     known_hash: dict[str, str] = dict(ref_hash_map)
 
@@ -102,7 +106,6 @@ def normalize_indexed_filenames(
                 return None
         return known_hash[path]
 
-    # 4) Locate ExifTool once
     try:
         exiftool_path = ensure_exiftool()
         logging.debug("ExifTool located at: %s", exiftool_path)
@@ -119,12 +122,10 @@ def normalize_indexed_filenames(
                 date = datetime.fromtimestamp(0)
         return date
 
-    # 5) Sort chronologically and cache dates to avoid double EXIF reads
     logging.info("Reading EXIF dates for %d files...", len(paths))
     path_to_date: dict[str, datetime] = {p: _file_date(p) for p in paths}
     sorted_paths = sorted(paths, key=lambda p: path_to_date[p])
 
-    # 6) Rename each file
     for src_path in tqdm(sorted_paths, desc="Normalizing indexed files", unit="file"):
         name = os.path.basename(src_path)
         try:
@@ -140,15 +141,10 @@ def normalize_indexed_filenames(
         else:
             ext = os.path.splitext(name)[1]
 
-            # Derive camera sequence number – support both old and new filename formats
-            dated = extract_dated_parts(name, prefix=prefix)
-            if dated:
-                cam_num = dated[1]
-            else:
-                cam_num = extract_camera_number(name, prefix=prefix)
-                if cam_num is None:
-                    logging.warning("Cannot extract camera number from '%s', skipping", name)
-                    continue
+            cam_num = extract_camera_number(name, prefix=prefix)
+            if cam_num is None:
+                logging.warning("Cannot extract camera number from '%s', skipping", name)
+                continue
 
             date_str = path_to_date[src_path].strftime(DATE_FORMAT)
             try:
@@ -193,4 +189,4 @@ def normalize_indexed_filenames(
                     del used_names[new_key]
                     used_names[name_key(name)] = src_path
 
-    logging.info("Completed normalization for %s", source_folder)
+    logging.info("Completed normalization for %s", source_folders)

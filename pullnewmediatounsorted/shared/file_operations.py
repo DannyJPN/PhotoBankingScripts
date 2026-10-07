@@ -55,11 +55,17 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
             logging.info("No files to copy from %s to %s", src, dest)
             return
 
+        conflicts = 0
         for file_path in tqdm(files, desc="Copying folder", unit="file"):
             rel_path = os.path.relpath(file_path, src)
             dest_path = os.path.join(dest, rel_path)
-            copy_file(file_path, dest_path, overwrite=overwrite)
+            try:
+                copy_file(file_path, dest_path, overwrite=overwrite)
+            except FileExistsError:
+                conflicts += 1
 
+        if conflicts:
+            logging.error("%d files from %s were not copied because of content conflicts in %s", conflicts, src, dest)
         logging.info("Copied folder from %s to %s", src, dest)
     except Exception as e:
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
@@ -112,15 +118,41 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+def _same_content(path_a: str, path_b: str) -> bool:
+    """
+    Compare two files by size first, then by content hash.
+
+    :param path_a: First file.
+    :param path_b: Second file.
+    :return: True if both files have identical content.
+    """
+    if os.path.getsize(path_a) != os.path.getsize(path_b):
+        return False
+    return compute_file_hash(path_a) == compute_file_hash(path_b)
+
+
 def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
-    Zkopíruje soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.copy2 pro zachování metadat a ensure_directory pro vytvoření chybějící cesty.
+    Copy ``src`` to ``dest`` preserving metadata.
+
+    An existing destination is never replaced by different content: names are made unique
+    upstream, so a same-name file with different bytes means corruption or a naming bug.
+
+    :param src: Source file.
+    :param dest: Destination path; missing parent folders are created.
+    :param overwrite: If False, an existing destination is skipped without any check.
+    :raises FileExistsError: If ``dest`` exists with content different from ``src``.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
-    if not overwrite and os.path.exists(dest):
-        logging.debug("File exists and overwrite disabled, skipping: %s", dest)
-        return
+    if os.path.exists(dest):
+        if not overwrite:
+            logging.debug("File exists and overwrite disabled, skipping: %s", dest)
+            return
+        if _same_content(src, dest):
+            logging.debug("Identical file already exists, skipping: %s", dest)
+            return
+        logging.error("Content conflict: %s differs from existing %s, not copied", src, dest)
+        raise FileExistsError(f"{dest} exists with different content than {src}")
 
     # Vytvoří cílovou složku, pokud neexistuje
     dest_folder = os.path.dirname(dest)

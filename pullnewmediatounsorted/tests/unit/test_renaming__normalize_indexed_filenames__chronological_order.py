@@ -64,7 +64,7 @@ def test_normalize__hash_match_uses_reference_canonical_name(test_folders):
     create_test_file(reference_dir, "PICT20260101_0001.JPG", content, now - timedelta(days=10))
     create_test_file(source_dir, "PICT9999.JPG", content, now - timedelta(days=1))
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     files = os.listdir(source_dir)
     assert files == ["PICT20260101_0001.JPG"]
@@ -77,7 +77,7 @@ def test_normalize__legacy_format_gets_dated_name_from_own_mtime(test_folders):
 
     create_test_file(source_dir, "PICT0042.JPG", "legacy content", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     files = os.listdir(source_dir)
     assert files == ["PICT20260612_0042.JPG"]
@@ -93,11 +93,11 @@ def test_normalize__already_dated_file_is_idempotent_across_repeated_runs(test_f
 
     create_test_file(source_dir, "PICT20260612_0042.JPG", "already dated", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
     assert os.listdir(source_dir) == ["PICT20260612_0042.JPG"]
 
     # Run again: the file must still be recognized as correctly named, not shifted to _B.
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
     assert os.listdir(source_dir) == ["PICT20260612_0042.JPG"]
 
 
@@ -107,7 +107,7 @@ def test_normalize__missing_camera_number_is_skipped(test_folders):
 
     create_test_file(source_dir, "PICT_not_a_number.JPG", "content", datetime.now())
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["PICT_not_a_number.JPG"]
 
@@ -122,7 +122,7 @@ def test_normalize__same_day_camera_number_conflict_gets_suffix(test_folders):
     # Legacy file that would resolve to the same camera number and date, but different content.
     create_test_file(source_dir, "PICT0042.JPG", "second, different content", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     files = sorted(os.listdir(source_dir))
     assert files == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
@@ -132,7 +132,7 @@ def test_normalize__no_matching_files_is_noop(test_folders):
     """An empty (or non-matching) source folder is a no-op and does not raise."""
     source_dir, reference_dir = test_folders
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == []
 
@@ -146,7 +146,7 @@ def test_normalize__exiftool_unavailable_falls_back_to_filesystem_mtime(test_fol
 
     create_test_file(source_dir, "PICT0007.JPG", "content", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["PICT20260612_0007.JPG"]
 
@@ -158,7 +158,7 @@ def test_normalize__camera_number_above_9999_is_skipped_and_left_untouched(test_
     create_test_file(source_dir, "PICT012345.JPG", "wide number", datetime(2026, 6, 12))
 
     with caplog.at_level("ERROR"):
-        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["PICT012345.JPG"]
     assert "does not fit" in caplog.text
@@ -174,7 +174,7 @@ def test_normalize__rename_skipped_when_destination_exists_logs_warning(test_fol
     create_test_file(source_dir, "PICT20260101_0001.JPG", "reference content", datetime(2026, 1, 1))
 
     with caplog.at_level("WARNING"):
-        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert sorted(os.listdir(source_dir)) == ["PICT20260101_0001.JPG", "PICT9999.JPG"]
     assert "Rename skipped, destination already exists" in caplog.text
@@ -188,24 +188,24 @@ def test_normalize__identical_duplicates_in_different_subfolders_keep_the_same_n
         os.makedirs(os.path.join(source_dir, sub))
         create_test_file(os.path.join(source_dir, sub), "PICT20260612_0042.JPG", "identical content", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert sorted(os.listdir(os.path.join(source_dir, "a"))) == ["PICT20260612_0042.JPG"]
     assert sorted(os.listdir(os.path.join(source_dir, "b"))) == ["PICT20260612_0042.JPG"]
 
 
-def test_normalize__same_name_different_content_in_different_subfolders_gets_suffix(test_folders):
-    """Different files that would share one name keep names unique across the whole tree."""
+def test_normalize__dated_files_with_same_name_and_different_content_are_left_untouched(test_folders):
+    """Already-dated files are never renamed, so an existing name clash between them is not resolved here."""
     source_dir, reference_dir = test_folders
     file_date = datetime(2026, 6, 12)
     for sub, content in (("a", "first"), ("b", "second")):
         os.makedirs(os.path.join(source_dir, sub))
         create_test_file(os.path.join(source_dir, sub), "PICT20260612_0042.JPG", content, file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
-    names = sorted(os.listdir(os.path.join(source_dir, "a")) + os.listdir(os.path.join(source_dir, "b")))
-    assert names == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
+    assert os.listdir(os.path.join(source_dir, "a")) == ["PICT20260612_0042.JPG"]
+    assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
 
 
 def test_normalize__suffixed_file_is_recognised_and_stays_stable(test_folders):
@@ -216,7 +216,7 @@ def test_normalize__suffixed_file_is_recognised_and_stays_stable(test_folders):
     create_test_file(source_dir, "PICT20260612_0042_B.JPG", "second", file_date)
 
     for _ in range(2):
-        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
         assert sorted(os.listdir(source_dir)) == ["PICT20260612_0042.JPG", "PICT20260612_0042_B.JPG"]
 
 
@@ -227,7 +227,7 @@ def test_normalize__name_conflict_check_is_case_insensitive(test_folders):
     create_test_file(source_dir, "PICT20260612_0042.jpg", "first", file_date)
     create_test_file(source_dir, "PICT0042.JPG", "second, different content", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert sorted(os.listdir(source_dir)) == ["PICT20260612_0042.jpg", "PICT20260612_0042_B.JPG"]
 
@@ -237,7 +237,7 @@ def test_normalize__case_only_difference_is_not_a_rename(test_folders):
     source_dir, reference_dir = test_folders
     create_test_file(source_dir, "pict20260612_0042.JPG", "content", datetime(2026, 6, 12))
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(source_dir) == ["pict20260612_0042.JPG"]
 
@@ -251,7 +251,7 @@ def test_normalize__identical_legacy_copies_that_both_need_renaming_keep_the_sam
         create_test_file(os.path.join(source_dir, sub), "PICT0042.JPG", "identical content", file_date)
 
     with caplog.at_level("ERROR"):
-        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(os.path.join(source_dir, "a")) == ["PICT20260612_0042.JPG"]
     assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
@@ -268,7 +268,7 @@ def test_normalize__exhausted_name_variants_leave_the_file_untouched_and_log_an_
     create_test_file(source_dir, "PICT0042.JPG", "legacy, different content", file_date)
 
     with caplog.at_level("ERROR"):
-        normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+        normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert sorted(os.listdir(source_dir)) == sorted(taken + ["PICT0042.JPG"])
     assert "No name variant available" in caplog.text
@@ -291,7 +291,7 @@ def test_normalize__failed_rename_does_not_leave_a_stale_claim_on_the_new_name(t
 
     monkeypatch.setattr(renaming, "move_file", flaky_move)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(os.path.join(source_dir, "a")) == ["PICT0042.JPG"]
     assert os.listdir(os.path.join(source_dir, "b")) == ["PICT20260612_0042.JPG"]
@@ -307,7 +307,7 @@ def test_normalize__third_identical_copy_reuses_the_existing_suffix(test_folders
     os.makedirs(os.path.join(source_dir, "third"))
     create_test_file(os.path.join(source_dir, "third"), "PICT0042.JPG", "content TWO", file_date)
 
-    normalize_indexed_filenames(source_folder=source_dir, reference_folder=reference_dir, prefix="PICT")
+    normalize_indexed_filenames(source_folders=[source_dir], reference_folder=reference_dir, prefix="PICT")
 
     assert os.listdir(os.path.join(source_dir, "first")) == ["PICT20260612_0042.JPG"]
     assert os.listdir(os.path.join(source_dir, "second")) == ["PICT20260612_0042_B.JPG"]

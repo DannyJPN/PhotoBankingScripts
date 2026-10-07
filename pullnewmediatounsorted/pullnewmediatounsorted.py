@@ -82,19 +82,18 @@ def main():
     # 2) Normalize indexed filenames in target vs final_target
     for prefix in PREFIXES_TO_NORMALIZE:
         normalize_indexed_filenames(
-            source_folder=args.target,
+            source_folders=[args.target],
             reference_folder=args.final_target,
             prefix=prefix,
         )
 
-    # 3) Normalize indexed filenames in sources vs target
-    for folder in sources + screen_sources:
-        for prefix in PREFIXES_TO_NORMALIZE:
-            normalize_indexed_filenames(
-                source_folder=folder,
-                reference_folder=args.target,
-                prefix=prefix,
-            )
+    # 3) Normalize indexed filenames in all sources together vs target
+    for prefix in PREFIXES_TO_NORMALIZE:
+        normalize_indexed_filenames(
+            source_folders=sources + screen_sources,
+            reference_folder=args.target,
+            prefix=prefix,
+        )
 
     # 4) Copy media files to target
     for folder in sources:
