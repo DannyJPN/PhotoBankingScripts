@@ -89,3 +89,97 @@ def test_handle_duplicate__failed_deletion_is_logged_and_does_not_raise(tmp_path
 
     assert source.exists()
     assert "Failed to remove duplicate" in caplog.text
+
+
+def test_handle_duplicate__returns_true_when_source_is_deleted(tmp_path):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    assert ops.handle_duplicate(str(source), [str(target)]) is True
+
+
+def test_handle_duplicate__keeps_source_when_target_changed_after_scan(tmp_path):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("replaced since the scan", encoding="utf-8")
+
+    assert ops.handle_duplicate(str(source), [str(target)]) is False
+    assert source.exists()
+
+
+def test_handle_duplicate__keeps_source_when_source_changed_after_scan(tmp_path):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("edited since the scan", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    assert ops.handle_duplicate(str(source), [str(target)]) is False
+    assert source.exists()
+
+
+def test_handle_duplicate__uses_a_later_target_that_still_matches(tmp_path):
+    source = tmp_path / "source.txt"
+    changed = tmp_path / "changed.txt"
+    identical = tmp_path / "identical.txt"
+    source.write_text("data", encoding="utf-8")
+    changed.write_text("other", encoding="utf-8")
+    identical.write_text("data", encoding="utf-8")
+
+    assert ops.handle_duplicate(str(source), [str(changed), str(identical)]) is True
+    assert not source.exists()
+
+
+def test_handle_duplicate__keeps_source_when_it_cannot_be_rehashed(tmp_path, monkeypatch, caplog):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    def locked(_path):
+        raise PermissionError("locked")
+
+    monkeypatch.setattr(ops, "compute_file_hash", locked)
+
+    with caplog.at_level("ERROR"):
+        assert ops.handle_duplicate(str(source), [str(target)]) is False
+
+    assert source.exists()
+    assert "Cannot re-hash" in caplog.text
+
+
+def test_find_duplicates__empty_source_is_never_a_duplicate(tmp_path, caplog):
+    empty_source = tmp_path / "empty_source.jpg"
+    empty_target = tmp_path / "empty_target.jpg"
+    empty_source.write_bytes(b"")
+    empty_target.write_bytes(b"")
+    target_map = {compute_file_hash(str(empty_target)): [str(empty_target)]}
+
+    with caplog.at_level("WARNING"):
+        duplicates = ops.find_duplicates([str(empty_source)], target_map)
+
+    assert duplicates == {}
+    assert "1 unsorted files were not checked for duplicates: 1 empty file" in caplog.text
+
+
+def test_find_duplicates__summary_counts_unreadable_files(tmp_path, caplog):
+    missing = tmp_path / "missing.jpg"
+
+    with caplog.at_level("WARNING"):
+        duplicates = ops.find_duplicates([str(missing)], {})
+
+    assert duplicates == {}
+    assert "1 unreadable" in caplog.text
+
+
+def test_get_target_hash_map__reuses_given_hashes_without_reading_the_folder(monkeypatch):
+    def must_not_hash(*_a, **_k):
+        raise AssertionError("target folder hashed again")
+
+    monkeypatch.setattr(ops, "get_hash_map_from_folder", must_not_hash)
+
+    result = ops.get_target_hash_map("X:/target", {"X:/target/a.jpg": "h1", "X:/target/b.jpg": "h1"})
+
+    assert result == {"h1": ["X:/target/a.jpg", "X:/target/b.jpg"]}

@@ -208,11 +208,13 @@ def load_csv(path: str) -> List[Dict[str, str]]:
         raise
     return records
 
-def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
+def unify_duplicate_files(folder: str, recursive: bool = True) -> Dict[str, str]:
     """
     V dané složce (a volitelně jejích podsložkách) sjednotí
     soubory se stejným obsahem tak, že všechny budou mít
     stejný basename podle toho, jehož basename je nejkratší.
+
+    :return: Map {full_path: hash} of the folder after unification, so callers need not hash it again.
     """
     logging.info("Unifying duplicates in %s (recursive=%s)", folder, recursive)
 
@@ -220,7 +222,7 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     path_hash_map = get_hash_map_from_folder(folder, pattern="", recursive=recursive)
     if not path_hash_map:
         logging.info("No files found in %s, skipping unification.", folder)
-        return
+        return path_hash_map
 
     # 2) Seskup cesty podle hashů
     hash_groups: dict[str, list[str]] = defaultdict(list)
@@ -231,7 +233,7 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
     duplicate_groups = [(h, group) for h, group in hash_groups.items() if len(group) >= 2]
     if not duplicate_groups:
         logging.info("No duplicate files found in %s", folder)
-        return
+        return path_hash_map
 
     renamed_count = 0
     # 3) Pro každou skupinu ≥2 souborů zvol canonical podle délky názvu
@@ -252,12 +254,15 @@ def unify_duplicate_files(folder: str, recursive: bool = True) -> None:
             dst = os.path.join(os.path.dirname(path), canonical_basename)
             try:
                 os.replace(path, dst)
+                del path_hash_map[path]
+                path_hash_map[dst] = h
                 renamed_count += 1
                 logging.info("Renamed %s -> %s", path, dst)
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", path, dst, e)
 
     logging.info("Unification complete: renamed %d duplicate files in %s", renamed_count, folder)
+    return path_hash_map
 
 def get_hash_map_from_folder(folder: str, pattern: str = "PICT",recursive: bool = True) -> Dict[str, str]:
     """

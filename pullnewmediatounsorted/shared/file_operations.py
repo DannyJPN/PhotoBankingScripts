@@ -118,6 +118,8 @@ def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "")
     except Exception as e:
         logging.error("Failed to move folder from %s to %s: %s", src, dest, e)
         raise
+
+
 def _same_content(path_a: str, path_b: str) -> bool:
     """
     Compare two files by size first, then by content hash.
@@ -165,6 +167,7 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
+
 
 def delete_file(path: str) -> None:
     """

@@ -2,6 +2,7 @@ from shared.file_operations import delete_file, list_files, move_file
 import logging
 import os
 import re
+from collections import Counter
 from datetime import datetime
 from shared.file_operations import get_hash_map_from_folder, compute_file_hash
 from shared.name_utils import (
@@ -74,7 +75,8 @@ def normalize_indexed_filenames(
         prefix,
     )
 
-    all_paths = [p for folder in source_folders for p in list_files(folder, pattern=prefix, recursive=True)]
+    prefix_pattern = rf"(?i)^{re.escape(prefix)}"
+    all_paths = [p for folder in source_folders for p in list_files(folder, pattern=prefix_pattern, recursive=True)]
     legacy_pattern = re.compile(rf"^{re.escape(prefix)}\d{{4,6}}\.", re.IGNORECASE)
     paths = [p for p in all_paths if legacy_pattern.match(os.path.basename(p))]
     if not paths:
@@ -82,7 +84,7 @@ def normalize_indexed_filenames(
         return
 
     try:
-        ref_hash_map = get_hash_map_from_folder(reference_folder, pattern=prefix)
+        ref_hash_map = get_hash_map_from_folder(reference_folder, pattern=prefix_pattern)
     except Exception as e:
         logging.error("Failed to build reference hash map: %s", e)
         return
@@ -126,15 +128,19 @@ def normalize_indexed_filenames(
     path_to_date: dict[str, datetime] = {p: _file_date(p) for p in paths}
     sorted_paths = sorted(paths, key=lambda p: path_to_date[p])
 
+    skipped: Counter[str] = Counter()
     for src_path in tqdm(sorted_paths, desc="Normalizing indexed files", unit="file"):
         name = os.path.basename(src_path)
         try:
             h = compute_file_hash(src_path)
         except Exception as e:
             logging.error("Skipping %s due to hash error: %s", src_path, e)
+            skipped["hash error"] += 1
             continue
         known_hash[src_path] = h
 
+        own_key = name_key(name)
+        owned = False
         if h in hash_to_canon:
             new_name = hash_to_canon[h]
             logging.debug("Hash match: using canonical name %s", new_name)
@@ -144,6 +150,7 @@ def normalize_indexed_filenames(
             cam_num = extract_camera_number(name, prefix=prefix)
             if cam_num is None:
                 logging.warning("Cannot extract camera number from '%s', skipping", name)
+                skipped["no camera number"] += 1
                 continue
 
             date_str = path_to_date[src_path].strftime(DATE_FORMAT)
@@ -151,8 +158,8 @@ def normalize_indexed_filenames(
                 base_name = generate_dated_filename(cam_num, date_str, ext, prefix=prefix)
             except ValueError as e:
                 logging.error("Cannot build dated name for '%s': %s, skipping", name, e)
+                skipped["camera number out of range"] += 1
                 continue
-            own_key = name_key(name)
             owned = used_names.get(own_key) == src_path
             if owned:
                 del used_names[own_key]
@@ -162,6 +169,7 @@ def normalize_indexed_filenames(
                 )
             except ValueError:
                 logging.error("No name variant available for %s, skipping", base_name)
+                skipped["no free name variant"] += 1
                 if owned:
                     used_names[own_key] = src_path
                 continue
@@ -175,9 +183,11 @@ def normalize_indexed_filenames(
                 move_file(src_path, dst, overwrite=False)
                 if os.path.exists(src_path):
                     logging.warning("Rename skipped, destination already exists: %s -> %s", src_path, dst)
+                    skipped["destination exists"] += 1
                     if used_names.get(new_key) == src_path:
                         del used_names[new_key]
-                        used_names[name_key(name)] = src_path
+                    if owned:
+                        used_names[own_key] = src_path
                 else:
                     logging.debug("Renamed %s -> %s", name, new_name)
                     if used_names.get(new_key) == src_path:
@@ -185,8 +195,17 @@ def normalize_indexed_filenames(
                         known_hash[dst] = known_hash[src_path]
             except Exception as e:
                 logging.error("Failed to rename %s to %s: %s", src_path, new_name, e)
+                skipped["rename failed"] += 1
                 if used_names.get(new_key) == src_path:
                     del used_names[new_key]
-                    used_names[name_key(name)] = src_path
+                if owned:
+                    used_names[own_key] = src_path
 
+    if skipped:
+        logging.warning(
+            "%d legacy '%s' files were left unrenamed: %s",
+            sum(skipped.values()),
+            prefix,
+            ", ".join(f"{count} {reason}" for reason, count in skipped.items()),
+        )
     logging.info("Completed normalization for %s", source_folders)

@@ -51,19 +51,19 @@ def main():
     # Remove desktop.ini if it exists
     remove_desktop_ini(args.unsorted_folder)
 
-    # Step 1: Unify duplicate files in both folders
-    logging.info("Step 1: Unifying duplicate files...")
-    unify_duplicate_files(args.unsorted_folder, recursive=True)
-    unify_duplicate_files(args.target_folder, recursive=True)
-
-    # Step 2: Generic filename replacements (_NIK -> NIK_ by default)
-    logging.info("Step 2: Replacing filename patterns...")
+    # Step 1: Generic filename replacements (_NIK -> NIK_ by default)
+    logging.info("Step 1: Replacing filename patterns...")
     replace_in_filenames(args.unsorted_folder, "_NIK", "NIK_", recursive=True)
     replace_in_filenames(args.target_folder, "_NIK", "NIK_", recursive=True)
 
-    # Step 3: Build content-hash map of target folder
+    # Step 2: Unify duplicate files in both folders
+    logging.info("Step 2: Unifying duplicate files...")
+    unify_duplicate_files(args.unsorted_folder, recursive=True)
+    target_path_hashes = unify_duplicate_files(args.target_folder, recursive=True)
+
+    # Step 3: Build content-hash map of target folder from the hashes of step 2
     logging.info("Step 3: Building hash map of target folder...")
-    target_hash_map = get_target_hash_map(args.target_folder)
+    target_hash_map = get_target_hash_map(args.target_folder, target_path_hashes)
     logging.info("Found %d unique file hashes in target folder", len(target_hash_map))
 
     # Step 4: List files in unsorted folder
@@ -78,10 +78,14 @@ def main():
 
     # Step 6: Remove duplicates
     logging.info("Step 6: Removing duplicates...")
+    kept = 0
     with tqdm(total=len(duplicates), desc="Removing duplicates", unit="files") as pbar:
         for source_path, target_paths in duplicates.items():
-            handle_duplicate(source_path, target_paths)
+            if not handle_duplicate(source_path, target_paths):
+                kept += 1
             pbar.update(1)
+    if kept:
+        logging.warning("%d duplicate candidates were kept because no identical target could be confirmed", kept)
 
     logging.info("RemoveAlreadySortedOut process completed successfully")
 
