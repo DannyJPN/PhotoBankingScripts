@@ -2,12 +2,16 @@
 Main uploader logic for photobank files.
 """
 import os
+import re
 import logging
 from typing import List, Dict, Optional, Tuple
 from tqdm import tqdm
 
 from uploadtophotobanksslib.constants import (
     PHOTOBANK_CONFIGS,
+    EXPORT_CSV_PREFIX,
+    EXPORT_EDIT_TYPES,
+    EXPORT_EDITORIAL_TAG,
     COL_FILE,
     COL_PATH,
     VALID_STATUS_FOR_UPLOAD,
@@ -143,29 +147,29 @@ class PhotobankUploader:
         if not uploadable_files:
             return {"skipped": 0}
 
-        # Check if exported CSV exists (try both formats)
-        export_csv_path = os.path.join(export_dir, f"{photobank}Output.csv")
-        export_csv_path_alt = os.path.join(export_dir, f"CSV_{photobank}.csv")
-
-        if os.path.exists(export_csv_path):
-            csv_path_to_use = export_csv_path
-        elif os.path.exists(export_csv_path_alt):
-            csv_path_to_use = export_csv_path_alt
-            logging.info(f"Using alternative CSV format: {export_csv_path_alt}")
-        else:
+        # Check if exported CSVs exist (single file or split per edit type / batch)
+        csv_paths_to_use = self._find_export_csvs(export_dir, photobank)
+        if not csv_paths_to_use:
             logging.warning(f"Export CSV not found for {photobank}")
-            logging.warning(f"Tried: {export_csv_path} and {export_csv_path_alt}")
+            logging.warning(
+                f"Tried: {photobank}Output.csv and CSV_{photobank}[_editorial]_<edit type>[_<batch>].csv "
+                f"in {export_dir}"
+            )
             logging.warning("Please run exportpreparedmedia first")
             return {"error": len(uploadable_files)}
 
-        # Load export CSV to validate files are prepared for this photobank
-        try:
-            export_records = load_csv(csv_path_to_use)
-            export_filenames = {os.path.basename(record.get("Filename", "")) for record in export_records}
-            logging.info(f"Loaded {len(export_records)} exported records for {photobank}")
-        except Exception as e:
-            logging.error(f"Failed to load export CSV {csv_path_to_use}: {e}")
-            return {"error": len(uploadable_files)}
+        # Load export CSVs to validate files are prepared for this photobank
+        export_records = []
+        for csv_path_to_use in csv_paths_to_use:
+            try:
+                export_records.extend(load_csv(csv_path_to_use))
+            except Exception as e:
+                logging.error(f"Failed to load export CSV {csv_path_to_use}: {e}")
+                return {"error": len(uploadable_files)}
+        export_filenames = {os.path.basename(record.get("Filename", "")) for record in export_records}
+        logging.info(
+            f"Loaded {len(export_records)} exported records for {photobank} from {len(csv_paths_to_use)} files"
+        )
 
         stats = {"success": 0, "failure": 0, "skipped": 0}
 
@@ -209,6 +213,30 @@ class PhotobankUploader:
 
         logging.info(f"Upload to {photobank} completed: {stats}")
         return stats
+
+    def _find_export_csvs(self, export_dir: str, photobank: str) -> List[str]:
+        """
+        Find the export CSVs written by exportpreparedmedia for a photobank.
+
+        :param export_dir: Directory with export CSVs.
+        :param photobank: Photobank name.
+        :return: ``<Bank>Output.csv`` if present; otherwise the split exports
+                 ``CSV_<Bank>[_editorial]_<edit type>[_<batch>].csv``, sorted. The deprecated
+                 ``CSV_<Bank>.csv`` and any other ``CSV_<Bank>_*.csv`` file are ignored.
+        """
+        legacy = os.path.join(export_dir, f"{photobank}Output.csv")
+        if os.path.exists(legacy):
+            logging.info(f"Using export CSV {legacy}")
+            return [legacy]
+        if not os.path.isdir(export_dir):
+            return []
+        edit_types = "|".join(re.escape(t) for t in EXPORT_EDIT_TYPES)
+        pattern = re.compile(
+            rf"^{re.escape(EXPORT_CSV_PREFIX)}_{re.escape(photobank)}(?:_{re.escape(EXPORT_EDITORIAL_TAG)})?"
+            rf"_(?:{edit_types})(?:_\d+)?\.csv$",
+            re.IGNORECASE,
+        )
+        return sorted(os.path.join(export_dir, name) for name in os.listdir(export_dir) if pattern.match(name))
 
     def _filter_files_for_photobank(self, media_files: List[str], photobank: str) -> List[str]:
         """Filter media files that are supported by the specified photobank."""

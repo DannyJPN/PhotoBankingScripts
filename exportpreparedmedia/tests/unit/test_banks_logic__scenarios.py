@@ -56,6 +56,42 @@ def test_should_include_item__missing_status_false():
     assert banks_logic.should_include_item(item) is False
 
 
+def test_should_skip_editorial__gettyimages_rejects_editorial():
+    item = {"Popis": "Prague, Czechia - 01 02 2020: Editorial event photo"}
+
+    assert banks_logic.should_skip_editorial(item, "GettyImages") is True
+
+
+def test_should_skip_editorial__alamy_allows_editorial():
+    item = {"Popis": "Prague, Czechia - 01 02 2020: Editorial event photo"}
+
+    assert banks_logic.should_skip_editorial(item, "Alamy") is False
+
+
+def test_should_skip_editorial__multiword_city_gettyimages():
+    item = {"Popis": "STARE HAMRY, CZECH - 05 07 2018: Stone plaque on wall"}
+
+    assert banks_logic.should_skip_editorial(item, "GettyImages") is True
+
+
+def test_should_skip_editorial__multiword_city_adobestock():
+    item = {"Popis": "PROSTREDNI BECVA, CZECH - 12 03 2019: Village church photo"}
+
+    assert banks_logic.should_skip_editorial(item, "AdobeStock") is True
+
+
+def test_should_skip_editorial__multiword_city_non_editorial_bank():
+    item = {"Popis": "STARE HAMRY, CZECH - 05 07 2018: Stone plaque on wall"}
+
+    assert banks_logic.should_skip_editorial(item, "ShutterStock") is False
+
+
+def test_should_skip_editorial__non_editorial_desc_not_skipped():
+    item = {"Popis": "Beautiful mountain landscape in summer"}
+
+    assert banks_logic.should_skip_editorial(item, "GettyImages") is False
+
+
 def test_load_category_map__returns_map(monkeypatch):
     monkeypatch.setattr(banks_logic, "load_csv", lambda _p: [{"k": "a", "v": "1"}])
 
