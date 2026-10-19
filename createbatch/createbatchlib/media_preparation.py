@@ -40,6 +40,19 @@ def split_into_batches(records: List[Dict[str, str]], batch_size: int) -> List[L
     return batches
 
 
+def get_edit_subfolder(file_stem: str) -> str:
+    """
+    Return the edit subfolder for a file: the edit tag the stem ends with, or ``original``.
+
+    :param file_stem: Filename without extension, e.g. ``DSC0001_sharpen_bw``.
+    :return: Edit tag with leading underscore (e.g. ``_bw``) or ``original``.
+    """
+    for tag in ALTERNATIVE_EDIT_TAGS.keys():
+        if file_stem.endswith(tag):
+            return tag
+    return 'original'
+
+
 def prepare_media_file(
     record: Dict[str, str],
     output_folder: str,
@@ -99,15 +112,8 @@ def prepare_media_file(
                 # Get format subdirectory name
                 format_subdir = FORMAT_SUBDIRS.get(file_ext, 'other')
 
-                # Detect edit tag in filename
-                edit_tag = None
-                for tag in ALTERNATIVE_EDIT_TAGS.keys():
-                    if file_stem.endswith(tag):
-                        edit_tag = tag
-                        break
-
                 # Create edit subfolder (original or tag)
-                edit_subfolder = edit_tag if edit_tag else 'original'
+                edit_subfolder = get_edit_subfolder(file_stem)
 
                 # Create destination path
                 bank_root = os.path.join(output_folder, bank_name)

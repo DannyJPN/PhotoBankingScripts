@@ -2,12 +2,16 @@
 Main uploader logic for photobank files.
 """
 import os
+import re
 import logging
 from typing import List, Dict, Optional, Tuple
 from tqdm import tqdm
 
 from uploadtophotobanksslib.constants import (
     PHOTOBANK_CONFIGS,
+    EXPORT_CSV_PREFIX,
+    EXPORT_EDIT_TYPES,
+    EXPORT_EDITORIAL_TAG,
     COL_FILE,
     COL_PATH,
     VALID_STATUS_FOR_UPLOAD,
@@ -148,7 +152,8 @@ class PhotobankUploader:
         if not csv_paths_to_use:
             logging.warning(f"Export CSV not found for {photobank}")
             logging.warning(
-                f"Tried: {photobank}Output.csv, CSV_{photobank}.csv and CSV_{photobank}_*.csv in {export_dir}"
+                f"Tried: {photobank}Output.csv and CSV_{photobank}[_editorial]_<edit type>[_<batch>].csv "
+                f"in {export_dir}"
             )
             logging.warning("Please run exportpreparedmedia first")
             return {"error": len(uploadable_files)}
@@ -215,21 +220,23 @@ class PhotobankUploader:
 
         :param export_dir: Directory with export CSVs.
         :param photobank: Photobank name.
-        :return: ``<Bank>Output.csv`` if present; otherwise ``CSV_<Bank>.csv`` and the split files
-                 ``CSV_<Bank>_*.csv`` (per edit type, editorial and batch), sorted.
+        :return: ``<Bank>Output.csv`` if present; otherwise the split exports
+                 ``CSV_<Bank>[_editorial]_<edit type>[_<batch>].csv``, sorted. The deprecated
+                 ``CSV_<Bank>.csv`` and any other ``CSV_<Bank>_*.csv`` file are ignored.
         """
         legacy = os.path.join(export_dir, f"{photobank}Output.csv")
         if os.path.exists(legacy):
+            logging.info(f"Using export CSV {legacy}")
             return [legacy]
         if not os.path.isdir(export_dir):
             return []
-        prefix = f"CSV_{photobank}"
-        return sorted(
-            os.path.join(export_dir, name)
-            for name in os.listdir(export_dir)
-            if name.lower().endswith(".csv")
-            and (name[:-4] == prefix or name.startswith(prefix + "_"))
+        edit_types = "|".join(re.escape(t) for t in EXPORT_EDIT_TYPES)
+        pattern = re.compile(
+            rf"^{re.escape(EXPORT_CSV_PREFIX)}_{re.escape(photobank)}(?:_{re.escape(EXPORT_EDITORIAL_TAG)})?"
+            rf"_(?:{edit_types})(?:_\d+)?\.csv$",
+            re.IGNORECASE,
         )
+        return sorted(os.path.join(export_dir, name) for name in os.listdir(export_dir) if pattern.match(name))
 
     def _filter_files_for_photobank(self, media_files: List[str], photobank: str) -> List[str]:
         """Filter media files that are supported by the specified photobank."""

@@ -30,7 +30,7 @@ DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH = os.path.join(BASE_DIR, "exportpreparedme
 DEFAULT_POND_PRICES_PATH = os.path.join(BASE_DIR, "exportpreparedmedialib", "data", "pond_prices.csv")
 
 # Regulární výrazy pro detekci typů souborů
-EDITORIAL_REGEX = r"^[A-Za-z]+(?:\s[A-Za-z]+)*, [A-Za-z]+ - \d{2} \d{2} \d{4}:"
+EDITORIAL_REGEX = r"^[A-Za-z]+(?:[\s-][A-Za-z]+)*, [A-Za-z]+ - \d{2} \d{2} \d{4}:"
 VECTOREXT_REGEX = r"(cdr|ai|eps|svg)$"
 
 # Validní hodnota pro status
@@ -81,7 +81,10 @@ BANKS_NO_EDITORIAL = {
 
 # Output CSVs are split per edit type and editorial flag:
 # <prefix>_<Bank>[_editorial]_<edit type>[_<batch>].csv, e.g. CSV_Pond5_bw.csv, CSV_Pond5_editorial_original.csv
+# Banks with a batch size limit always get the batch number; batches are cut over records first (as createbatch
+# batch_NNN folders) and each batch is then split per edit type, e.g. CSV_GettyImages_bw_2.csv = batch_002/.../_bw/
 # Edit type comes from the filename suffix (same rule as createbatch edit subfolders)
+# The legacy single file <prefix>_<Bank>.csv and old <prefix>_<Bank>_<N>.csv batches are deprecated and ignored
 ALTERNATIVE_EDIT_TAGS = ("_bw", "_negative", "_sharpen", "_misty", "_blurred")
 ORIGINAL_EDIT_TYPE = "original"
 EDIT_TYPE_ORDER = (ORIGINAL_EDIT_TYPE, "sharpen", "bw", "negative", "misty", "blurred")

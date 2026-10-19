@@ -232,6 +232,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PHOTO_CSV = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
 DEFAULT_PROCESSED_MEDIA_FOLDER = r"L:\Můj disk\PhotoBankMedia"  # Where createbatch copies files
 DEFAULT_EXPORT_DIR = r"L:\Můj disk\XLS\Fotobanky\CSV"
+
+# Export CSV names written by exportpreparedmedia: CSV_<Bank>[_editorial]_<edit type>[_<batch>].csv
+# The deprecated single file CSV_<Bank>.csv is ignored
+EXPORT_CSV_PREFIX = "CSV"
+EXPORT_EDITORIAL_TAG = "editorial"
+EXPORT_EDIT_TYPES = ("original", "sharpen", "bw", "negative", "misty", "blurred")
 DEFAULT_LOG_DIR = r"H:\Logs"
 
 # Credentials configuration paths

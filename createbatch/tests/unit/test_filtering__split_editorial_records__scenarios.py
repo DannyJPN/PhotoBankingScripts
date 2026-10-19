@@ -15,16 +15,17 @@ from createbatchlib.filtering import split_editorial_records
 
 EDITORIAL = {"Název": "Ostrava, Czech - 07 05 2021: Statue", "Popis": ""}
 EDITORIAL_MULTI_WORD = {"Název": "", "Popis": "Frenstat pod Radhostem, Czech - 08 07 2022: Square"}
+EDITORIAL_HYPHEN = {"Název": "", "Popis": "Frydek-Mistek, Czech - 12 14 2014: Red clouds"}
 COMMERCIAL = {"Název": "Yellow flower", "Popis": "Close-up of a flower"}
 
 
 def test_split_editorial_records__splits_for_bank_accepting_editorial():
-    records = [COMMERCIAL, EDITORIAL, EDITORIAL_MULTI_WORD]
+    records = [COMMERCIAL, EDITORIAL, EDITORIAL_MULTI_WORD, EDITORIAL_HYPHEN]
 
     commercial, editorial = split_editorial_records(records, "Pond5")
 
     assert commercial == [COMMERCIAL]
-    assert editorial == [EDITORIAL, EDITORIAL_MULTI_WORD]
+    assert editorial == [EDITORIAL, EDITORIAL_MULTI_WORD, EDITORIAL_HYPHEN]
 
 
 def test_split_editorial_records__drops_editorial_for_bank_without_editorial(caplog):

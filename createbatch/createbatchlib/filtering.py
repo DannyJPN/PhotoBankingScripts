@@ -126,9 +126,14 @@ def split_editorial_records(
 
     if bank_name in BANKS_NO_EDITORIAL:
         if editorial:
-            logging.info("Filtered out %d editorial records for %s (does not accept editorial)", len(editorial), bank_name)
+            logging.info(
+                "Filtered out %d editorial records for %s (does not accept editorial)", len(editorial), bank_name
+            )
         return commercial, []
 
     if editorial:
-        logging.info("%s: %d editorial records are kept apart from %d commercial records", bank_name, len(editorial), len(commercial))
+        logging.info(
+            "%s: %d editorial records are kept apart from %d commercial records",
+            bank_name, len(editorial), len(commercial)
+        )
     return commercial, editorial

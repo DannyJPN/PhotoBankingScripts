@@ -22,8 +22,12 @@ The createbatch script processes media records from PhotoMedia.csv and creates b
   commercial files in `<Bank>/<format>/<edit>/`.
 - Commercial and editorial records are batched separately, so a batch never mixes them.
 - Banks in `BANKS_NO_EDITORIAL` still drop editorial records.
-- `EDITORIAL_REGEX` also matches multi-word city names (e.g. "Frenstat pod Radhostem, Czech - ...").
-- New: `filtering.split_editorial_records()`, `prepare_media_file(..., editorial=True)`, `EDITORIAL_SUBFOLDER`.
+- `EDITORIAL_REGEX` also matches multi-word and hyphenated city names ("Frenstat pod Radhostem", "Frydek-Mistek");
+  ASCII letters only.
+- New: `filtering.split_editorial_records()`, `prepare_media_file(..., editorial=True)`, `EDITORIAL_SUBFOLDER`,
+  `media_preparation.get_edit_subfolder()`.
+- Batches are cut over records first and then split per edit type into `<format>/<edit>/`; exportpreparedmedia
+  uses the same boundaries (parity test in `tests/unit/test_editorial_split__createbatch_export_parity.py`).
 - Tests: `test_filtering__split_editorial_records__scenarios.py`, editorial cases in
   `test_media_preparation__prepare_media_file__scenarios.py` and `test_createbatch__main__scenarios.py`.
 - Known limitation: the progress tracker total still counts editorial records of banks that drop them.

@@ -13,17 +13,23 @@
   `CSV_Pond5_editorial_original.csv`, `CSV_GettyImages_negative_2.csv`.
   - Edit type is the last edit tag of the filename (`original`, `sharpen`, `bw`, `negative`, `misty`, `blurred`),
     the same rule as the createbatch edit subfolders (`X_sharpen_bw.jpg` is `bw`).
-  - Batches are counted per group; the `_<batch>` suffix appears only when a group needs more than one file.
-  - Existing bank files that the run did not write (legacy `CSV_<Bank>.csv`, old batch or group files) are kept
-    and reported with a warning as out of date.
-  - `EDITORIAL_REGEX` also matches multi-word city names.
-  - Functions: `get_edit_type`, `get_group_output_file`, `group_records_by_edit_type`, `find_stale_outputs`,
-    `_write_batch` in `exportpreparedmedialib/exporters.py`.
-  - Tests: `tests/unit/test_exporters__edit_type_split__scenarios.py`.
+  - Batches match createbatch: records (before adding PNG/TIF versions) are cut into batches, commercial and
+    editorial counted separately, then each batch is split per edit type. Banks with a batch size limit always
+    carry the batch number (`CSV_GettyImages_bw_2.csv` = `GettyImages/batch_002/jpg/_bw/`).
+  - Edit-type files of the bank that this run did not write are kept and reported as out of date. The deprecated
+    `CSV_<Bank>.csv` and old `CSV_<Bank>_<N>.csv` batches are ignored.
+  - A bank without a header is an error: no file is written, nothing is appended to an older file.
+  - The run ends with a summary; any file not written or record not exported logs an error and exits with code 1.
+  - `EDITORIAL_REGEX` also matches multi-word and hyphenated city names (ASCII letters only).
+  - Functions: `get_edit_type`, `get_group_output_file`, `group_records_by_edit_type`, `split_into_batches`,
+    `find_stale_outputs`, `_write_batch` in `exportpreparedmedialib/exporters.py`.
+  - Tests: `tests/unit/test_exporters__edit_type_split__scenarios.py`,
+    `tests/unit/test_exportpreparedmedia__main__export_summary.py`; parity with createbatch in
+    `tests/unit/test_editorial_split__createbatch_export_parity.py` (repository root).
 
 ## Pending
 
-- Stale output files are only reported, not removed.
+- Out-of-date edit-type files are only reported, not removed.
 
 ## Known limitations
 

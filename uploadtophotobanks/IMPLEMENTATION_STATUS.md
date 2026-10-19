@@ -6,8 +6,9 @@
 
 - Upload of media files to photobanks over FTP/FTPS/SFTP (`PhotobankUploader`, `ConnectionManager`).
 - File validation per photobank (`FileValidator`), dry-run mode.
-- Export CSV check before upload: `<Bank>Output.csv` if present, otherwise all of `CSV_<Bank>.csv` and the split
-  exports `CSV_<Bank>_*.csv` written by exportpreparedmedia (per edit type, editorial and batch) (2026-10-19,
+- Export CSV check before upload: `<Bank>Output.csv` if present, otherwise the split exports
+  `CSV_<Bank>[_editorial]_<edit type>[_<batch>].csv` written by exportpreparedmedia. The deprecated
+  `CSV_<Bank>.csv` and any other `CSV_<Bank>_*.csv` file are ignored (2026-10-19,
   `PhotobankUploader._find_export_csvs`, tests in `tests/unit/test_uploader__find_export_csvs__scenarios.py`).
 
 ## Pending

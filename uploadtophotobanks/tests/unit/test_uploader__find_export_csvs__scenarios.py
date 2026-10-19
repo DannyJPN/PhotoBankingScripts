@@ -17,19 +17,29 @@ def touch(folder, *names):
         (folder / name).write_text("Filename\n", encoding="utf-8")
 
 
-def test_find_export_csvs__collects_single_and_split_files(tmp_path):
-    touch(tmp_path, "CSV_Pond5.csv", "CSV_Pond5_bw.csv", "CSV_Pond5_editorial_original.csv", "CSV_Pond5_bw_2.csv")
-    touch(tmp_path, "CSV_Pond55.csv", "CSV_Pixta_bw.csv", "CSV_Pond5.csv.bak_20260624", "other.txt")
+def test_find_export_csvs__collects_only_split_export_files(tmp_path):
+    touch(tmp_path, "CSV_Pond5_bw.csv", "CSV_Pond5_editorial_original.csv", "CSV_Pond5_bw_2.csv", "csv_pond5_MISTY.CSV")
+    touch(tmp_path, "CSV_Pond55_bw.csv", "CSV_Pixta_bw.csv", "CSV_Pond5_bw.csv.bak_20260624", "other.txt")
 
     up = uploader.PhotobankUploader(credentials={})
     result = up._find_export_csvs(str(tmp_path), "Pond5")
 
     assert [Path(p).name for p in result] == [
-        "CSV_Pond5.csv",
         "CSV_Pond5_bw.csv",
         "CSV_Pond5_bw_2.csv",
         "CSV_Pond5_editorial_original.csv",
+        "csv_pond5_MISTY.CSV",
     ]
+
+
+def test_find_export_csvs__ignores_deprecated_and_unrelated_files(tmp_path):
+    touch(
+        tmp_path, "CSV_Pond5.csv", "CSV_Pond5_3.csv", "CSV_Pond5_notes.csv", "CSV_Pond5__bw.csv", "CSV_Pond5_bw_x.csv"
+    )
+
+    up = uploader.PhotobankUploader(credentials={})
+
+    assert up._find_export_csvs(str(tmp_path), "Pond5") == []
 
 
 def test_find_export_csvs__bank_name_prefix_of_other_bank(tmp_path):

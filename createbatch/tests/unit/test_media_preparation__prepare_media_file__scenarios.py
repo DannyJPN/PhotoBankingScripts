@@ -136,6 +136,22 @@ def test_prepare_media_file__copy_error_logs_and_continues(tmp_path, patched_dep
     assert "failed to copy" in caplog.text.lower()
 
 
+@pytest.mark.parametrize(
+    "stem, expected",
+    [
+        ("DSC0001", "original"),
+        ("DSC0001_sharpen", "_sharpen"),
+        ("DSC0001_sharpen_bw", "_bw"),
+        ("DSC0001_sharpen_negative", "_negative"),
+        ("DSC0001_misty", "_misty"),
+        ("DSC0001_blurred", "_blurred"),
+        ("bwpicture", "original"),
+    ],
+)
+def test_get_edit_subfolder__uses_last_tag(stem, expected):
+    assert media_module.get_edit_subfolder(stem) == expected
+
+
 def test_prepare_media_file__editorial_uses_editorial_folder(tmp_path, patched_dependencies):
     ensure_calls, copy_calls, _exif_calls = patched_dependencies
     source = tmp_path / "image_negative.jpg"

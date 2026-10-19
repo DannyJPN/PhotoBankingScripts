@@ -34,7 +34,12 @@ They are **shared** across all modules; local specifics may be added at script l
       or the last edit tag of the filename (`_sharpen`, `_bw`, `_negative`, `_misty`, `_blurred`).
     - Export CSVs: `<prefix>_<Bank>[_editorial]_<edit type>[_<batch>].csv`, edit type without underscore,
       e.g. `CSV_Pond5_bw.csv`, `CSV_Pond5_editorial_original.csv`, `CSV_GettyImages_negative_2.csv`.
+    - Batches: records are first cut into batches (commercial and editorial counted separately), then each batch
+      is split per edit type. Banks with a batch size limit always carry the batch number, and
+      `CSV_GettyImages_bw_2.csv` holds exactly the files of `GettyImages/batch_002/<format>/_bw/`.
     - Banks that do not accept editorial content (`BANKS_NO_EDITORIAL`) get no editorial folders or files.
+    - The single file `<prefix>_<Bank>.csv` and old `<prefix>_<Bank>_<N>.csv` batches are deprecated; no script
+      reads or reports them any more.
   * No other naming variations allowed.
 
 ---
