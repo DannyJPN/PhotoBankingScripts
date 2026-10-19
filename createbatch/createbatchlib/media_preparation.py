@@ -7,7 +7,7 @@ from shared.exif_handler import update_exif_metadata
 from shared.csv_sanitizer import sanitize_field
 from createbatchlib.constants import (
     STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE,
-    PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS, ALTERNATIVE_EDIT_TAGS
+    PHOTOBANK_SUPPORTED_FORMATS, FORMAT_SUBDIRS, ALTERNATIVE_EDIT_TAGS, EDITORIAL_SUBFOLDER
 )
 
 
@@ -47,13 +47,15 @@ def prepare_media_file(
     skip_existing: bool = False,
     bank: str = None,
     include_alternative_formats: bool = False,
-    batch_number: Optional[int] = None
+    batch_number: Optional[int] = None,
+    editorial: bool = False
 ) -> List[str]:
     """
     Copy a media file into output_folder/<photobank>/<format>/ and update its EXIF metadata.
     If 'bank' is specified, only files for that photobank are processed.
     If include_alternative_formats is True, also copy alternative format versions (PNG, TIFF, RAW).
     If batch_number is specified, files are copied to output_folder/<photobank>/batch_XXX/<format>/.
+    If editorial is True, the files go under output_folder/<photobank>/editorial/ with the same layout.
     If skip_existing is True, files that already exist in destination are skipped (faster re-runs).
 
     Returns a list of paths where the file was copied.
@@ -108,13 +110,16 @@ def prepare_media_file(
                 edit_subfolder = edit_tag if edit_tag else 'original'
 
                 # Create destination path
+                bank_root = os.path.join(output_folder, bank_name)
+                if editorial:
+                    bank_root = os.path.join(bank_root, EDITORIAL_SUBFOLDER)
                 if batch_number is not None:
                     # Create batch subfolder: output_folder/BankName/batch_001/format/edit/filename
                     batch_folder = f"batch_{batch_number:03d}"  # Format: batch_001, batch_002, etc.
-                    bank_folder = os.path.join(output_folder, bank_name, batch_folder, format_subdir, edit_subfolder)
+                    bank_folder = os.path.join(bank_root, batch_folder, format_subdir, edit_subfolder)
                 else:
                     # Original path: output_folder/BankName/format/edit/filename
-                    bank_folder = os.path.join(output_folder, bank_name, format_subdir, edit_subfolder)
+                    bank_folder = os.path.join(bank_root, format_subdir, edit_subfolder)
 
                 ensure_directory(bank_folder)
                 dest = os.path.join(bank_folder, filename)

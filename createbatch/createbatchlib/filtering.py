@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from createbatchlib.constants import STATUS_FIELD_KEYWORD, PREPARED_STATUS_VALUE, EDITORIAL_REGEX, BANKS_NO_EDITORIAL
 
 def filter_prepared_media(records: List[Dict[str, str]], include_edited: bool = False) -> List[Dict[str, str]]:
@@ -105,3 +105,30 @@ def filter_editorial_for_bank(records: List[Dict[str, str]], bank_name: str) -> 
         logging.info(f"Filtered out {filtered_count} editorial records for {bank_name} (does not accept editorial)")
 
     return filtered
+
+
+def split_editorial_records(
+    records: List[Dict[str, str]], bank_name: str
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """
+    Split records into commercial and editorial groups for a photobank.
+
+    Banks that do not accept editorial content get an empty editorial group.
+
+    :param records: Records prepared for the bank.
+    :param bank_name: Name of the photobank.
+    :return: Tuple ``(commercial, editorial)``, each keeping the input order.
+    """
+    commercial: List[Dict[str, str]] = []
+    editorial: List[Dict[str, str]] = []
+    for rec in records:
+        (editorial if is_editorial_record(rec) else commercial).append(rec)
+
+    if bank_name in BANKS_NO_EDITORIAL:
+        if editorial:
+            logging.info("Filtered out %d editorial records for %s (does not accept editorial)", len(editorial), bank_name)
+        return commercial, []
+
+    if editorial:
+        logging.info("%s: %d editorial records are kept apart from %d commercial records", bank_name, len(editorial), len(commercial))
+    return commercial, editorial

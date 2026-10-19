@@ -80,6 +80,9 @@ BANKS_NO_EDITORIAL = {
     'Pixta',        # Commercial content only
 }
 
+# Editorial files for banks that accept them go to <Bank>/editorial/..., apart from commercial files
+EDITORIAL_SUBFOLDER = "editorial"
+
 # Batch size limits for photobanks (items per batch)
 # Banks not listed here have no batch size limit
 PHOTOBANK_BATCH_SIZE_LIMITS = {

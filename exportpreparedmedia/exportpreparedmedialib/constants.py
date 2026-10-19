@@ -79,6 +79,14 @@ BANKS_NO_EDITORIAL = {
     'Pixta',        # Commercial content only
 }
 
+# Output CSVs are split per edit type and editorial flag:
+# <prefix>_<Bank>[_editorial]_<edit type>[_<batch>].csv, e.g. CSV_Pond5_bw.csv, CSV_Pond5_editorial_original.csv
+# Edit type comes from the filename suffix (same rule as createbatch edit subfolders)
+ALTERNATIVE_EDIT_TAGS = ("_bw", "_negative", "_sharpen", "_misty", "_blurred")
+ORIGINAL_EDIT_TYPE = "original"
+EDIT_TYPE_ORDER = (ORIGINAL_EDIT_TYPE, "sharpen", "bw", "negative", "misty", "blurred")
+EDITORIAL_OUTPUT_TAG = "editorial"
+
 # Format subdirectory names (for finding files in parallel directories)
 FORMAT_SUBDIRS = {
     '.jpg': 'JPG',

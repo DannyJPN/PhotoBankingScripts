@@ -15,6 +15,22 @@ The createbatch script processes media records from PhotoMedia.csv and creates b
 
 ## Recent Changes
 
+### Editorial output folder (2026-10-19)
+
+- Editorial records (title or description matching `EDITORIAL_REGEX`) for banks that accept editorial content go to
+  `<Bank>/editorial/<format>/<edit>/` (with batches `<Bank>/editorial/batch_NNN/<format>/<edit>/`), apart from
+  commercial files in `<Bank>/<format>/<edit>/`.
+- Commercial and editorial records are batched separately, so a batch never mixes them.
+- Banks in `BANKS_NO_EDITORIAL` still drop editorial records.
+- `EDITORIAL_REGEX` also matches multi-word city names (e.g. "Frenstat pod Radhostem, Czech - ...").
+- New: `filtering.split_editorial_records()`, `prepare_media_file(..., editorial=True)`, `EDITORIAL_SUBFOLDER`.
+- Tests: `test_filtering__split_editorial_records__scenarios.py`, editorial cases in
+  `test_media_preparation__prepare_media_file__scenarios.py` and `test_createbatch__main__scenarios.py`.
+- Known limitation: the progress tracker total still counts editorial records of banks that drop them.
+- Pre-existing failures on master (unchanged): `test_media_preparation__split_into_batches__getty_scenarios.py`,
+  `test_optimization_unit.py`, `test_optimization__compare_with_legacy.py`, logging config tests; running the whole
+  suite in one process breaks on a test that replaces the root logger.
+
 ### Version 2.0 - Performance Optimization (2025-11-29)
 
 **Major Performance Improvement:**

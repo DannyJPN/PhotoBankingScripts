@@ -1,16 +1,119 @@
 ﻿import os
+import re
 import csv
 import logging
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
-from shared.file_operations import save_csv
+from shared.file_operations import save_csv, load_csv
 from shared.csv_sanitizer import sanitize_field
 from exportpreparedmedialib.column_maps import get_column_map
-from exportpreparedmedialib.banks_logic import should_skip_editorial, extract_media_properties
+from exportpreparedmedialib.banks_logic import (
+    should_skip_editorial,
+    is_editorial_item,
+    extract_media_properties,
+    load_category_map,
+    load_pond_prices,
+)
 
-from exportpreparedmedialib.constants import PHOTOBANK_SUPPORTED_FORMATS, PHOTOBANK_BATCH_SIZE_LIMITS, PHOTOBANK_EXPORT_FORMATS, FORMAT_SUBDIRS
+from exportpreparedmedialib.constants import (
+    PHOTOBANK_SUPPORTED_FORMATS,
+    PHOTOBANK_BATCH_SIZE_LIMITS,
+    PHOTOBANK_EXPORT_FORMATS,
+    FORMAT_SUBDIRS,
+    ALTERNATIVE_EDIT_TAGS,
+    ORIGINAL_EDIT_TYPE,
+    EDIT_TYPE_ORDER,
+    EDITORIAL_OUTPUT_TAG,
+    DEFAULT_ADOBE_CATEGORY_PATH,
+    DEFAULT_DREAMSTIME_CATEGORY_PATH,
+    DEFAULT_POND_PRICES_PATH,
+    DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH,
+)
+
+
+def get_edit_type(item: Dict[str, str]) -> str:
+    """
+    Return the edit type of an item from the suffix of its filename.
+
+    Uses the same rule as the createbatch edit subfolders: the last edit tag wins,
+    so ``X_sharpen_bw.jpg`` is ``bw``.
+
+    :param item: Item from PhotoMedia.csv (``Cesta`` or ``Soubor`` is used).
+    :return: Edit type without the leading underscore, or ``original``.
+    """
+    stem = Path(item.get('Cesta') or item.get('Soubor', '')).stem
+    for tag in ALTERNATIVE_EDIT_TAGS:
+        if stem.endswith(tag):
+            return tag[1:]
+    return ORIGINAL_EDIT_TYPE
+
+
+def get_group_output_file(output_file: str, edit_type: str, editorial: bool, batch_index: Optional[int] = None) -> str:
+    """
+    Build the output path of one edit-type group of a bank export.
+
+    :param output_file: Base bank output path, e.g. ``.../CSV_Pond5.csv``.
+    :param edit_type: Edit type of the group, e.g. ``bw`` or ``original``.
+    :param editorial: Whether the group holds editorial items.
+    :param batch_index: Batch number when the group is split into several files.
+    :return: Path such as ``.../CSV_Pond5_editorial_bw_2.csv``.
+    """
+    path = Path(output_file)
+    parts = [path.stem]
+    if editorial:
+        parts.append(EDITORIAL_OUTPUT_TAG)
+    parts.append(edit_type)
+    if batch_index is not None:
+        parts.append(str(batch_index))
+    return str(path.parent / ("_".join(parts) + path.suffix))
+
+
+def find_stale_outputs(output_file: str, written_files: List[str]) -> List[str]:
+    """
+    Find existing export files of a bank that the current run did not write.
+
+    Covers the legacy single file, legacy batch files and edit-type group files.
+
+    :param output_file: Base bank output path, e.g. ``.../CSV_Pond5.csv``.
+    :param written_files: Paths written by the current run.
+    :return: Sorted list of stale file paths.
+    """
+    path = Path(output_file)
+    if not path.parent.is_dir():
+        return []
+    edit_types = "|".join(re.escape(t) for t in EDIT_TYPE_ORDER)
+    pattern = re.compile(
+        rf"^{re.escape(path.stem)}(?:_{re.escape(EDITORIAL_OUTPUT_TAG)})?(?:_(?:{edit_types}))?(?:_\d+)?"
+        rf"{re.escape(path.suffix)}$",
+        re.IGNORECASE,
+    )
+    written = {os.path.normcase(os.path.abspath(f)) for f in written_files}
+    stale = [
+        str(path.parent / name)
+        for name in os.listdir(path.parent)
+        if pattern.match(name) and os.path.normcase(os.path.abspath(path.parent / name)) not in written
+    ]
+    return sorted(stale)
+
+
+def group_records_by_edit_type(
+    entries: List[Tuple[Dict[str, str], Dict[str, str]]]
+) -> List[Tuple[bool, str, List[Dict[str, str]]]]:
+    """
+    Group export records by editorial flag and edit type.
+
+    :param entries: Pairs ``(expanded item, export record)`` in export order.
+    :return: Non-empty groups ``(editorial, edit type, records)``; commercial groups first,
+             edit types in ``EDIT_TYPE_ORDER``, records in input order.
+    """
+    groups: Dict[Tuple[bool, str], List[Dict[str, str]]] = {}
+    for item, record in entries:
+        groups.setdefault((is_editorial_item(item), get_edit_type(item)), []).append(record)
+    order = {t: i for i, t in enumerate(EDIT_TYPE_ORDER)}
+    keys = sorted(groups, key=lambda k: (k[0], order.get(k[1], len(order))))
+    return [(editorial, edit_type, groups[(editorial, edit_type)]) for editorial, edit_type in keys]
 
 
 
@@ -113,7 +216,6 @@ def load_photobank_headers(headers_file: str) -> Dict[str, Dict[str, str]]:
         logging.debug(f"File exists: {os.path.exists(headers_file)}")
 
         # Použij sdílenou funkci load_csv pro načtení CSV
-        from shared.file_operations import load_csv
         rows = load_csv(headers_file)
 
         for row in rows:
@@ -289,15 +391,6 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
     logging.debug(f"Output paths: {json.dumps(output_paths)}")
     logging.debug(f"Number of items to process: {len(items)}")
 
-    # Načtení potřebných dat pro vytváření rozšířených záznamů
-    from exportpreparedmedialib.banks_logic import extract_media_properties, load_category_map, load_pond_prices
-    from exportpreparedmedialib.constants import (
-        DEFAULT_ADOBE_CATEGORY_PATH,
-        DEFAULT_DREAMSTIME_CATEGORY_PATH,
-        DEFAULT_POND_PRICES_PATH,
-        DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH
-    )
-
     # Načtení formátů exportu
     export_formats = load_photobank_headers(DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH)
     logging.info(f"Loaded export formats from {DEFAULT_PHOTOBANK_EXPORT_FORMATS_PATH}")
@@ -340,57 +433,67 @@ def export_to_photobanks(items: List[Dict[str, str]], enabled_banks: List[str], 
             logging.info(f"Filtered out {editorial_filtered} editorial items for {bank} (does not accept editorial)")
 
         # Expand to alternative formats and create records
-        all_records = []
+        entries = []
         for item in bank_items:
             expanded_items = expand_item_with_alternative_formats(item, bank, include_alternative_formats)
             for expanded_item in expanded_items:
                 record = extract_media_properties(expanded_item, category_maps, pond_prices)
-                all_records.append(record)
+                entries.append((expanded_item, record))
 
-        logging.info(f"{bank}: {len(all_records)} total records after format expansion")
+        logging.info(f"{bank}: {len(entries)} total records after format expansion")
 
-        # Split into batches if needed
-        if batch_size_limit > 0 and len(all_records) > batch_size_limit:
-            batches = [all_records[i:i + batch_size_limit] for i in range(0, len(all_records), batch_size_limit)]
-            logging.info(f"{bank} has batch size limit of {batch_size_limit}, splitting into {len(batches)} files")
-        else:
-            batches = [all_records]
-
-        # Process each batch
-        for batch_idx, batch_records in enumerate(batches, start=1):
-            # Determine output file path
-            if len(batches) > 1:
-                # Multiple batches: add suffix _1, _2, etc.
-                output_path = Path(output_file)
-                batch_output_file = str(output_path.parent / f"{output_path.stem}_{batch_idx}{output_path.suffix}")
+        # One file set per editorial flag and edit type
+        written_files = []
+        for editorial, edit_type, group_records in group_records_by_edit_type(entries):
+            # Split into batches if needed
+            if batch_size_limit > 0 and len(group_records) > batch_size_limit:
+                batches = [group_records[i:i + batch_size_limit] for i in range(0, len(group_records), batch_size_limit)]
+                logging.info(f"{bank} has batch size limit of {batch_size_limit}, splitting into {len(batches)} files")
             else:
-                # Single batch: use original filename
-                batch_output_file = output_file
+                batches = [group_records]
 
-            logging.info(f"Writing batch {batch_idx}/{len(batches)} to {batch_output_file}")
+            for batch_idx, batch_records in enumerate(batches, start=1):
+                batch_output_file = get_group_output_file(
+                    output_file, edit_type, editorial, batch_idx if len(batches) > 1 else None
+                )
+                if _write_batch(bank, batch_records, batch_output_file, export_formats):
+                    written_files.append(batch_output_file)
 
-            # Write header
-            try:
-                bank_format = export_formats.get(bank, {})
-                header = bank_format.get('headers', '')
-                delimiter = bank_format.get('delimiter', ',')
+        for stale in find_stale_outputs(output_file, written_files):
+            logging.warning(f"{bank}: {stale} was not written by this export and is out of date")
 
-                if header:
-                    with open(batch_output_file, 'w', encoding='utf-8') as f:
-                        f.write(header + '\n')
-                    logging.debug(f"Wrote header for {bank} batch {batch_idx}")
-                else:
-                    logging.warning(f"No header defined for {bank}")
-            except Exception as e:
-                logging.error(f"Failed to write header for {bank} batch {batch_idx}: {e}")
-                continue
 
-            # Export records in this batch
-            export_count = 0
-            for record in batch_records:
-                if export_mediafile(bank, record, batch_output_file, export_formats):
-                    export_count += 1
-                    if export_count % 10 == 0:
-                        logging.debug(f"Batch {batch_idx}: exported {export_count}/{len(batch_records)} records")
+def _write_batch(bank: str, batch_records: List[Dict[str, str]], batch_output_file: str,
+                 export_formats: Dict[str, Dict[str, str]]) -> bool:
+    """
+    Write the header and the records of one output file.
 
-            logging.info(f"Batch {batch_idx}: exported {export_count}/{len(batch_records)} records to {batch_output_file}")
+    :param bank: Photobank name.
+    :param batch_records: Export records for this file.
+    :param batch_output_file: Output CSV path.
+    :param export_formats: Export formats loaded by ``load_photobank_headers``.
+    :return: False if the header could not be written, True otherwise.
+    """
+    logging.info(f"Writing {len(batch_records)} records to {batch_output_file}")
+
+    try:
+        header = export_formats.get(bank, {}).get('headers', '')
+        if header:
+            with open(batch_output_file, 'w', encoding='utf-8') as f:
+                f.write(header + '\n')
+            logging.debug(f"Wrote header for {bank}: {batch_output_file}")
+        else:
+            logging.warning(f"No header defined for {bank}")
+    except Exception as e:
+        logging.error(f"Failed to write header for {bank} to {batch_output_file}: {e}")
+        return False
+
+    export_count = 0
+    for record in batch_records:
+        if export_mediafile(bank, record, batch_output_file, export_formats):
+            export_count += 1
+            if export_count % 10 == 0:
+                logging.debug(f"{batch_output_file}: exported {export_count}/{len(batch_records)} records")
+
+    logging.info(f"Exported {export_count}/{len(batch_records)} records to {batch_output_file}")
+    return True

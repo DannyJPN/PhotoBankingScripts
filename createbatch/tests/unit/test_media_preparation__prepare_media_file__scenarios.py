@@ -134,3 +134,43 @@ def test_prepare_media_file__copy_error_logs_and_continues(tmp_path, patched_dep
 
     assert result == []
     assert "failed to copy" in caplog.text.lower()
+
+
+def test_prepare_media_file__editorial_uses_editorial_folder(tmp_path, patched_dependencies):
+    ensure_calls, copy_calls, _exif_calls = patched_dependencies
+    source = tmp_path / "image_negative.jpg"
+    source.write_text("data", encoding="utf-8")
+    record = {"Cesta": str(source), "Pond5 Status": constants.PREPARED_STATUS_VALUE}
+
+    result = media_module.prepare_media_file(
+        record,
+        output_folder=str(tmp_path / "out"),
+        exif_tool_path="exiftool",
+        bank="Pond5",
+        editorial=True,
+    )
+
+    expected_dir = tmp_path / "out" / "Pond5" / constants.EDITORIAL_SUBFOLDER / "jpg" / "_negative"
+    assert ensure_calls == [str(expected_dir)]
+    assert copy_calls[0][1] == str(expected_dir / source.name)
+    assert result == [str(expected_dir / source.name)]
+
+
+def test_prepare_media_file__editorial_with_batch_folder(tmp_path, patched_dependencies):
+    ensure_calls, _copy_calls, _exif_calls = patched_dependencies
+    source = tmp_path / "image.jpg"
+    source.write_text("data", encoding="utf-8")
+    record = {"Cesta": str(source), "Pond5 Status": constants.PREPARED_STATUS_VALUE}
+
+    media_module.prepare_media_file(
+        record,
+        output_folder=str(tmp_path / "out"),
+        exif_tool_path="exiftool",
+        bank="Pond5",
+        batch_number=3,
+        editorial=True,
+    )
+
+    assert ensure_calls == [
+        str(tmp_path / "out" / "Pond5" / constants.EDITORIAL_SUBFOLDER / "batch_003" / "jpg" / "original")
+    ]

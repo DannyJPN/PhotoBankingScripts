@@ -18,7 +18,7 @@ from createbatchlib.constants import (
 from createbatchlib.optimization import RecordProcessor
 from createbatchlib.media_preparation import prepare_media_file, split_into_batches
 from createbatchlib.progress_tracker import UnifiedProgressTracker
-from createbatchlib.filtering import filter_editorial_for_bank
+from createbatchlib.filtering import split_editorial_records
 
 def parse_arguments():
     parser = ArgumentParser(description="CreateBatch Script")
@@ -112,12 +112,10 @@ def main():
     try:
         # Process each bank with unified progress tracking
         for bank in banks:
-            bank_records = bank_records_map[bank]
+            # Editorial records go to their own folder; banks without editorial support drop them
+            commercial_records, editorial_records = split_editorial_records(bank_records_map[bank], bank)
 
-            # Filter out editorial content for banks that don't accept it
-            bank_records = filter_editorial_for_bank(bank_records, bank)
-
-            if not bank_records:
+            if not commercial_records and not editorial_records:
                 logging.info(f"No records to process for {bank} after editorial filtering, skipping")
                 continue
 
@@ -129,41 +127,46 @@ def main():
             # Check if bank has batch size limit
             batch_size_limit = PHOTOBANK_BATCH_SIZE_LIMITS.get(bank, 0)
 
-            if batch_size_limit > 0:
-                # Split into batches for banks with size limits
-                batches = split_into_batches(bank_records, batch_size_limit)
-                logging.info(f"{bank} has batch size limit of {batch_size_limit}, created {len(batches)} batches")
-            else:
-                # No splitting for banks without limits
-                batches = [bank_records]
+            for is_editorial, group_records in ((False, commercial_records), (True, editorial_records)):
+                if not group_records:
+                    continue
 
-            # Process each batch
-            for batch_idx, batch_records in enumerate(batches, start=1):
-                batch_num = batch_idx if batch_size_limit > 0 else None
+                if batch_size_limit > 0:
+                    # Split into batches for banks with size limits
+                    batches = split_into_batches(group_records, batch_size_limit)
+                    logging.info(f"{bank} has batch size limit of {batch_size_limit}, created {len(batches)} batches")
+                else:
+                    # No splitting for banks without limits
+                    batches = [group_records]
 
-                for rec in batch_records:
-                    try:
-                        paths = prepare_media_file(
-                            rec,
-                            args.output_folder,
-                            exif_tool_path,
-                            skip_existing=args.skip_existing,
-                            bank=bank,
-                            include_alternative_formats=args.include_alternative_formats,
-                            batch_number=batch_num
-                        )
-                        processed.extend(paths)
-                        progress_tracker.update_progress(1)  # Track by record, not files
+                # Process each batch
+                for batch_idx, batch_records in enumerate(batches, start=1):
+                    batch_num = batch_idx if batch_size_limit > 0 else None
 
-                    except Exception as e:
-                        logging.error(
-                            "Error preparing file %s for %s: %s",
-                            rec.get('Cesta'), bank, e
-                        )
-                        bank_errors += 1
-                        error_count += 1
-                        # Still update progress to keep bar moving
-                        progress_tracker.update_progress(0)
+                    for rec in batch_records:
+                        try:
+                            paths = prepare_media_file(
+                                rec,
+                                args.output_folder,
+                                exif_tool_path,
+                                skip_existing=args.skip_existing,
+                                bank=bank,
+                                include_alternative_formats=args.include_alternative_formats,
+                                batch_number=batch_num,
+                                editorial=is_editorial
+                            )
+                            processed.extend(paths)
+                            progress_tracker.update_progress(1)  # Track by record, not files
+
+                        except Exception as e:
+                            logging.error(
+                                "Error preparing file %s for %s: %s",
+                                rec.get('Cesta'), bank, e
+                            )
+                            bank_errors += 1
+                            error_count += 1
+                            # Still update progress to keep bar moving
+                            progress_tracker.update_progress(0)
 
             progress_tracker.finish_bank()
             all_processed.extend(processed)

@@ -28,6 +28,13 @@ They are **shared** across all modules; local specifics may be added at script l
     - Example: `GettyImagesOutput_1.csv`, `GettyImagesOutput_2.csv`
     - Each file contains maximum items per bank's batch size limit
     - Subfolder structure: `GettyImages/batch_001/`, `GettyImages/batch_002/`
+  * **Exception for edit type and editorial splitting** (createbatch, exportpreparedmedia):
+    - Media folders: `<Bank>/<format>/<edit>/` for commercial files, `<Bank>/editorial/<format>/<edit>/` for
+      editorial files (with batches: `<Bank>[/editorial]/batch_001/<format>/<edit>/`); `<edit>` is `original`
+      or the last edit tag of the filename (`_sharpen`, `_bw`, `_negative`, `_misty`, `_blurred`).
+    - Export CSVs: `<prefix>_<Bank>[_editorial]_<edit type>[_<batch>].csv`, edit type without underscore,
+      e.g. `CSV_Pond5_bw.csv`, `CSV_Pond5_editorial_original.csv`, `CSV_GettyImages_negative_2.csv`.
+    - Banks that do not accept editorial content (`BANKS_NO_EDITORIAL`) get no editorial folders or files.
   * No other naming variations allowed.
 
 ---
@@ -129,7 +136,20 @@ File-based approach avoids shell escaping issues and supports full formatting.
 **After pushing:**
 
 **On Windows (PowerShell):**
-- **Restart Dropbox**: `Start-Process "C:\Program Files (x86)\Dropbox\Client\Dropbox.exe"`
+- **Restart Dropbox** through the running desktop `explorer.exe` (ShellExecute via COM), so Dropbox becomes a normal
+  user process and not a child of the Claude shell. Save as a `.ps1` file and run it with
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <file>.ps1`:
+  ```powershell
+  $shell = New-Object -ComObject Shell.Application
+  $hwnd = 0
+  $desktop = $shell.Windows().FindWindowSW([ref]0, [ref]0, 8, [ref]$hwnd, 1)
+  $desktop.Document.Application.ShellExecute('C:\Program Files (x86)\Dropbox\Client\Dropbox.exe', '',
+      'C:\Program Files (x86)\Dropbox\Client', 'open', 1)
+  ```
+  - **Never use `Start-Process`** or `& explorer.exe '<path>'`: both make Dropbox a child of a short-lived process
+    started by the Claude shell, so it starts without its UI.
+  - **Verify**: after ~30-60 s the main `Dropbox.exe` has the desktop `explorer.exe` as parent and
+    `--type=renderer` child processes exist.
 
 **On Linux/macOS (bash):**
 - **Restart Dropbox**: `dropbox start` or check system-specific command

@@ -235,3 +235,48 @@ def test_createbatch__main__zero_total_does_not_crash(common_patches, monkeypatc
     monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Alamy": 0})
 
     createbatch_module.main()
+
+
+def test_createbatch__main__editorial_records_go_to_editorial_batches(common_patches, monkeypatch):
+    commercial = {"Cesta": "a.jpg", "Název": "Yellow flower", "Popis": ""}
+    editorial = {"Cesta": "b.jpg", "Název": "Ostrava, Czech - 07 05 2021: Statue", "Popis": ""}
+    records = [editorial, commercial]
+    DummyProcessor.return_map = {"Pond5": records}
+    split_calls = []
+    calls = []
+
+    def split_batches(input_records, limit):
+        split_calls.append(list(input_records))
+        return [input_records]
+
+    def prepare_media_file(rec, *_args, batch_number=None, editorial=False, **_kwargs):
+        calls.append((rec["Cesta"], batch_number, editorial))
+        return [rec["Cesta"]]
+
+    monkeypatch.setattr(createbatch_module, "parse_arguments", lambda: make_args(common_patches))
+    monkeypatch.setattr(createbatch_module, "load_csv", lambda _path: records)
+    monkeypatch.setattr(createbatch_module, "split_into_batches", split_batches)
+    monkeypatch.setattr(createbatch_module, "prepare_media_file", prepare_media_file)
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {"Pond5": 5})
+
+    createbatch_module.main()
+
+    assert split_calls == [[commercial], [editorial]]
+    assert calls == [("a.jpg", 1, False), ("b.jpg", 1, True)]
+
+
+def test_createbatch__main__editorial_dropped_for_bank_without_editorial(common_patches, monkeypatch, caplog):
+    editorial = {"Cesta": "b.jpg", "Název": "Ostrava, Czech - 07 05 2021: Statue", "Popis": ""}
+    DummyProcessor.return_map = {"AdobeStock": [editorial]}
+    calls = []
+
+    monkeypatch.setattr(createbatch_module, "parse_arguments", lambda: make_args(common_patches))
+    monkeypatch.setattr(createbatch_module, "load_csv", lambda _path: [editorial])
+    monkeypatch.setattr(createbatch_module, "prepare_media_file", lambda rec, *_a, **_k: calls.append(rec) or [])
+    monkeypatch.setattr(createbatch_module, "PHOTOBANK_BATCH_SIZE_LIMITS", {})
+
+    with caplog.at_level(logging.INFO):
+        createbatch_module.main()
+
+    assert calls == []
+    assert "no records to process for adobestock" in caplog.text.lower()
