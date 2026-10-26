@@ -174,7 +174,11 @@ def test_is_valid_place_name__ascii_letters_only(field, value, expected):
 
 def test_on_ok__transliterates_city_and_country():
     dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
-    dialog.entries = {"city": DummyEntry("Frýdek-Místek"), "country": DummyEntry("Česko"), "date": DummyEntry("15 03 2024")}
+    dialog.entries = {
+        "city": DummyEntry("Frýdek-Místek"),
+        "country": DummyEntry("Česko"),
+        "date": DummyEntry("15 03 2024"),
+    }
     dialog.dialog = DummyDialog()
     dialog.result = None
 
@@ -232,7 +236,9 @@ def test_on_ok__rejects_input_without_latin_letters(monkeypatch, typed):
     assert dialog.result is None
 
 
-@pytest.mark.parametrize("typed, expected", [("Cesky\tKrumlov", "Cesky Krumlov"), ("Usti\nnad Labem", "Usti nad Labem")])
+@pytest.mark.parametrize(
+    "typed, expected", [("Cesky\tKrumlov", "Cesky Krumlov"), ("Usti\nnad Labem", "Usti nad Labem")]
+)
 def test_transliterate_to_ascii__ascii_input_only_collapses_whitespace(typed, expected):
     result = editorial_dialog.transliterate_to_ascii(typed)
     assert result == expected
