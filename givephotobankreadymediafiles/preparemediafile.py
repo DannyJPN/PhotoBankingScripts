@@ -13,6 +13,7 @@ from shared.file_operations import ensure_directory
 from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_MEDIA_CSV_PATH
 from givephotobankreadymediafileslib.media_viewer_refactored import show_media_viewer
 from givephotobankreadymediafileslib.mediainfo_loader import load_categories, load_media_records
+from givephotobankreadymediafileslib.editorial_prefix import extract_editorial_data
 
 
 def parse_arguments():
@@ -279,12 +280,7 @@ def main():
                 # Extract full editorial_data from description if present
                 editorial_data = None
                 if is_editorial and original_description:
-                    from givephotobankreadymediafileslib.editorial_prefix import parse_editorial_prefix
-                    editorial_data = parse_editorial_prefix(original_description)
-                    if editorial_data:
-                        logging.debug(f"Extracted editorial data from description: {editorial_data}")
-                    else:
-                        logging.warning(f"Editorial description has no 'City, Country - DD MM YYYY:' prefix: {original_description[:60]}")
+                    editorial_data = extract_editorial_data(original_description, os.path.basename(args.file))
 
                 # Generate metadata ONCE per edit tag (not per file)
                 edit_metadata = {}  # Store metadata for each edit tag

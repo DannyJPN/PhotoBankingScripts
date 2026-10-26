@@ -43,7 +43,7 @@ from givephotobankreadymediafileslib.constants import (
     DEFAULT_MEDIA_CSV_PATH,
     MAX_DESCRIPTION_LENGTH,
 )
-from givephotobankreadymediafileslib.editorial_prefix import parse_editorial_prefix
+from givephotobankreadymediafileslib.editorial_prefix import has_editorial_prefix_for_city, parse_editorial_prefix
 from shared.config import get_config
 from shared.file_operations import load_csv, save_csv_with_backup
 from shared.logging_config import setup_logging
@@ -60,6 +60,8 @@ except ImportError:
 import logging
 setup_logging(debug=False, log_file="logs/add_editorial_tags_to_photomedia.log")
 logger = logging.getLogger(__name__)
+
+EDITORIAL_TAG_COUNTRY = "Czech"
 
 
 def collect_editorial_cities(csv_path: str) -> Set[str]:
@@ -124,7 +126,7 @@ def collect_editorial_cities(csv_path: str) -> Set[str]:
                 continue
 
             parsed = parse_editorial_prefix(description)
-            if parsed and parsed["country"].lower() == "czech":
+            if parsed and parsed["country"].lower() == EDITORIAL_TAG_COUNTRY.lower():
                 cities.add(parsed["city"])
 
         photomedia_cities_count = len(cities) - batch_cities_count
@@ -182,8 +184,7 @@ def build_batch_description_map() -> Dict[str, str]:
                     # Check if description has editorial tag
                     city = editorial_data.get('city', '').strip()
                     if city and description:
-                        pattern = rf"^{re.escape(city)},\s*Czech\s*-\s*\d{{2}}\s+\d{{2}}\s+\d{{4}}:\s*"
-                        if re.match(pattern, description, re.IGNORECASE):
+                        if has_editorial_prefix_for_city(description, city, EDITORIAL_TAG_COUNTRY):
                             # Normalize path for comparison
                             normalized_path = Path(file_path).as_posix().lower()
                             batch_descriptions[normalized_path] = description
@@ -437,8 +438,7 @@ def process_photomedia_csv(
             continue
 
         # Check if description already has editorial tag for this city
-        pattern = rf"^{re.escape(city)},\s*Czech\s*-\s*\d{{2}}\s+\d{{2}}\s+\d{{4}}:\s*"
-        if re.match(pattern, description, re.IGNORECASE):
+        if has_editorial_prefix_for_city(description, city, EDITORIAL_TAG_COUNTRY):
             # Already has correct editorial tag
             continue
 
