@@ -43,6 +43,7 @@ from givephotobankreadymediafileslib.constants import (
     DEFAULT_MEDIA_CSV_PATH,
     MAX_DESCRIPTION_LENGTH,
 )
+from givephotobankreadymediafileslib.editorial_prefix import parse_editorial_prefix
 from shared.config import get_config
 from shared.file_operations import load_csv, save_csv_with_backup
 from shared.logging_config import setup_logging
@@ -122,13 +123,9 @@ def collect_editorial_cities(csv_path: str) -> Set[str]:
             if not description:
                 continue
 
-            # Extract city from editorial tag pattern: "CITY, Czech - DD MM YYYY: "
-            # Pattern supports multi-word cities: "Cesky Krumlov", "New York", etc.
-            match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*Czech\s*-\s*\d{2}\s+\d{2}\s+\d{4}:\s*', description)
-            if match:
-                city = match.group(1).strip()
-                if city:
-                    cities.add(city)
+            parsed = parse_editorial_prefix(description)
+            if parsed and parsed["country"].lower() == "czech":
+                cities.add(parsed["city"])
 
         photomedia_cities_count = len(cities) - batch_cities_count
         logger.info(f"Found {photomedia_cities_count} additional cities from PhotoMedia.csv")

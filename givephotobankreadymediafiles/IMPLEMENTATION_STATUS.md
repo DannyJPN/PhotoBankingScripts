@@ -69,6 +69,10 @@
 
 ## Recent changes
 
+- Editorial prefix parsing (`editorial_prefix.parse_editorial_prefix`, `EDITORIAL_PREFIX_PATTERN`) now accepts
+  upper-case, multi-word and hyphenated cities ("OLOMOUC", "Frenstat pod Radhostem", "Frydek-Mistek");
+  used by `preparemediafile.py` (editorial data for alternatives) and `scripts/add_editorial_tags_to_photomedia.py`.
+  On PhotoMedia.csv it recognises all 2762 editorial descriptions (the old pattern 639).
 - AI provider model lists updated to reflect current Claude 4.x, GPT-5/4.1, and Ollama vision models
 - Fixed pricing errors across OpenAI and Anthropic entries in `config_template.json`
 - Removed duplicate JSON keys (`claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022`) that caused silent data loss

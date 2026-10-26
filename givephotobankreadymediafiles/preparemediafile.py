@@ -279,17 +279,12 @@ def main():
                 # Extract full editorial_data from description if present
                 editorial_data = None
                 if is_editorial and original_description:
-                    import re
-                    # Pattern: "CITY, COUNTRY - DD MM YYYY: "
-                    # City can be multi-word (e.g., "Cesky Krumlov")
-                    match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z][a-z]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*', original_description)
-                    if match:
-                        editorial_data = {
-                            'city': match.group(1).strip(),
-                            'country': match.group(2).strip(),
-                            'date': match.group(3).strip()
-                        }
+                    from givephotobankreadymediafileslib.editorial_prefix import parse_editorial_prefix
+                    editorial_data = parse_editorial_prefix(original_description)
+                    if editorial_data:
                         logging.debug(f"Extracted editorial data from description: {editorial_data}")
+                    else:
+                        logging.warning(f"Editorial description has no 'City, Country - DD MM YYYY:' prefix: {original_description[:60]}")
 
                 # Generate metadata ONCE per edit tag (not per file)
                 edit_metadata = {}  # Store metadata for each edit tag
