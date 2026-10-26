@@ -21,6 +21,34 @@ from givephotobankreadymediafileslib.constants import (
     TRANSLITERATION_MAP,
 )
 
+EDITORIAL_CITY_RE = re.compile(EDITORIAL_CITY_PATTERN)
+EDITORIAL_COUNTRY_RE = re.compile(EDITORIAL_COUNTRY_PATTERN)
+
+
+def transliterate_to_ascii(text: str) -> str:
+    """
+    Replace accented letters with their plain ASCII counterparts (e.g. "Žďár" -> "Zdar").
+
+    :param text: Text typed by the user
+    :return: Text with diacritics removed and whitespace collapsed
+    """
+    mapped = "".join(TRANSLITERATION_MAP.get(char, char) for char in text)
+    decomposed = unicodedata.normalize("NFKD", mapped)
+    stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(stripped.split())
+
+
+def is_valid_place_name(field: str, value: str) -> bool:
+    """
+    Check that a city or country name matches the editorial prefix format used by the exports.
+
+    :param field: Either "city" or "country"
+    :param value: Transliterated value
+    :return: True if the value contains only allowed ASCII characters
+    """
+    pattern = EDITORIAL_CITY_RE if field == "city" else EDITORIAL_COUNTRY_RE
+    return pattern.fullmatch(value) is not None
+
 
 class EditorialMetadataDialog:
     """Dialog for collecting missing editorial metadata."""
@@ -184,10 +212,16 @@ class EditorialMetadataDialog:
             if field in EDITORIAL_PLACE_FIELDS:
                 value = transliterate_to_ascii(value)
                 if not is_valid_place_name(field, value):
+                    entry.delete(0, tk.END)
+                    entry.insert(0, value)
+                    if field == "city":
+                        allowed = "ASCII letters (A-Z), spaces and hyphens"
+                    else:
+                        allowed = "one word of ASCII letters (A-Z)"
                     messagebox.showerror("Invalid Characters",
-                                       f"{field.title()} may contain only letters"
-                                       f"{', spaces and hyphens' if field == 'city' else ''} "
-                                       f"(got '{value}')",
+                                       f"{field.title()} may contain only {allowed}. "
+                                       "Accented letters are converted automatically; "
+                                       "other scripts (e.g. Cyrillic) and punctuation are not supported.",
                                        parent=self.dialog)
                     entry.focus()
                     return
@@ -277,31 +311,6 @@ def get_editorial_metadata(parent: tk.Tk, missing_fields: Dict[str, bool],
     """
     dialog = EditorialMetadataDialog(parent, missing_fields, existing_data)
     return dialog.show_and_get_result()
-
-
-def transliterate_to_ascii(text: str) -> str:
-    """
-    Replace accented letters with their plain ASCII counterparts (e.g. "Žďár" -> "Zdar").
-
-    :param text: Text typed by the user
-    :return: Text with diacritics removed and whitespace collapsed
-    """
-    mapped = "".join(TRANSLITERATION_MAP.get(char, char) for char in text)
-    decomposed = unicodedata.normalize("NFKD", mapped)
-    stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
-    return " ".join(stripped.split())
-
-
-def is_valid_place_name(field: str, value: str) -> bool:
-    """
-    Check that a city or country name matches the editorial prefix format used by the exports.
-
-    :param field: Either "city" or "country"
-    :param value: Transliterated value
-    :return: True if the value contains only allowed ASCII characters
-    """
-    pattern = EDITORIAL_CITY_PATTERN if field == "city" else EDITORIAL_COUNTRY_PATTERN
-    return re.match(pattern, value) is not None
 
 
 def format_editorial_prefix(city: str, country: str, date_str: str) -> str:
