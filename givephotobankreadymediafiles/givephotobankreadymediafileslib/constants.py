@@ -20,6 +20,15 @@ MAX_TITLE_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 200
 MAX_KEYWORDS_COUNT = 50
 
+# Editorial place names (city, country) must stay ASCII so exports recognise the editorial prefix
+EDITORIAL_CITY_PATTERN = r"^[A-Za-z]+(?:[\s-][A-Za-z]+)*$"
+EDITORIAL_COUNTRY_PATTERN = r"^[A-Za-z]+$"
+EDITORIAL_PLACE_FIELDS = ("city", "country")
+TRANSLITERATION_MAP = {
+    "ł": "l", "Ł": "L", "đ": "d", "Đ": "D", "ø": "o", "Ø": "O", "ß": "ss",
+    "æ": "ae", "Æ": "AE", "œ": "oe", "Œ": "OE", "þ": "th", "Þ": "Th", "ı": "i",
+}
+
 # AI generation settings
 AI_MAX_RETRY_ATTEMPTS = 10
 

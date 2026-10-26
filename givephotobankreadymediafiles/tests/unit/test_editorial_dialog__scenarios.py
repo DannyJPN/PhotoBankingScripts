@@ -131,3 +131,65 @@ def test_extract_editorial_metadata_from_exif__exception(monkeypatch):
     data, missing = editorial_dialog.extract_editorial_metadata_from_exif("C:/file.jpg")
     assert data == {}
     assert all(missing.values())
+
+
+import pytest
+
+
+@pytest.mark.parametrize(
+    "typed, expected",
+    [
+        ("Žďár nad Sázavou", "Zdar nad Sazavou"),
+        ("Frýdek-Místek", "Frydek-Mistek"),
+        ("Łódź", "Lodz"),
+        ("Straße", "Strasse"),
+        ("  Česká   Lípa ", "Ceska Lipa"),
+        ("Prague", "Prague"),
+    ],
+)
+def test_transliterate_to_ascii__removes_diacritics(typed, expected):
+    assert editorial_dialog.transliterate_to_ascii(typed) == expected
+
+
+@pytest.mark.parametrize(
+    "field, value, expected",
+    [
+        ("city", "Frenstat pod Radhostem", True),
+        ("city", "Frydek-Mistek", True),
+        ("city", "St. Petersburg", False),
+        ("city", "Brno2", False),
+        ("city", "Žilina", False),
+        ("country", "Czech", True),
+        ("country", "Czech Republic", False),
+    ],
+)
+def test_is_valid_place_name__ascii_letters_only(field, value, expected):
+    assert editorial_dialog.is_valid_place_name(field, value) is expected
+
+
+def test_on_ok__transliterates_city_and_country():
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    dialog.entries = {"city": DummyEntry("Frýdek-Místek"), "country": DummyEntry("Česko"), "date": DummyEntry("15 03 2024")}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    dialog.on_ok()
+    assert dialog.result == {"city": "Frydek-Mistek", "country": "Cesko", "date": "15 03 2024"}
+    assert dialog.dialog.destroyed is True
+
+
+def test_on_ok__rejects_invalid_city_characters(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    entry = DummyEntry("St. Petersburg")
+    dialog.entries = {"city": entry}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and "St. Petersburg" in messages[0][1]
+    assert dialog.result is None
+    assert entry.focused is True
+    assert dialog.dialog.destroyed is False

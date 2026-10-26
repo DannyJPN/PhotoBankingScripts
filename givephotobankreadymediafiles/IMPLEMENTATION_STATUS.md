@@ -69,6 +69,9 @@
 
 ## Recent changes
 
+- Editorial dialog transliterates city and country to ASCII on save (`transliterate_to_ascii`: ž -> z, ł -> l,
+  ß -> ss) and rejects values the export editorial regex would not match (`is_valid_place_name`: city letters,
+  spaces, hyphens; country one word).
 - AI provider model lists updated to reflect current Claude 4.x, GPT-5/4.1, and Ollama vision models
 - Fixed pricing errors across OpenAI and Anthropic entries in `config_template.json`
 - Removed duplicate JSON keys (`claude-3-7-sonnet-20250219`, `claude-3-5-haiku-20241022`) that caused silent data loss

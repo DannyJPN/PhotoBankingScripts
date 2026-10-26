@@ -11,6 +11,15 @@ from tkinter import messagebox
 from typing import Optional, Dict, Tuple
 from datetime import datetime, date
 import logging
+import re
+import unicodedata
+
+from givephotobankreadymediafileslib.constants import (
+    EDITORIAL_CITY_PATTERN,
+    EDITORIAL_COUNTRY_PATTERN,
+    EDITORIAL_PLACE_FIELDS,
+    TRANSLITERATION_MAP,
+)
 
 
 class EditorialMetadataDialog:
@@ -172,6 +181,17 @@ class EditorialMetadataDialog:
                 entry.focus()
                 return
             
+            if field in EDITORIAL_PLACE_FIELDS:
+                value = transliterate_to_ascii(value)
+                if not is_valid_place_name(field, value):
+                    messagebox.showerror("Invalid Characters",
+                                       f"{field.title()} may contain only letters"
+                                       f"{', spaces and hyphens' if field == 'city' else ''} "
+                                       f"(got '{value}')",
+                                       parent=self.dialog)
+                    entry.focus()
+                    return
+
             # Special validation for date
             if field == 'date':
                 if not self.validate_date_format(value):
@@ -257,6 +277,31 @@ def get_editorial_metadata(parent: tk.Tk, missing_fields: Dict[str, bool],
     """
     dialog = EditorialMetadataDialog(parent, missing_fields, existing_data)
     return dialog.show_and_get_result()
+
+
+def transliterate_to_ascii(text: str) -> str:
+    """
+    Replace accented letters with their plain ASCII counterparts (e.g. "Žďár" -> "Zdar").
+
+    :param text: Text typed by the user
+    :return: Text with diacritics removed and whitespace collapsed
+    """
+    mapped = "".join(TRANSLITERATION_MAP.get(char, char) for char in text)
+    decomposed = unicodedata.normalize("NFKD", mapped)
+    stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(stripped.split())
+
+
+def is_valid_place_name(field: str, value: str) -> bool:
+    """
+    Check that a city or country name matches the editorial prefix format used by the exports.
+
+    :param field: Either "city" or "country"
+    :param value: Transliterated value
+    :return: True if the value contains only allowed ASCII characters
+    """
+    pattern = EDITORIAL_CITY_PATTERN if field == "city" else EDITORIAL_COUNTRY_PATTERN
+    return re.match(pattern, value) is not None
 
 
 def format_editorial_prefix(city: str, country: str, date_str: str) -> str:
