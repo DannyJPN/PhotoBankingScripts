@@ -35,7 +35,7 @@ def script_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> ModuleType
     return module
 
 
-def test_collect_editorial_cities__reads_prefixes_case_insensitively(
+def test_add_editorial_tags_to_photomedia__collect_editorial_cities__reads_prefixes_case_insensitively(
     script_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     records = [
@@ -53,7 +53,7 @@ def test_collect_editorial_cities__reads_prefixes_case_insensitively(
     assert cities == {"OLOMOUC", "Frydek-Mistek", "Frenstat pod Radhostem"}
 
 
-def test_collect_editorial_cities__csv_error_keeps_batch_cities(
+def test_add_editorial_tags_to_photomedia__collect_editorial_cities__csv_error_keeps_batch_cities(
     script_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def fail(_path: str) -> List[dict]:

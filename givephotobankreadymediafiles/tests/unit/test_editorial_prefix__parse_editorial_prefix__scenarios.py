@@ -37,7 +37,7 @@ from givephotobankreadymediafileslib.editorial_prefix import (
         ),
     ],
 )
-def test_parse_editorial_prefix__valid_prefixes(description: str, expected: Dict[str, str]) -> None:
+def test_editorial_prefix__parse_editorial_prefix__valid_prefixes(description: str, expected: Dict[str, str]) -> None:
     assert parse_editorial_prefix(description) == expected
 
 
@@ -56,18 +56,20 @@ def test_parse_editorial_prefix__valid_prefixes(description: str, expected: Dict
         "Frydek--Mistek, Czech - 15 03 2024: double hyphen",
     ],
 )
-def test_parse_editorial_prefix__no_prefix_returns_none(description: Optional[str]) -> None:
+def test_editorial_prefix__parse_editorial_prefix__no_prefix_returns_none(description: Optional[str]) -> None:
     assert parse_editorial_prefix(description) is None
 
 
-def test_extract_editorial_data__returns_parsed_data(caplog: pytest.LogCaptureFixture) -> None:
+def test_editorial_prefix__extract_editorial_data__returns_parsed_data(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         data = extract_editorial_data("Ostrava, Czech - 01 02 2020: Mine", "DSC0001.JPG")
     assert data == {"city": "Ostrava", "country": "Czech", "date": "01 02 2020"}
     assert not caplog.records
 
 
-def test_extract_editorial_data__missing_prefix_warns_with_file_name(caplog: pytest.LogCaptureFixture) -> None:
+def test_editorial_prefix__extract_editorial_data__missing_prefix_warns_with_file_name(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     with caplog.at_level(logging.WARNING):
         data = extract_editorial_data("Grey shaded - Ostrava, Czech - 01 02 2020: Mine", "DSC0001_bw.JPG")
     assert data is None
@@ -83,9 +85,13 @@ def test_extract_editorial_data__missing_prefix_warns_with_file_name(caplog: pyt
         ("Olomouc, Slovakia - 01 02 2020: Square", "Olomouc", "Czech", False),
         ("Square in Olomouc", "Olomouc", "Czech", False),
         (None, "Olomouc", "Czech", False),
+        ("Frýdek-Místek, Czech - 01 02 2020: Sky", "Frýdek-Místek", "Czech", True),
+        ("STARÉ HAMRY, CZECH - 01 02 2020: Hills", "Staré Hamry", "Czech", True),
+        ("Frýdek-Místek, Czech - 01 02 2020: Sky", "Frydek-Mistek", "Czech", False),
+        ("Olomouc, Czech - 01 02 2020: Square", "", "Czech", False),
     ],
 )
-def test_has_editorial_prefix_for_city__matches_city_and_country(
+def test_editorial_prefix__has_editorial_prefix_for_city__matches_city_and_country(
     description: Optional[str], city: str, country: str, expected: bool
 ) -> None:
     assert has_editorial_prefix_for_city(description, city, country) is expected

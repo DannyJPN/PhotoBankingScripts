@@ -309,7 +309,7 @@ def regenerate_description_with_editorial(
     """
     editorial_data = {
         'city': city,
-        'country': 'Czech',
+        'country': EDITORIAL_TAG_COUNTRY,
         'date': exif_date
     }
 
@@ -358,7 +358,7 @@ def interactive_confirmation(candidates: List[Dict]) -> List[Dict]:
         if candidate['source'] == 'batch':
             print(f"New description: {candidate['batch_description'][:100]}..." if len(candidate['batch_description']) > 100 else f"New description: {candidate['batch_description']}")
         else:
-            print(f"New description: [Will be AI-generated with editorial tag: '{candidate['city']}, Czech - [DATE]: ...']")
+            print(f"New description: [Will be AI-generated with editorial tag: '{candidate['city']}, {EDITORIAL_TAG_COUNTRY} - [DATE]: ...']")
 
         while True:
             response = input("\nConfirm this change? [y/n/skip/quit]: ").lower().strip()
