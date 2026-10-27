@@ -72,7 +72,9 @@
 - Editorial dialog transliterates city and country to ASCII on save (`transliterate_to_ascii`: ž -> z, ł -> l,
   ß -> ss) and rejects values the export editorial regex would not match (`is_valid_place_name`: city letters,
   spaces, hyphens; country one word).
-  On rejection the entry shows the converted value; non-Latin scripts are not transliterated and are rejected.
+  The entry always shows the converted value; typographic dashes become "-", a value that is empty after
+  conversion is reported as missing, and rejected input is logged. Non-Latin scripts are not transliterated and
+  are rejected.
   Requires the multi-word/hyphen `EDITORIAL_REGEX` from #165 downstream.
 - AI provider model lists updated to reflect current Claude 4.x, GPT-5/4.1, and Ollama vision models
 - Fixed pricing errors across OpenAI and Anthropic entries in `config_template.json`

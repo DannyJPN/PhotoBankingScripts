@@ -4,6 +4,7 @@ Unit tests for givephotobankreadymediafileslib/editorial_dialog.py.
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -150,6 +151,8 @@ def test_extract_editorial_metadata_from_exif__exception(monkeypatch):
         ("Straße", "Strasse"),
         ("  Česká   Lípa ", "Ceska Lipa"),
         ("Prague", "Prague"),
+        ("Ðakovo", "Dakovo"),
+        ("Frýdek–Místek", "Frydek-Mistek"),
     ],
 )
 def test_transliterate_to_ascii__removes_diacritics(typed, expected):
@@ -221,8 +224,8 @@ def test_on_ok__rejects_multi_word_country(monkeypatch):
     assert dialog.result is None
 
 
-@pytest.mark.parametrize("typed", ["Москва", "\u0301", "東京"])
-def test_on_ok__rejects_input_without_latin_letters(monkeypatch, typed):
+@pytest.mark.parametrize("typed", ["Москва", "東京"])
+def test_on_ok__rejects_input_without_latin_letters(monkeypatch, caplog, typed):
     dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
     dialog.entries = {"city": DummyEntry(typed)}
     dialog.dialog = DummyDialog()
@@ -231,9 +234,49 @@ def test_on_ok__rejects_input_without_latin_letters(monkeypatch, typed):
     messages = []
     monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
 
-    dialog.on_ok()
+    with caplog.at_level(logging.WARNING):
+        dialog.on_ok()
     assert messages and "Cyrillic" in messages[0][1]
     assert dialog.result is None
+    assert typed in caplog.text
+
+
+def test_on_ok__empty_after_transliteration_reports_missing(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    entry = DummyEntry(chr(0x0301))
+    dialog.entries = {"city": entry}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and messages[0][0] == "Missing Data"
+    assert entry.get() == ""
+    assert entry.focused is True
+    assert dialog.result is None
+
+
+def test_on_ok__writes_converted_city_back_when_date_fails(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    city = DummyEntry("Frýdek-Místek")
+    dialog.entries = {"city": city, "country": DummyEntry("Czech"), "date": DummyEntry("31 02 2024")}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and messages[0][0] == "Invalid Date"
+    assert city.get() == "Frydek-Mistek"
+    assert dialog.result is None
+
+
+def test_is_valid_place_name__unknown_field_raises():
+    with pytest.raises(ValueError):
+        editorial_dialog.is_valid_place_name("date", "Brno")
 
 
 @pytest.mark.parametrize(

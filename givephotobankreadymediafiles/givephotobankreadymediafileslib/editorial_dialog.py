@@ -21,13 +21,21 @@ from givephotobankreadymediafileslib.constants import (
     TRANSLITERATION_MAP,
 )
 
-EDITORIAL_CITY_RE = re.compile(EDITORIAL_CITY_PATTERN)
-EDITORIAL_COUNTRY_RE = re.compile(EDITORIAL_COUNTRY_PATTERN)
+PLACE_NAME_RES = {
+    "city": re.compile(EDITORIAL_CITY_PATTERN),
+    "country": re.compile(EDITORIAL_COUNTRY_PATTERN),
+}
+PLACE_NAME_ALLOWED = {
+    "city": "ASCII letters (A-Z), spaces and hyphens",
+    "country": "one word of ASCII letters (A-Z)",
+}
 
 
 def transliterate_to_ascii(text: str) -> str:
     """
     Replace accented letters with their plain ASCII counterparts (e.g. "Žďár" -> "Zdar").
+
+    Typographic dashes become "-". Characters without an ASCII counterpart (e.g. Cyrillic) are kept.
 
     :param text: Text typed by the user
     :return: Text with diacritics removed and whitespace collapsed
@@ -45,9 +53,11 @@ def is_valid_place_name(field: str, value: str) -> bool:
     :param field: Either "city" or "country"
     :param value: Transliterated value
     :return: True if the value contains only allowed ASCII characters
+    :raises ValueError: If the field is not a place name field
     """
-    pattern = EDITORIAL_CITY_RE if field == "city" else EDITORIAL_COUNTRY_RE
-    return pattern.fullmatch(value) is not None
+    if field not in PLACE_NAME_RES:
+        raise ValueError(f"Unknown editorial place field: {field}")
+    return PLACE_NAME_RES[field].fullmatch(value) is not None
 
 
 class EditorialMetadataDialog:
@@ -210,16 +220,21 @@ class EditorialMetadataDialog:
                 return
             
             if field in EDITORIAL_PLACE_FIELDS:
-                value = transliterate_to_ascii(value)
-                if not is_valid_place_name(field, value):
+                typed = value
+                value = transliterate_to_ascii(typed)
+                if value != typed:
                     entry.delete(0, tk.END)
                     entry.insert(0, value)
-                    if field == "city":
-                        allowed = "ASCII letters (A-Z), spaces and hyphens"
-                    else:
-                        allowed = "one word of ASCII letters (A-Z)"
+                if not value:
+                    messagebox.showerror("Missing Data",
+                                       f"Please enter a value for {field.title()}",
+                                       parent=self.dialog)
+                    entry.focus()
+                    return
+                if not is_valid_place_name(field, value):
+                    logging.warning(f"Rejected editorial {field} {typed!r} (transliterated {value!r})")
                     messagebox.showerror("Invalid Characters",
-                                       f"{field.title()} may contain only {allowed}. "
+                                       f"{field.title()} may contain only {PLACE_NAME_ALLOWED[field]}. "
                                        "Accented letters are converted automatically; "
                                        "other scripts (e.g. Cyrillic) and punctuation are not supported.",
                                        parent=self.dialog)
