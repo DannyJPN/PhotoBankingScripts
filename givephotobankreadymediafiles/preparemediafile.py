@@ -13,6 +13,7 @@ from shared.file_operations import ensure_directory
 from givephotobankreadymediafileslib.constants import DEFAULT_LOG_DIR, DEFAULT_CATEGORIES_CSV_PATH, DEFAULT_MEDIA_CSV_PATH
 from givephotobankreadymediafileslib.media_viewer_refactored import show_media_viewer
 from givephotobankreadymediafileslib.mediainfo_loader import load_categories, load_media_records
+from givephotobankreadymediafileslib.editorial_prefix import extract_editorial_data
 
 
 def parse_arguments():
@@ -279,17 +280,7 @@ def main():
                 # Extract full editorial_data from description if present
                 editorial_data = None
                 if is_editorial and original_description:
-                    import re
-                    # Pattern: "CITY, COUNTRY - DD MM YYYY: "
-                    # City can be multi-word (e.g., "Cesky Krumlov")
-                    match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z][a-z]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*', original_description)
-                    if match:
-                        editorial_data = {
-                            'city': match.group(1).strip(),
-                            'country': match.group(2).strip(),
-                            'date': match.group(3).strip()
-                        }
-                        logging.debug(f"Extracted editorial data from description: {editorial_data}")
+                    editorial_data = extract_editorial_data(original_description, os.path.basename(args.file))
 
                 # Generate metadata ONCE per edit tag (not per file)
                 edit_metadata = {}  # Store metadata for each edit tag

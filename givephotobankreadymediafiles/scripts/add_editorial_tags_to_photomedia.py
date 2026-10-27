@@ -43,6 +43,7 @@ from givephotobankreadymediafileslib.constants import (
     DEFAULT_MEDIA_CSV_PATH,
     MAX_DESCRIPTION_LENGTH,
 )
+from givephotobankreadymediafileslib.editorial_prefix import has_editorial_prefix_for_city, parse_editorial_prefix
 from shared.config import get_config
 from shared.file_operations import load_csv, save_csv_with_backup
 from shared.logging_config import setup_logging
@@ -59,6 +60,8 @@ except ImportError:
 import logging
 setup_logging(debug=False, log_file="logs/add_editorial_tags_to_photomedia.log")
 logger = logging.getLogger(__name__)
+
+EDITORIAL_TAG_COUNTRY = "Czech"
 
 
 def collect_editorial_cities(csv_path: str) -> Set[str]:
@@ -122,13 +125,9 @@ def collect_editorial_cities(csv_path: str) -> Set[str]:
             if not description:
                 continue
 
-            # Extract city from editorial tag pattern: "CITY, Czech - DD MM YYYY: "
-            # Pattern supports multi-word cities: "Cesky Krumlov", "New York", etc.
-            match = re.match(r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*Czech\s*-\s*\d{2}\s+\d{2}\s+\d{4}:\s*', description)
-            if match:
-                city = match.group(1).strip()
-                if city:
-                    cities.add(city)
+            parsed = parse_editorial_prefix(description)
+            if parsed and parsed["country"].lower() == EDITORIAL_TAG_COUNTRY.lower():
+                cities.add(parsed["city"])
 
         photomedia_cities_count = len(cities) - batch_cities_count
         logger.info(f"Found {photomedia_cities_count} additional cities from PhotoMedia.csv")
@@ -185,8 +184,7 @@ def build_batch_description_map() -> Dict[str, str]:
                     # Check if description has editorial tag
                     city = editorial_data.get('city', '').strip()
                     if city and description:
-                        pattern = rf"^{re.escape(city)},\s*Czech\s*-\s*\d{{2}}\s+\d{{2}}\s+\d{{4}}:\s*"
-                        if re.match(pattern, description, re.IGNORECASE):
+                        if has_editorial_prefix_for_city(description, city, EDITORIAL_TAG_COUNTRY):
                             # Normalize path for comparison
                             normalized_path = Path(file_path).as_posix().lower()
                             batch_descriptions[normalized_path] = description
@@ -311,7 +309,7 @@ def regenerate_description_with_editorial(
     """
     editorial_data = {
         'city': city,
-        'country': 'Czech',
+        'country': EDITORIAL_TAG_COUNTRY,
         'date': exif_date
     }
 
@@ -360,7 +358,7 @@ def interactive_confirmation(candidates: List[Dict]) -> List[Dict]:
         if candidate['source'] == 'batch':
             print(f"New description: {candidate['batch_description'][:100]}..." if len(candidate['batch_description']) > 100 else f"New description: {candidate['batch_description']}")
         else:
-            print(f"New description: [Will be AI-generated with editorial tag: '{candidate['city']}, Czech - [DATE]: ...']")
+            print(f"New description: [Will be AI-generated with editorial tag: '{candidate['city']}, {EDITORIAL_TAG_COUNTRY} - [DATE]: ...']")
 
         while True:
             response = input("\nConfirm this change? [y/n/skip/quit]: ").lower().strip()
@@ -440,8 +438,7 @@ def process_photomedia_csv(
             continue
 
         # Check if description already has editorial tag for this city
-        pattern = rf"^{re.escape(city)},\s*Czech\s*-\s*\d{{2}}\s+\d{{2}}\s+\d{{4}}:\s*"
-        if re.match(pattern, description, re.IGNORECASE):
+        if has_editorial_prefix_for_city(description, city, EDITORIAL_TAG_COUNTRY):
             # Already has correct editorial tag
             continue
 
