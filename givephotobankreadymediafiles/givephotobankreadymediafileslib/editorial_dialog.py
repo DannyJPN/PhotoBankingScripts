@@ -11,6 +11,53 @@ from tkinter import messagebox
 from typing import Optional, Dict, Tuple
 from datetime import datetime, date
 import logging
+import re
+import unicodedata
+
+from givephotobankreadymediafileslib.constants import (
+    EDITORIAL_CITY_PATTERN,
+    EDITORIAL_COUNTRY_PATTERN,
+    EDITORIAL_PLACE_FIELDS,
+    TRANSLITERATION_MAP,
+)
+
+PLACE_NAME_RES = {
+    "city": re.compile(EDITORIAL_CITY_PATTERN),
+    "country": re.compile(EDITORIAL_COUNTRY_PATTERN),
+}
+PLACE_NAME_ALLOWED = {
+    "city": "ASCII letters (A-Z), spaces and hyphens",
+    "country": "one word of ASCII letters (A-Z)",
+}
+
+
+def transliterate_to_ascii(text: str) -> str:
+    """
+    Replace accented letters with their plain ASCII counterparts (e.g. "Žďár" -> "Zdar").
+
+    Typographic dashes become "-". Characters without an ASCII counterpart (e.g. Cyrillic) are kept.
+
+    :param text: Text typed by the user
+    :return: Text with diacritics removed and whitespace collapsed
+    """
+    mapped = "".join(TRANSLITERATION_MAP.get(char, char) for char in text)
+    decomposed = unicodedata.normalize("NFKD", mapped)
+    stripped = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(stripped.split())
+
+
+def is_valid_place_name(field: str, value: str) -> bool:
+    """
+    Check that a city or country name matches the editorial prefix format used by the exports.
+
+    :param field: Either "city" or "country"
+    :param value: Transliterated value
+    :return: True if the value contains only allowed ASCII characters
+    :raises ValueError: If the field is not a place name field
+    """
+    if field not in PLACE_NAME_RES:
+        raise ValueError(f"Unknown editorial place field: {field}")
+    return PLACE_NAME_RES[field].fullmatch(value) is not None
 
 
 class EditorialMetadataDialog:
@@ -172,6 +219,28 @@ class EditorialMetadataDialog:
                 entry.focus()
                 return
             
+            if field in EDITORIAL_PLACE_FIELDS:
+                typed = value
+                value = transliterate_to_ascii(typed)
+                if value != typed:
+                    entry.delete(0, tk.END)
+                    entry.insert(0, value)
+                if not value:
+                    messagebox.showerror("Missing Data",
+                                       f"Please enter a value for {field.title()}",
+                                       parent=self.dialog)
+                    entry.focus()
+                    return
+                if not is_valid_place_name(field, value):
+                    logging.warning(f"Rejected editorial {field} {typed!r} (transliterated {value!r})")
+                    messagebox.showerror("Invalid Characters",
+                                       f"{field.title()} may contain only {PLACE_NAME_ALLOWED[field]}. "
+                                       "Accented letters are converted automatically; "
+                                       "other scripts (e.g. Cyrillic) and punctuation are not supported.",
+                                       parent=self.dialog)
+                    entry.focus()
+                    return
+
             # Special validation for date
             if field == 'date':
                 if not self.validate_date_format(value):
