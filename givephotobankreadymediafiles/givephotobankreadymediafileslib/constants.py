@@ -201,3 +201,6 @@ PHOTOBANK_CATEGORY_COUNTS = {
     '500px': 0,
     'mostphotos': 0
 }
+
+# Editorial description prefix "City, Country - DD MM YYYY: " (city may be multi-word or hyphenated)
+EDITORIAL_PREFIX_PATTERN = r"^([A-Za-z]+(?:[\s-][A-Za-z]+)*),\s*([A-Za-z]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*"
