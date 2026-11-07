@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import logging
 import re
@@ -169,11 +170,18 @@ def main():
     # Export do fotobank - použij funkci should_include_item pro filtrování záznamů podle statusu pro každou fotobanku
     # Rozšířené záznamy budou vytvořeny uvnitř funkce export_to_photobanks
     # Alternative formats are handled per-bank by expand_item_with_alternative_formats based on bank's supported formats
-    export_to_photobanks(filtered_items, enabled_banks, output_paths,
-                        filter_func=should_include_item,
-                        include_alternative_formats=args.include_alternative_formats)
+    summary = export_to_photobanks(filtered_items, enabled_banks, output_paths,
+                                   filter_func=should_include_item,
+                                   include_alternative_formats=args.include_alternative_formats)
 
-    logging.info("Export process completed successfully")
+    if summary["files_failed"] or summary["records_failed"]:
+        logging.error(
+            f"Export finished with errors: {summary['files_failed']} files not written, "
+            f"{summary['records_failed']} records not exported, {summary['files_written']} files written"
+        )
+        sys.exit(1)
+
+    logging.info(f"Export process completed successfully: {summary['files_written']} files written")
 
 
 if __name__ == "__main__":
