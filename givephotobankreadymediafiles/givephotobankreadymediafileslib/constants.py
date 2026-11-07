@@ -20,6 +20,37 @@ MAX_TITLE_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 200
 MAX_KEYWORDS_COUNT = 50
 
+# Editorial place names (city, country) must stay ASCII so exports recognise the editorial prefix.
+# Keep in sync with EDITORIAL_REGEX in createbatch/createbatchlib/constants.py and
+# exportpreparedmedia/exportpreparedmedialib/constants.py.
+EDITORIAL_CITY_PATTERN = r"[A-Za-z]+(?:[\s-][A-Za-z]+)*"
+EDITORIAL_COUNTRY_PATTERN = r"[A-Za-z]+"
+EDITORIAL_PLACE_FIELDS = ("city", "country")
+TRANSLITERATION_MAP = {
+    "ł": "l",
+    "Ł": "L",
+    "đ": "d",
+    "Đ": "D",
+    "ð": "d",
+    "Ð": "D",
+    "ø": "o",
+    "Ø": "O",
+    "ß": "ss",
+    "æ": "ae",
+    "Æ": "AE",
+    "œ": "oe",
+    "Œ": "OE",
+    "þ": "th",
+    "Þ": "Th",
+    "ı": "i",
+    "\u2010": "-",
+    "\u2011": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2212": "-",
+}
+
 # AI generation settings
 AI_MAX_RETRY_ATTEMPTS = 10
 

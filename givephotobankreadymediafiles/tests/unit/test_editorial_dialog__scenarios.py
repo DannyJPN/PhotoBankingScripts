@@ -4,8 +4,11 @@ Unit tests for givephotobankreadymediafileslib/editorial_dialog.py.
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
+
+import pytest
 
 project_root = Path(__file__).resolve().parents[3]
 package_root = project_root / "givephotobankreadymediafiles"
@@ -24,6 +27,12 @@ class DummyEntry:
 
     def focus(self):
         self.focused = True
+
+    def delete(self, _first, _last=None):
+        self._value = ""
+
+    def insert(self, _index, text):
+        self._value = text
 
 
 class DummyDialog:
@@ -131,3 +140,153 @@ def test_extract_editorial_metadata_from_exif__exception(monkeypatch):
     data, missing = editorial_dialog.extract_editorial_metadata_from_exif("C:/file.jpg")
     assert data == {}
     assert all(missing.values())
+
+
+@pytest.mark.parametrize(
+    "typed, expected",
+    [
+        ("Žďár nad Sázavou", "Zdar nad Sazavou"),
+        ("Frýdek-Místek", "Frydek-Mistek"),
+        ("Łódź", "Lodz"),
+        ("Straße", "Strasse"),
+        ("  Česká   Lípa ", "Ceska Lipa"),
+        ("Prague", "Prague"),
+        ("Ðakovo", "Dakovo"),
+        ("Frýdek–Místek", "Frydek-Mistek"),
+    ],
+)
+def test_transliterate_to_ascii__removes_diacritics(typed, expected):
+    assert editorial_dialog.transliterate_to_ascii(typed) == expected
+
+
+@pytest.mark.parametrize(
+    "field, value, expected",
+    [
+        ("city", "Frenstat pod Radhostem", True),
+        ("city", "Frydek-Mistek", True),
+        ("city", "St. Petersburg", False),
+        ("city", "Brno2", False),
+        ("city", "Žilina", False),
+        ("country", "Czech", True),
+        ("country", "Czech Republic", False),
+    ],
+)
+def test_is_valid_place_name__ascii_letters_only(field, value, expected):
+    assert editorial_dialog.is_valid_place_name(field, value) is expected
+
+
+def test_on_ok__transliterates_city_and_country():
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    dialog.entries = {
+        "city": DummyEntry("Frýdek-Místek"),
+        "country": DummyEntry("Česko"),
+        "date": DummyEntry("15 03 2024"),
+    }
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    dialog.on_ok()
+    assert dialog.result == {"city": "Frydek-Mistek", "country": "Cesko", "date": "15 03 2024"}
+    assert dialog.dialog.destroyed is True
+
+
+def test_on_ok__rejects_invalid_city_characters(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    entry = DummyEntry("Šternberk2")
+    dialog.entries = {"city": entry}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and "spaces and hyphens" in messages[0][1]
+    assert entry.get() == "Sternberk2"
+    assert dialog.result is None
+    assert entry.focused is True
+    assert dialog.dialog.destroyed is False
+
+
+def test_on_ok__rejects_multi_word_country(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    entry = DummyEntry("Česká republika")
+    dialog.entries = {"city": DummyEntry("Brno"), "country": entry}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and "one word" in messages[0][1]
+    assert entry.get() == "Ceska republika"
+    assert dialog.result is None
+
+
+@pytest.mark.parametrize("typed", ["Москва", "東京"])
+def test_on_ok__rejects_input_without_latin_letters(monkeypatch, caplog, typed):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    dialog.entries = {"city": DummyEntry(typed)}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    with caplog.at_level(logging.WARNING):
+        dialog.on_ok()
+    assert messages and "Cyrillic" in messages[0][1]
+    assert dialog.result is None
+    assert typed in caplog.text
+
+
+def test_on_ok__empty_after_transliteration_reports_missing(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    entry = DummyEntry(chr(0x0301))
+    dialog.entries = {"city": entry}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and messages[0][0] == "Missing Data"
+    assert entry.get() == ""
+    assert entry.focused is True
+    assert dialog.result is None
+
+
+def test_on_ok__writes_converted_city_back_when_date_fails(monkeypatch):
+    dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
+    city = DummyEntry("Frýdek-Místek")
+    dialog.entries = {"city": city, "country": DummyEntry("Czech"), "date": DummyEntry("31 02 2024")}
+    dialog.dialog = DummyDialog()
+    dialog.result = None
+
+    messages = []
+    monkeypatch.setattr(editorial_dialog.messagebox, "showerror", lambda *a, **_k: messages.append(a))
+
+    dialog.on_ok()
+    assert messages and messages[0][0] == "Invalid Date"
+    assert city.get() == "Frydek-Mistek"
+    assert dialog.result is None
+
+
+def test_is_valid_place_name__unknown_field_raises():
+    with pytest.raises(ValueError):
+        editorial_dialog.is_valid_place_name("date", "Brno")
+
+
+@pytest.mark.parametrize(
+    "typed, expected", [("Cesky\tKrumlov", "Cesky Krumlov"), ("Usti\nnad Labem", "Usti nad Labem")]
+)
+def test_transliterate_to_ascii__ascii_input_only_collapses_whitespace(typed, expected):
+    result = editorial_dialog.transliterate_to_ascii(typed)
+    assert result == expected
+    assert editorial_dialog.transliterate_to_ascii(result) == result
+
+
+def test_is_valid_place_name__trailing_newline_rejected():
+    assert editorial_dialog.is_valid_place_name("city", "Brno\n") is False
