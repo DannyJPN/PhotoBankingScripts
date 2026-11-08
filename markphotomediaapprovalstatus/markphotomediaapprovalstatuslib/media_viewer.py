@@ -52,9 +52,10 @@ class MediaViewer:
         
         # Bind resize event for responsive image display
         self.root.bind('<Configure>', self.on_window_resize)
-        
+
         # Handle window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
+        self._bind_shortcuts()
         
         
     def setup_ui(self):
@@ -171,6 +172,21 @@ class MediaViewer:
         self.process_button = ttk.Button(process_frame, text="Process File", 
                                        command=self.process_current_file)
         self.process_button.pack(pady=10)
+
+    def _bind_shortcuts(self):
+        """Bind keyboard shortcuts for quick decisions."""
+        self.root.bind("a", lambda _event: self._apply_shortcut(STATUS_APPROVED))
+        self.root.bind("r", lambda _event: self._apply_shortcut(STATUS_REJECTED))
+        self.root.bind("m", lambda _event: self._apply_shortcut(STATUS_MAYBE))
+        self.root.bind("c", lambda _event: self._apply_shortcut(""))
+        self.root.bind("<Return>", lambda _event: self.process_current_file())
+
+    def _apply_shortcut(self, decision: str) -> None:
+        """Apply a shortcut decision to the current bank."""
+        if len(self.bank_vars) != 1:
+            return
+        bank = next(iter(self.bank_vars))
+        self.bank_vars[bank].set(decision)
         
     def load_media(
         self,
