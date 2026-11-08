@@ -2,6 +2,7 @@
 Constants for the UpdateMediaDatabase project.
 Contains default paths and configuration values.
 """
+from pathlib import Path
 
 # Default paths for CSV files (consistent with givephotobankreadymediafiles)
 DEFAULT_MEDIA_CSV_PATH = r"L:\Můj disk\XLS\Fotobanky\PhotoMedia.csv"
@@ -15,14 +16,16 @@ DEFAULT_EDIT_VIDEO_DIR = "J:/Upravené video"
 
 # Default tool and log directories
 DEFAULT_LOG_DIR = "H:/Logs"
+DEFAULT_REPORT_DIR = str(Path(__file__).resolve().parents[1] / "logs" / "reports")
+DEFAULT_REPORT_FORMAT = "csv"
 
 # ExifTool path (consistent with other scripts)
 EXIFTOOL_PATH = "F:/Dropbox/exiftool-12.30/exiftool.exe"
 
 # Media file extensions (consistent with givephotobankreadymediafiles)
-IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng', '.nef', '.raw', '.cr2', '.arw', '.psd']
-VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.wmv', '.mkv']
-VECTOR_EXTENSIONS = ['.svg', '.eps', '.ai']
+IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng", ".nef", ".raw", ".cr2", ".arw", ".psd"]
+VIDEO_EXTENSIONS = [".mp4", ".mov", ".avi", ".wmv", ".mkv"]
+VECTOR_EXTENSIONS = [".svg", ".eps", ".ai"]
 
 # CSV column names (Czech - matching PhotoMedia.csv structure)
 COLUMN_FILENAME = "Soubor"
@@ -39,7 +42,6 @@ COLUMN_DATE_CREATED = "Datum vytvoření"
 COLUMN_ORIGINAL = "Originál"
 
 # Photo bank status columns
-# Active banks
 COLUMN_SHUTTERSTOCK_STATUS = "ShutterStock status"
 COLUMN_ADOBESTOCK_STATUS = "AdobeStock status"
 COLUMN_DEPOSITPHOTOS_STATUS = "DepositPhotos status"
@@ -48,11 +50,9 @@ COLUMN_ALAMY_STATUS = "Alamy status"
 COLUMN_GETTYIMAGES_STATUS = "GettyImages status"
 COLUMN_DREAMSTIME_STATUS = "Dreamstime status"
 COLUMN_POND5_STATUS = "Pond5 status"
-# Deprecated banks (kept for historical data)
 COLUMN_BIGSTOCKPHOTO_STATUS = "BigStockPhoto status"
 COLUMN_CANSTOCKPHOTO_STATUS = "CanStockPhoto status"
 COLUMN_COLOURBOX_STATUS = "ColourBox status"
-# New banks
 COLUMN_PIXTA_STATUS = "Pixta status"
 COLUMN_FREEPIK_STATUS = "Freepik status"
 COLUMN_VECTEEZY_STATUS = "Vecteezy status"
@@ -62,7 +62,6 @@ COLUMN_500PX_STATUS = "500px status"
 COLUMN_MOSTPHOTOS_STATUS = "MostPhotos status"
 
 # Photo bank category columns
-# Active banks
 COLUMN_SHUTTERSTOCK_CATEGORY = "ShutterStock kategorie"
 COLUMN_ADOBESTOCK_CATEGORY = "AdobeStock kategorie"
 COLUMN_DEPOSITPHOTOS_CATEGORY = "DepositPhotos kategorie"
@@ -71,11 +70,9 @@ COLUMN_ALAMY_CATEGORY = "Alamy kategorie"
 COLUMN_GETTYIMAGES_CATEGORY = "GettyImages kategorie"
 COLUMN_DREAMSTIME_CATEGORY = "Dreamstime kategorie"
 COLUMN_POND5_CATEGORY = "Pond5 kategorie"
-# Deprecated banks (kept for historical data)
 COLUMN_BIGSTOCKPHOTO_CATEGORY = "BigStockPhoto kategorie"
 COLUMN_CANSTOCKPHOTO_CATEGORY = "CanStockPhoto kategorie"
 COLUMN_COLOURBOX_CATEGORY = "ColourBox kategorie"
-# New banks
 COLUMN_PIXTA_CATEGORY = "Pixta kategorie"
 COLUMN_FREEPIK_CATEGORY = "Freepik kategorie"
 COLUMN_VECTEEZY_CATEGORY = "Vecteezy kategorie"
@@ -99,7 +96,7 @@ TYPE_EDITED_PHOTO = "EditedPhoto"
 TYPE_EDITED_VIDEO = "EditedVideo"
 TYPE_EDITED_VECTOR = "EditedVector"
 
-# Status values (Czech - matching PhotoMedia.csv values)
+# Status values
 STATUS_PREPARED = "připraveno"
 STATUS_UNPROCESSED = "nezpracováno"
 STATUS_REJECTED_SIZE = "zamítnuto - velikost"
@@ -107,7 +104,7 @@ STATUS_REJECTED = "zamítnuto"
 STATUS_UNAVAILABLE = "nedostupné"
 
 # File numbering system constants
-MIN_NUMBER_WIDTH = 4  # Minimum width for backward compatibility with existing files
-MAX_NUMBER_WIDTH = 6  # Maximum width for new capacity
-DEFAULT_NUMBER_WIDTH = 6  # Default width for new file generation
-MAX_NUMBER = 999999  # Maximum number with 6 digits
+MIN_NUMBER_WIDTH = 4
+MAX_NUMBER_WIDTH = 6
+DEFAULT_NUMBER_WIDTH = 6
+MAX_NUMBER = 999999
