@@ -29,6 +29,7 @@ BANKS = [
 # Default paths
 DEFAULT_PHOTO_CSV_PATH = "L:/Můj disk/XLS/Fotobanky/PhotoMedia.csv"
 DEFAULT_LOG_DIR = "H:/Logs"
+DEFAULT_REPORT_DIR = "H:/Logs/MarkPhotoMediaApprovalStatus"
 
 # Column identifiers
 STATUS_COLUMN_KEYWORD = "status"
