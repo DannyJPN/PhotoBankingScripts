@@ -27,3 +27,27 @@ def test_ensure_directory__creates(tmp_path):
     target = tmp_path / "nested"
     file_operations.ensure_directory(str(target))
     assert target.exists()
+
+
+def test_save_csv__writes_rows(tmp_path):
+    target = tmp_path / "report.csv"
+
+    file_operations.save_csv(
+        [{"category": "jpg_files", "file_path": "C:/photo.jpg"}],
+        str(target),
+        ["category", "file_path"],
+    )
+
+    content = target.read_text(encoding="utf-8-sig")
+    assert "category,file_path" in content
+    assert "jpg_files" in content
+
+
+def test_save_json__writes_json(tmp_path):
+    target = tmp_path / "report.json"
+
+    file_operations.save_json({"records": [{"category": "jpg_files"}]}, str(target))
+
+    content = target.read_text(encoding="utf-8")
+    assert '"records"' in content
+    assert '"jpg_files"' in content
