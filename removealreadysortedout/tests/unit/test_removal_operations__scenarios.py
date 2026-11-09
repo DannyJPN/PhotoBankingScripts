@@ -150,6 +150,27 @@ def test_handle_duplicate__keeps_source_when_it_cannot_be_rehashed(tmp_path, mon
     assert "Cannot re-hash" in caplog.text
 
 
+def test_handle_duplicate__keeps_source_when_target_cannot_be_rehashed(tmp_path, monkeypatch, caplog):
+    """Keep the source if its previously matching target becomes unreadable."""
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_bytes(b"photograph")
+    target.write_bytes(b"photograph")
+    real_hash = ops.compute_file_hash
+
+    def locked_target(path):
+        if path == str(target):
+            raise PermissionError("target locked")
+        return real_hash(path)
+
+    monkeypatch.setattr(ops, "compute_file_hash", locked_target)
+    with caplog.at_level("ERROR"):
+        assert ops.handle_duplicate(str(source), [str(target)]) is False
+
+    assert source.read_bytes() == target.read_bytes() == b"photograph"
+    assert "Cannot re-hash" in caplog.text
+
+
 def test_find_duplicates__empty_source_is_never_a_duplicate(tmp_path, caplog):
     empty_source = tmp_path / "empty_source.jpg"
     empty_target = tmp_path / "empty_target.jpg"

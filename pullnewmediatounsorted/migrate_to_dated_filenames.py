@@ -42,6 +42,10 @@ from pullnewmediatounsortedlib.constants import (
 
 
 def parse_arguments() -> argparse.Namespace:
+    """Parse migration options.
+
+    :return: Command-line options, including dry-run mode.
+    """
     parser = argparse.ArgumentParser(description="Migrate legacy NIK_/PICT_ filenames to dated format.")
     parser.add_argument(
         "--folder", type=str, default=DEFAULT_FINAL_TARGET_FOLDER, help="Folder to migrate (default: J:/)"
@@ -53,7 +57,12 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def collect_legacy_files(folder: str, prefixes: list[str]) -> list[Path]:
-    """Return all files that match a legacy prefix + 4-digit suffix pattern."""
+    """Collect files with a supported legacy prefix and camera number.
+
+    :param folder: Root folder to scan recursively.
+    :param prefixes: Supported camera prefixes.
+    :return: Paths matching legacy names.
+    """
     result = []
     for path in list_files(folder, recursive=True):
         f = Path(path)
@@ -65,6 +74,11 @@ def collect_legacy_files(folder: str, prefixes: list[str]) -> list[Path]:
 
 
 def migrate(folder: str, dry_run: bool) -> None:
+    """Convert legacy filenames while retaining files that cannot be renamed safely.
+
+    :param folder: Folder to migrate recursively.
+    :param dry_run: Report planned renames without changing files.
+    """
     if not os.path.exists(folder):
         logging.error("Folder not found: %s", folder)
         sys.exit(1)
@@ -76,6 +90,11 @@ def migrate(folder: str, dry_run: bool) -> None:
         exiftool_path = None
 
     def _date(path: str) -> datetime:
+        """Choose a media date with a filesystem fallback.
+
+        :param path: Media file to inspect.
+        :return: Selected date, or the Unix epoch if no date is readable.
+        """
         d = get_best_creation_date(path, tool_path=exiftool_path)
         if d is None:
             try:
@@ -87,7 +106,6 @@ def migrate(folder: str, dry_run: bool) -> None:
     files = collect_legacy_files(folder, PREFIXES_TO_NORMALIZE)
     logging.info("Found %d legacy files to migrate in %s", len(files), folder)
 
-    # Case-insensitive name key -> owning file, seeded with ALL existing files (legacy and already dated)
     used_names: dict[str, Path] = {}
     for path in list_files(folder, recursive=True):
         f = Path(path)
@@ -111,6 +129,12 @@ def migrate(folder: str, dry_run: bool) -> None:
         return known_hash[path]
 
     def _same_content(a: Path, b: Path) -> bool:
+        """Compare readable content hashes.
+
+        :param a: First file.
+        :param b: Second file.
+        :return: Whether both readable files have the same digest.
+        """
         ha, hb = _hash_of(a), _hash_of(b)
         return ha is not None and ha == hb
 
@@ -126,7 +150,6 @@ def migrate(folder: str, dry_run: bool) -> None:
         name = file_path.name
         ext = file_path.suffix
 
-        # Determine prefix
         prefix = next((p for p in PREFIXES_TO_NORMALIZE if extract_camera_number(name, prefix=p) is not None), None)
         if prefix is None:
             logging.warning("Could not determine prefix for %s, skipping", name)
@@ -142,7 +165,6 @@ def migrate(folder: str, dry_run: bool) -> None:
             skipped += 1
             continue
 
-        # Release the file's own name so it does not block itself
         own_key = name_key(name)
         owned = used_names.get(own_key) == file_path
         if owned:
@@ -202,6 +224,7 @@ def migrate(folder: str, dry_run: bool) -> None:
 
 
 def main() -> None:
+    """Configure logging and run the migration CLI."""
     args = parse_arguments()
     ensure_directory(args.log_dir)
     log_file = get_log_filename(args.log_dir)

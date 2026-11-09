@@ -245,8 +245,12 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
 
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
-    Přesune soubor src do dest. Přepíše, pokud overwrite=True.
-    Používá shutil.move a ensure_directory pro vytvoření chybějící cesty.
+    Move a file without replacing a concurrently created destination when overwrite is disabled.
+
+    :param src: Source file.
+    :param dest: Destination file.
+    :param overwrite: Allow replacement; otherwise require a same-filesystem hard link.
+    :raises OSError: If the move cannot be completed safely.
     """
     logging.debug("Moving file from %s to %s (overwrite=%s)", src, dest, overwrite)
 
@@ -260,7 +264,11 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         return
 
     try:
-        shutil.move(src, dest)
+        if overwrite:
+            shutil.move(src, dest)
+        else:
+            os.link(src, dest)
+            os.unlink(src)
         logging.debug("Moved file from %s to %s", src, dest)
     except Exception as e:
         logging.error("Failed to move file from %s to %s: %s", src, dest, e)

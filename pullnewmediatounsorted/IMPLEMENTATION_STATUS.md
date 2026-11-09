@@ -1,6 +1,6 @@
 # PullNewMediaToUnsorted Implementation Status
 
-Last updated: 2026-10-08
+Last updated: 2026-11-09
 
 ## Implemented
 - Pulling new media from the configured sources into the unsorted folder, flattening and deduplicating by content hash.
@@ -15,13 +15,21 @@ Last updated: 2026-10-08
   - A rename that `move_file` silently skips (destination already exists) is reported as a warning instead of being logged as done.
   - When a rename fails or is skipped, a file gets its old name back in the name bookkeeping only if it owned that name, so a second file with the same legacy name in another source keeps its ownership.
   - Files left unrenamed are summarised at the end of each prefix run with counts per reason (hash error, no camera number, camera number out of range, no free name variant, destination exists, rename failed).
-- `copy_file` never replaces an existing file with different content. An identical existing file is skipped; a different one is logged as a content conflict, left untouched and the source file is not copied (`FileExistsError`). `copy_folder` keeps copying the remaining files and reports the conflict count. The check guards against files corrupted during the run; resolving name collisions is not its job.
+- `copy_file` never replaces an existing file with different content. An identical existing file is skipped; a different one is logged as a content conflict, left untouched and the source file is not copied (`FileExistsError`). Publication also refuses a destination created concurrently, not just one found by the initial check.
+- Copies read the source using `rb` only. Source access/modification timestamps are copied to the temporary file, and Windows creation time is restored using integer nanoseconds and checked for exact equality. Failure to preserve creation time aborts publication instead of logging a warning and continuing.
+- Only the complete synced `.tmp_copy_` file is published through an exclusive hard link, including on Windows to avoid rename tunneling of creation time. Filesystems without hard-link support fail closed; there is no rename or direct-copy fallback. POSIX publication also synchronizes the directory.
+- `copy_folder` retains its conflict-only merge behavior: content conflicts are logged and other files are copied. Aggregate partial-failure exit handling is not part of the committed conflict resolution.
+- Filename pattern replacement retains both files on a name collision and logs a warning, including concurrent collisions. No-overwrite moves use exclusive hard links without a destructive fallback.
+- Interrupted copies may leave `.tmp_copy_` files; media discovery ignores them on later runs. Ordinary write, flush and publication failures clean up their temporary files.
+- Regression tests inject full-disk/I/O errors, failed synchronization, concurrent destination creation and publication failure. A real child-process kill verifies that partial bytes remain temporary; successful copies are checked by hash and timestamps.
 - One-time migration script `migrate_to_dated_filenames.py` (`--dry-run` supported, EXIF dates read once per file, same collision rules as above) with unit tests.
 
 ## Pending
 - None for the dated filename format.
 
 ## Known limitations
+- No-overwrite moves require hard-link support on the same filesystem. The `overwrite` argument of `copy_file` is retained for compatibility: True enables content comparison, not permission to replace different data. Its only production caller in this standalone module is `copy_folder`; other scripts have separate `shared` implementations.
+- Process-kill and injected I/O failure tests do not simulate a machine power loss. Power-loss durability depends on filesystem and device flush guarantees; no VM reset or physical power-cut test has been performed. A crash may leave a temporary file or lose the final directory entry, but copying never streams partial data into the final pathname.
 - Legacy 5-6 digit names are parsed, but only numbers up to 9999 can be converted to the dated format.
 - Files without EXIF dates get their date from file-system timestamps, which may not be the shoot date. QuickTime tags are stored in UTC, so videos shot around midnight can get the previous day.
 - Unique camera prefixes are required: two cameras sharing one prefix can produce the same date and sequence number for different shots.

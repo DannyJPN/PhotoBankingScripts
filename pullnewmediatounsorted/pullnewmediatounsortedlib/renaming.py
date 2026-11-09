@@ -1,4 +1,4 @@
-from shared.file_operations import delete_file, list_files, move_file
+from shared.file_operations import list_files, move_file
 import logging
 import os
 import re
@@ -20,7 +20,12 @@ from pullnewmediatounsortedlib.constants import DATE_FORMAT
 def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool = True) -> None:
     """
     Rename files in `folder` whose name contains `search` by substituting `replace`.
-    If the target name already exists the source file is removed as a duplicate.
+    An existing target is never replaced, and a source is never deleted on a name collision.
+
+    :param folder: Root folder to scan.
+    :param search: Literal substring to replace.
+    :param replace: Replacement substring.
+    :param recursive: Whether to scan subdirectories.
     """
     logging.info("Replacing '%s' with '%s' in filenames under: %s", search, replace, folder)
     paths = list_files(folder, pattern=search, recursive=recursive)
@@ -33,12 +38,16 @@ def replace_in_filenames(folder: str, search: str, replace: str, recursive: bool
             new_name = name.replace(search, replace)
             new_path = os.path.join(os.path.dirname(path), new_name)
             try:
-                if os.path.exists(new_path):
-                    delete_file(path)
-                    logging.debug("Removed duplicate file: %s", path)
+                if os.path.lexists(new_path):
+                    logging.warning("Name collision, keeping both files: %s and %s", path, new_path)
                 else:
-                    move_file(path, new_path, overwrite=True)
-                    logging.debug("Renamed %s to %s", path, new_path)
+                    move_file(path, new_path, overwrite=False)
+                    if os.path.lexists(path):
+                        logging.warning("Rename skipped, source retained: %s", path)
+                    else:
+                        logging.debug("Renamed %s to %s", path, new_path)
+            except FileExistsError:
+                logging.warning("Name collision, keeping both files: %s and %s", path, new_path)
             except Exception as e:
                 logging.error("Error replacing name for %s: %s", path, e)
                 raise
@@ -100,6 +109,11 @@ def normalize_indexed_filenames(
     known_hash: dict[str, str] = dict(ref_hash_map)
 
     def _hash_of(path: str) -> str | None:
+        """Read and cache a content hash.
+
+        :param path: File to hash.
+        :return: Digest, or None if the file cannot be read.
+        """
         if path not in known_hash:
             try:
                 known_hash[path] = compute_file_hash(path)
@@ -116,6 +130,11 @@ def normalize_indexed_filenames(
         exiftool_path = None
 
     def _file_date(path: str) -> datetime:
+        """Choose the oldest available media date with a filesystem fallback.
+
+        :param path: Media file to inspect.
+        :return: Selected date, or the Unix epoch when no date can be read.
+        """
         date = get_best_creation_date(path, tool_path=exiftool_path)
         if date is None:
             try:

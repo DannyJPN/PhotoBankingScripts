@@ -147,11 +147,8 @@ File-based approach avoids shell escaping issues and supports full formatting.
   - **Verify**: after ~30-60 s the main `Dropbox.exe` has the desktop `explorer.exe` as parent and
     `--type=renderer` child processes exist. Check process creation times as well as PIDs to avoid PID reuse.
     Verify again after the launching shell exits; a successful ShellExecute call alone is not proof.
-  - Verified on 2026-11-09: this exact desktop COM launch path started a harmless hidden PowerShell probe
-    (PID 20420) under the pre-existing desktop Explorer (PID 9836). The probe remained alive after the
-    launching shell exited. The existing main Dropbox (PID 14736) also had Explorer PID 9836 as parent
-    and renderer children. Dropbox itself was not restarted. If verification fails on a later launch,
-    ask the user to start Dropbox manually; do not silently fall back to an AI-owned child process.
+  - If verification fails, ask the user to start Dropbox manually; do not silently fall back to an
+    AI-owned child process. Keep session-specific process IDs and verification logs outside this policy file.
 
 **On Linux/macOS (bash):**
 - Do not restart Dropbox automatically; use a platform-specific method only on explicit user request.
