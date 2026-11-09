@@ -1,14 +1,42 @@
-
 import os
 import re
+import sys
 import shutil
 import logging
 import csv
+import tempfile
 from typing import List, Dict
 from collections import defaultdict
 from tqdm import tqdm
 
 from shared.hash_utils      import compute_file_hash
+
+if sys.platform == "win32":
+    import ctypes
+    import ctypes.wintypes as _wt
+
+    _WIN32_FILE_WRITE_ATTRIBUTES = 0x0100
+    _WIN32_OPEN_EXISTING = 3
+    _WIN32_FILE_ATTRIBUTE_NORMAL = 0x80
+    _WIN32_FILETIME_EPOCH_DIFF = 116_444_736_000_000_000
+    _WIN32_INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.CreateFileW.argtypes = [
+        _wt.LPCWSTR, _wt.DWORD, _wt.DWORD, ctypes.c_void_p,
+        _wt.DWORD, _wt.DWORD, _wt.HANDLE,
+    ]
+    _kernel32.CreateFileW.restype = _wt.HANDLE
+    _kernel32.SetFileTime.argtypes = [
+        _wt.HANDLE,
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+        ctypes.POINTER(_wt.FILETIME),
+    ]
+    _kernel32.SetFileTime.restype = _wt.BOOL
+    _kernel32.CloseHandle.argtypes = [_wt.HANDLE]
+    _kernel32.CloseHandle.restype = _wt.BOOL
+
 
 def list_files(folder: str, pattern: str | None = None, recursive: bool = True) -> list[str]:
     """
@@ -30,6 +58,8 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
     for root, _, files in iterator:
         for name in files:
             # pokud není zadán pattern, nebo odpovídá regexu, přidej
+            if name.startswith(".tmp_copy_"):
+                continue
             if pattern is None or pattern == "" or re.search(pattern, name):
                 matched.append(os.path.join(root, name))
     return matched
@@ -71,6 +101,7 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
         raise
 
+
 def delete_folder(path: str) -> None:
     """
     Smaže celou složku a její obsah.
@@ -82,6 +113,7 @@ def delete_folder(path: str) -> None:
     except Exception as e:
         logging.error("Failed to delete folder %s: %s", path, e)
         raise
+
 
 def move_folder(src: str, dest: str, overwrite: bool = False, pattern: str = "") -> None:
     """
@@ -133,20 +165,79 @@ def _same_content(path_a: str, path_b: str) -> bool:
     return compute_file_hash(path_a) == compute_file_hash(path_b)
 
 
-def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
+def _set_creation_time_windows(path: str, ctime_unix: float) -> None:
+    """Set file creation time on Windows using Win32 SetFileTime via ctypes.
+
+    Python stdlib (shutil.copy2 / os.utime) cannot set creation time on Windows.
+    This function calls CreateFileW -> SetFileTime -> CloseHandle directly.
+
+    :param path: Target file path.
+    :param ctime_unix: Creation time as Unix timestamp (seconds since Unix epoch).
+    :raises OSError: If the handle cannot be opened or SetFileTime fails.
+    :raises NotImplementedError: If called on a non-Windows platform.
     """
-    Copy ``src`` to ``dest`` preserving metadata.
+    if sys.platform != "win32":
+        raise NotImplementedError("_set_creation_time_windows is only supported on Windows")
 
-    An existing destination is never replaced by different content: names are made unique
-    upstream, so a same-name file with different bytes means corruption or a naming bug.
+    t100ns = int(ctime_unix * 10_000_000) + _WIN32_FILETIME_EPOCH_DIFF
+    ft = _wt.FILETIME(t100ns & 0xFFFFFFFF, t100ns >> 32)
 
-    :param src: Source file.
-    :param dest: Destination path; missing parent folders are created.
-    :param overwrite: If False, an existing destination is skipped without any check.
-    :raises FileExistsError: If ``dest`` exists with content different from ``src``.
+    handle = _kernel32.CreateFileW(
+        os.path.abspath(path),
+        _WIN32_FILE_WRITE_ATTRIBUTES,
+        0,
+        None,
+        _WIN32_OPEN_EXISTING,
+        _WIN32_FILE_ATTRIBUTE_NORMAL,
+        None,
+    )
+    if handle == _WIN32_INVALID_HANDLE_VALUE:
+        raise OSError(f"SetFileTime: cannot open {path!r} (WinError {_kernel32.GetLastError()})")
+    try:
+        if not _kernel32.SetFileTime(handle, ctypes.byref(ft), None, None):
+            raise OSError(f"SetFileTime failed on {path!r} (WinError {_kernel32.GetLastError()})")
+    finally:
+        _kernel32.CloseHandle(handle)
+
+
+def _publish_copy(temp_path: str, dest: str) -> None:
+    """Atomically publish a complete copy without replacing an existing destination.
+
+    Both paths must be on the same filesystem. Unsupported operations fail closed;
+    there is deliberately no fallback to copying bytes into the final pathname.
+
+    :param temp_path: Fully written and synced temporary file.
+    :param dest: Final destination, which must not exist.
+    :raises OSError: If publication fails, including a concurrently created destination.
+    """
+    if sys.platform == "win32":
+        os.rename(temp_path, dest)
+    else:
+        os.link(temp_path, dest)
+        os.unlink(temp_path)
+        directory_fd = os.open(os.path.dirname(dest) or ".", os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
+def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
+    """Copy through a synced temporary file, then atomically publish without replacement.
+
+    An identical destination is skipped; different content is never overwritten.
+    Windows creation time is restored before publication. A killed process can leave
+    a .tmp_copy_ file, but never a partial copy at the final pathname. Power-loss
+    durability additionally depends on the filesystem and storage honoring flushes.
+
+    :param src: Path to the source file.
+    :param dest: Path to the destination file.
+    :param overwrite: If False, skip when *dest* already exists.
+    :raises FileExistsError: If an existing destination contains different bytes.
+    :raises OSError: If the copy fails; any incomplete temp file is removed before raising.
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
-    if os.path.exists(dest):
+    if os.path.lexists(dest):
         if not overwrite:
             logging.debug("File exists and overwrite disabled, skipping: %s", dest)
             return
@@ -156,17 +247,44 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
         logging.error("Content conflict: %s differs from existing %s, not copied", src, dest)
         raise FileExistsError(f"{dest} exists with different content than {src}")
 
-    # Vytvoří cílovou složku, pokud neexistuje
-    dest_folder = os.path.dirname(dest)
-    if dest_folder:
-        ensure_directory(dest_folder)
+    dest_folder = os.path.dirname(dest) or "."
+    ensure_directory(dest_folder)
 
+    src_ctime: float | None = os.stat(src).st_ctime if sys.platform == "win32" else None
+
+    temp_path = None
     try:
-        shutil.copy2(src, dest)
+        temp_fd, temp_path = tempfile.mkstemp(dir=dest_folder, prefix=".tmp_copy_")
+        os.close(temp_fd)
+        shutil.copy2(src, temp_path)
+        if src_ctime is not None:
+            try:
+                _set_creation_time_windows(temp_path, src_ctime)
+            except OSError as ctime_err:
+                logging.warning("Could not preserve creation time for %s: %s", dest, ctime_err)
+        with open(temp_path, "r+b") as f:
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            _publish_copy(temp_path, dest)
+        except FileExistsError:
+            if not overwrite or _same_content(temp_path, dest):
+                logging.debug("Destination created concurrently, skipping: %s", dest)
+                return
+            raise FileExistsError(f"{dest} appeared during copying with different content than {src}")
+        temp_path = None
         logging.debug("Copied file from %s to %s", src, dest)
     except Exception as e:
         logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
         raise
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logging.warning("Failed to clean up temp file: %s", temp_path)
 
 
 def delete_file(path: str) -> None:

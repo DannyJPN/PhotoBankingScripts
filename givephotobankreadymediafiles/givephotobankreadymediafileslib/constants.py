@@ -20,6 +20,37 @@ MAX_TITLE_LENGTH = 80
 MAX_DESCRIPTION_LENGTH = 200
 MAX_KEYWORDS_COUNT = 50
 
+# Editorial place names (city, country) must stay ASCII so exports recognise the editorial prefix.
+# Keep in sync with EDITORIAL_REGEX in createbatch/createbatchlib/constants.py and
+# exportpreparedmedia/exportpreparedmedialib/constants.py.
+EDITORIAL_CITY_PATTERN = r"[A-Za-z]+(?:[\s-][A-Za-z]+)*"
+EDITORIAL_COUNTRY_PATTERN = r"[A-Za-z]+"
+EDITORIAL_PLACE_FIELDS = ("city", "country")
+TRANSLITERATION_MAP = {
+    "ł": "l",
+    "Ł": "L",
+    "đ": "d",
+    "Đ": "D",
+    "ð": "d",
+    "Ð": "D",
+    "ø": "o",
+    "Ø": "O",
+    "ß": "ss",
+    "æ": "ae",
+    "Æ": "AE",
+    "œ": "oe",
+    "Œ": "OE",
+    "þ": "th",
+    "Þ": "Th",
+    "ı": "i",
+    "\u2010": "-",
+    "\u2011": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2212": "-",
+}
+
 # AI generation settings
 AI_MAX_RETRY_ATTEMPTS = 10
 
@@ -167,7 +198,15 @@ DEFAULT_OLLAMA_MODELS = [
     "bakllava:7b",
     "llama3.2-vision:11b",
     "llama3.2-vision:90b",
-    "cogvlm:17b"
+    "cogvlm:17b",
+    "gemma3:12b",
+    "gemma3:27b",
+    "qwen2.5-vl:7b",
+    "qwen2.5-vl:72b",
+    "llama4:scout",
+    "llama4:maverick",
+    "minicpm-v:8b",
+    "moondream2",
 ]
 
 DEFAULT_OLLAMA_VISION_MODEL = "llava:7b-v1.6"
@@ -193,3 +232,6 @@ PHOTOBANK_CATEGORY_COUNTS = {
     '500px': 0,
     'mostphotos': 0
 }
+
+# Editorial description prefix "City, Country - DD MM YYYY: " (city may be multi-word or hyphenated)
+EDITORIAL_PREFIX_PATTERN = r"^([A-Za-z]+(?:[\s-][A-Za-z]+)*),\s*([A-Za-z]+)\s*-\s*(\d{2}\s+\d{2}\s+\d{4}):\s*"

@@ -36,31 +36,73 @@ class AnthropicProvider(CloudAIProvider):
         """
         super().__init__(model_name, **kwargs)
 
-        # Model capabilities
         self._vision_models = {
             'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
-            'claude-3-5-sonnet-20241022', 'claude-3-5-sonnet-20240620', 
-            'claude-4', 'claude-opus-4', 'claude-sonnet-4'
+            'claude-3-5-sonnet-20241022', 'claude-3-5-sonnet-20240620',
+            'claude-4', 'claude-opus-4', 'claude-sonnet-4',
+            'claude-opus-4-7',
+            'claude-opus-4-6', 'claude-sonnet-4-6',
+            'claude-haiku-4-5-20251001', 'claude-haiku-4-5',
+            'claude-sonnet-4-5-20250929', 'claude-sonnet-4-5',
+            'claude-opus-4-5-20251101', 'claude-opus-4-5',
+            'claude-opus-4-1-20250805', 'claude-opus-4-1',
+            'claude-sonnet-4-20250514', 'claude-sonnet-4-0',
+            'claude-opus-4-20250514', 'claude-opus-4-0',
+            'claude-3-7-sonnet-20250219',
+            'claude-3-5-haiku-20241022',
         }
-        
+
         # Context windows
         self._context_limits = {
             'claude-3-haiku-20240307': 200_000,
-            'claude-3-sonnet-20240229': 200_000, 
+            'claude-3-sonnet-20240229': 200_000,
             'claude-3-opus-20240229': 200_000,
             'claude-3-5-sonnet-20241022': 200_000,
             'claude-3-5-sonnet-20240620': 200_000,
-            'claude-sonnet-4': 1_000_000,  # Beta 1M context
-            'claude-opus-4': 200_000
+            'claude-sonnet-4': 1_000_000,
+            'claude-opus-4': 200_000,
+            'claude-opus-4-7': 1_000_000,
+            'claude-opus-4-6': 1_000_000,
+            'claude-sonnet-4-6': 1_000_000,
+            'claude-haiku-4-5-20251001': 200_000,
+            'claude-haiku-4-5': 200_000,
+            'claude-sonnet-4-5-20250929': 200_000,
+            'claude-sonnet-4-5': 200_000,
+            'claude-opus-4-5-20251101': 200_000,
+            'claude-opus-4-5': 200_000,
+            'claude-opus-4-1-20250805': 200_000,
+            'claude-opus-4-1': 200_000,
+            'claude-sonnet-4-20250514': 200_000,
+            'claude-sonnet-4-0': 200_000,
+            'claude-opus-4-20250514': 200_000,
+            'claude-opus-4-0': 200_000,
+            'claude-3-7-sonnet-20250219': 200_000,
+            'claude-3-5-haiku-20241022': 200_000,
         }
-        
-        # Pricing (per 1K tokens, as of 2025)
+
         self._pricing = {
             'claude-3-haiku-20240307': {'input': 0.00025, 'output': 0.00125},
             'claude-3-sonnet-20240229': {'input': 0.003, 'output': 0.015},
             'claude-3-opus-20240229': {'input': 0.015, 'output': 0.075},
             'claude-3-5-sonnet-20241022': {'input': 0.003, 'output': 0.015},
             'claude-3-5-sonnet-20240620': {'input': 0.003, 'output': 0.015},
+            'claude-3-5-haiku-20241022': {'input': 0.0008, 'output': 0.004},
+            'claude-3-7-sonnet-20250219': {'input': 0.003, 'output': 0.015},
+            'claude-sonnet-4-20250514': {'input': 0.003, 'output': 0.015},
+            'claude-sonnet-4-0': {'input': 0.003, 'output': 0.015},
+            'claude-opus-4-20250514': {'input': 0.015, 'output': 0.075},
+            'claude-opus-4-0': {'input': 0.015, 'output': 0.075},
+            'claude-opus-4-1-20250805': {'input': 0.015, 'output': 0.075},
+            'claude-opus-4-1': {'input': 0.015, 'output': 0.075},
+            'claude-sonnet-4-5-20250929': {'input': 0.003, 'output': 0.015},
+            'claude-sonnet-4-5': {'input': 0.003, 'output': 0.015},
+            'claude-opus-4-5-20251101': {'input': 0.005, 'output': 0.025},
+            'claude-opus-4-5': {'input': 0.005, 'output': 0.025},
+            'claude-haiku-4-5-20251001': {'input': 0.001, 'output': 0.005},
+            'claude-haiku-4-5': {'input': 0.001, 'output': 0.005},
+            'claude-sonnet-4-6': {'input': 0.003, 'output': 0.015},
+            'claude-opus-4-6': {'input': 0.005, 'output': 0.025},
+            'claude-opus-4-7': {'input': 0.005, 'output': 0.025},
         }
         
         # Initialize client
