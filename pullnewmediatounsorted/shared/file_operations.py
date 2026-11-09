@@ -213,7 +213,6 @@ def _publish_copy(temp_path: str, dest: str) -> None:
     :raises OSError: If publication fails, including a concurrently created destination.
     """
     os.link(temp_path, dest)
-    os.unlink(temp_path)
     if sys.platform != "win32":
         directory_fd = os.open(os.path.dirname(dest) or ".", os.O_RDONLY)
         try:
@@ -240,54 +239,40 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
     """
     logging.debug("Copying file from %s to %s (overwrite=%s)", src, dest, overwrite)
     if os.path.lexists(dest):
-        if not overwrite:
-            logging.debug("File exists and overwrite disabled, skipping: %s", dest)
-            return
-        if _same_content(src, dest):
-            logging.debug("Identical file already exists, skipping: %s", dest)
-            return
-        logging.error("Content conflict: %s differs from existing %s, not copied", src, dest)
-        raise FileExistsError(f"{dest} exists with different content than {src}")
+        if overwrite and not _same_content(src, dest):
+            logging.error("Content conflict: %s differs from existing %s, not copied", src, dest)
+            raise FileExistsError(f"{dest} exists with different content than {src}")
+        return
 
     dest_folder = os.path.dirname(dest) or "."
     ensure_directory(dest_folder)
 
     source_stat = os.stat(src)
 
-    temp_path = None
+    temporary = tempfile.NamedTemporaryFile(mode="wb", dir=dest_folder, prefix=".tmp_copy_", delete=False)
+    temp_path = temporary.name
     try:
-        temp_fd, temp_path = tempfile.mkstemp(dir=dest_folder, prefix=".tmp_copy_")
-        os.close(temp_fd)
-        with open(src, "rb") as source, open(temp_path, "wb") as target:
-            shutil.copyfileobj(source, target)
+        with temporary, open(src, "rb") as source:
+            shutil.copyfileobj(source, temporary)
         os.utime(temp_path, ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns))
         if sys.platform == "win32":
             _set_creation_time_windows(temp_path, source_stat.st_birthtime_ns)
             if os.stat(temp_path).st_birthtime_ns != source_stat.st_birthtime_ns:
                 raise OSError(f"Cannot preserve original creation time for {dest}")
         with open(temp_path, "r+b") as f:
-            f.flush()
             os.fsync(f.fileno())
         try:
             _publish_copy(temp_path, dest)
         except FileExistsError:
-            if not overwrite or _same_content(temp_path, dest):
-                logging.debug("Destination created concurrently, skipping: %s", dest)
-                return
-            raise FileExistsError(f"{dest} appeared during copying with different content than {src}")
-        temp_path = None
-        logging.debug("Copied file from %s to %s", src, dest)
-    except Exception as e:
-        logging.error("Failed to copy file from %s to %s: %s", src, dest, e)
-        raise
+            if overwrite and not _same_content(temp_path, dest):
+                raise
     finally:
-        if temp_path:
-            try:
-                os.remove(temp_path)
-            except FileNotFoundError:
-                pass
-            except OSError:
-                logging.warning("Failed to clean up temp file: %s", temp_path)
+        try:
+            os.unlink(temp_path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            logging.warning("Failed to clean up temp file: %s", temp_path)
 
 
 def delete_file(path: str) -> None:
