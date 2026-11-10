@@ -120,7 +120,19 @@ File-based approach avoids shell escaping issues and supports full formatting.
 ### Commit Best Practices
 
 **Before committing:**
-1. **Stop Dropbox**: Check if Dropbox is running and kill it before git operations
+0. **Make every Git file available offline first (Dropbox must be running)**
+   - Dropbox may turn files inside `.git` (objects, refs, index, logs) into online-only placeholders.
+     A stopped Dropbox cannot download them, and Git then fails with missing objects
+     ("Function not implemented", "failed to read delta-pack base object").
+   - With Dropbox **running**, list online-only files in `.git` (Windows):
+     `powershell.exe -NoProfile -Command "(Get-ChildItem -LiteralPath '.git' -Recurse -File -Force | Where-Object { (\$_.Attributes -band 0x401000) -ne 0 }).Count"`
+   - Read each such file (e.g. `head -c 1 <file>` or `cat <file>`) so Dropbox downloads it. If a file cannot be read
+     yet ("Permission denied" while Dropbox is busy), wait a few minutes and retry. Repeat until the count is **0**.
+   - Do this for the repository's `.git` and for every worktree or clone `.git` used by the commit.
+   - **Only when no online-only Git file is left** may Dropbox be stopped (step 1). Never stop Dropbox, run Git
+     or commit while any Git file is still online-only.
+
+1. **Stop Dropbox** (only after step 0 is complete): Check if Dropbox is running and kill it before git operations
 
    **On Windows (use PowerShell via Bash tool):**
    - Check: `powershell.exe -Command "Get-Process | Where-Object {\\$_.Name -like '*Dropbox*'}"`
@@ -161,6 +173,7 @@ File-based approach avoids shell escaping issues and supports full formatting.
 
 **Rationale**:
 - Dropbox file locking prevents Git from writing to `.git/objects/`
+- Online-only Git files can only be downloaded while Dropbox runs, so they must be made available before it is stopped
 - Prevents accidental commits of temporary files, build artifacts, or unrelated changes
 - PowerShell must be used on Windows for proper process management
 
