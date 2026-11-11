@@ -55,6 +55,50 @@ def test_handle_duplicate__removes_source_when_target_exists(tmp_path):
     assert target.exists()
 
 
+def test_handle_duplicate__never_deletes_source_matched_against_itself(tmp_path, caplog):
+    source = tmp_path / "source.txt"
+    source.write_text("data", encoding="utf-8")
+    same_file_other_spelling = str(source).upper() if sys.platform == "win32" else str(source)
+
+    with caplog.at_level("WARNING"):
+        deleted = ops.handle_duplicate(str(source), [same_file_other_spelling])
+
+    assert deleted is False
+    assert source.exists()
+    assert "is the source file itself" in caplog.text
+
+
+def test_handle_duplicate__uses_real_target_after_skipping_source_itself(tmp_path):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    deleted = ops.handle_duplicate(str(source), [str(source), str(target)])
+
+    assert deleted is True
+    assert not source.exists()
+    assert target.exists()
+
+
+def test_handle_duplicate__keeps_source_when_comparison_fails(tmp_path, monkeypatch, caplog):
+    source = tmp_path / "source.txt"
+    target = tmp_path / "target.txt"
+    source.write_text("data", encoding="utf-8")
+    target.write_text("data", encoding="utf-8")
+
+    def fail_samefile(_a, _b):
+        raise OSError("injected stat failure")
+
+    monkeypatch.setattr(ops.os.path, "samefile", fail_samefile)
+    with caplog.at_level("ERROR"):
+        deleted = ops.handle_duplicate(str(source), [str(target)])
+
+    assert deleted is False
+    assert source.exists()
+    assert "Cannot compare" in caplog.text
+
+
 def test_handle_duplicate__keeps_source_when_no_target_exists(tmp_path):
     source = tmp_path / "source.txt"
     source.write_text("data", encoding="utf-8")

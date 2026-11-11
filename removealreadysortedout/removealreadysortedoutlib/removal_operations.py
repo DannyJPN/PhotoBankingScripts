@@ -84,6 +84,13 @@ def handle_duplicate(source_path: str, target_paths: list[str]) -> bool:
         if not os.path.exists(target_path):
             continue
         try:
+            if os.path.samefile(source_path, target_path):
+                logging.warning("Target %s is the source file itself, not a duplicate", target_path)
+                continue
+        except OSError as e:
+            logging.error("Cannot compare %s with %s: %s", source_path, target_path, e)
+            continue
+        try:
             target_hash = compute_file_hash(target_path)
         except Exception as e:
             logging.error("Cannot re-hash %s: %s", target_path, e)

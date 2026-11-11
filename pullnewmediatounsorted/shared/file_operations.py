@@ -201,6 +201,27 @@ def _set_creation_time_windows(path: str, ctime_ns: int) -> None:
         _kernel32.CloseHandle(handle)
 
 
+def _hard_link(src: str, dest: str) -> None:
+    """Create *dest* as a hard link to *src*, explaining filesystems without hard-link support.
+
+    :param src: Existing file.
+    :param dest: New link, which must not exist.
+    :raises FileExistsError: If *dest* already exists.
+    :raises OSError: If the link cannot be created, e.g. on FAT/exFAT or shares without hard links.
+    """
+    try:
+        os.link(src, dest)
+    except FileExistsError:
+        raise
+    except OSError as e:
+        raise OSError(
+            e.errno,
+            f"Cannot hard-link {src} to {dest} ({e.strerror}). Files are published via hard links so that an "
+            "existing destination is never replaced; use a filesystem that supports them (NTFS, ext4, APFS), "
+            "not FAT/exFAT or a share without hard-link support",
+        ) from e
+
+
 def _publish_copy(temp_path: str, dest: str) -> None:
     """Atomically publish a complete copy without replacing an existing destination.
 
@@ -212,7 +233,7 @@ def _publish_copy(temp_path: str, dest: str) -> None:
     :param dest: Final destination, which must not exist.
     :raises OSError: If publication fails, including a concurrently created destination.
     """
-    os.link(temp_path, dest)
+    _hard_link(temp_path, dest)
     if sys.platform != "win32":
         directory_fd = os.open(os.path.dirname(dest) or ".", os.O_RDONLY)
         try:
@@ -312,7 +333,7 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         if overwrite:
             shutil.move(src, dest)
         else:
-            os.link(src, dest)
+            _hard_link(src, dest)
             os.unlink(src)
         logging.debug("Moved file from %s to %s", src, dest)
     except Exception as e:

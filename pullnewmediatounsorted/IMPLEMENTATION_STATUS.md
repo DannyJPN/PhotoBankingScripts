@@ -28,7 +28,7 @@ Last updated: 2026-11-09
 - None for the dated filename format.
 
 ## Known limitations
-- No-overwrite moves require hard-link support on the same filesystem. The `overwrite` argument of `copy_file` is retained for compatibility: True enables content comparison, not permission to replace different data. Its only production caller in this standalone module is `copy_folder`; other scripts have separate `shared` implementations.
+- No-overwrite moves and copy publication require hard-link support on the same filesystem; on FAT/exFAT or shares without hard links they fail with an error naming that requirement. The `overwrite` argument of `copy_file` is retained for compatibility: True enables content comparison, not permission to replace different data. Its only production caller in this standalone module is `copy_folder`; other scripts have separate `shared` implementations.
 - Process-kill and injected I/O failure tests do not simulate a machine power loss. Power-loss durability depends on filesystem and device flush guarantees; no VM reset or physical power-cut test has been performed. A crash may leave a temporary file or lose the final directory entry, but copying never streams partial data into the final pathname.
 - Legacy 5-6 digit names are parsed, but only numbers up to 9999 can be converted to the dated format.
 - Files without EXIF dates get their date from file-system timestamps, which may not be the shoot date. QuickTime tags are stored in UTC, so videos shot around midnight can get the previous day.

@@ -243,6 +243,27 @@ def copy_file(src: str, dest: str, overwrite: bool = True) -> None:
             except OSError:
                 logging.warning("Failed to clean up temp file: %s", temp_path)
 
+def _hard_link(src: str, dest: str) -> None:
+    """Create *dest* as a hard link to *src*, explaining filesystems without hard-link support.
+
+    :param src: Existing file.
+    :param dest: New link, which must not exist.
+    :raises FileExistsError: If *dest* already exists.
+    :raises OSError: If the link cannot be created, e.g. on FAT/exFAT or shares without hard links.
+    """
+    try:
+        os.link(src, dest)
+    except FileExistsError:
+        raise
+    except OSError as e:
+        raise OSError(
+            e.errno,
+            f"Cannot hard-link {src} to {dest} ({e.strerror}). Files are moved via hard links so that an "
+            "existing destination is never replaced; use a filesystem that supports them (NTFS, ext4, APFS), "
+            "not FAT/exFAT or a share without hard-link support",
+        ) from e
+
+
 def move_file(src: str, dest: str, overwrite: bool = False) -> None:
     """
     Move a file without replacing a concurrently created destination when overwrite is disabled.
@@ -267,7 +288,7 @@ def move_file(src: str, dest: str, overwrite: bool = False) -> None:
         if overwrite:
             shutil.move(src, dest)
         else:
-            os.link(src, dest)
+            _hard_link(src, dest)
             os.unlink(src)
         logging.debug("Moved file from %s to %s", src, dest)
     except Exception as e:

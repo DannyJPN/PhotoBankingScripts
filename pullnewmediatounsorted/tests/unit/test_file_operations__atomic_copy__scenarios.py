@@ -142,6 +142,53 @@ def test_copy_file__publish_error_has_no_direct_copy_fallback(tmp_path, monkeypa
     assert not list(tmp_path.glob(".tmp_copy_*"))
 
 
+def test_copy_file__filesystem_without_hard_links_fails_with_actionable_error(tmp_path, monkeypatch):
+    """Explain the hard-link requirement instead of a bare OS error, and leave no file behind."""
+    src = tmp_path / "src.jpg"
+    dest = tmp_path / "dest.jpg"
+    src.write_bytes(b"photograph")
+
+    def no_hard_links(_src, _dest):
+        raise OSError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(operations.os, "link", no_hard_links)
+    with pytest.raises(OSError, match="FAT/exFAT") as raised:
+        operations.copy_file(str(src), str(dest))
+
+    assert raised.value.errno == errno.EPERM
+    assert not isinstance(raised.value, FileExistsError)
+    assert not dest.exists()
+    assert not list(tmp_path.glob(".tmp_copy_*"))
+
+
+def test_move_file__filesystem_without_hard_links_keeps_source(tmp_path, monkeypatch):
+    src = tmp_path / "src.jpg"
+    dest = tmp_path / "dest.jpg"
+    src.write_bytes(b"photograph")
+
+    def no_hard_links(_src, _dest):
+        raise OSError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(operations.os, "link", no_hard_links)
+    with pytest.raises(OSError, match="FAT/exFAT"):
+        operations.move_file(str(src), str(dest))
+
+    assert src.read_bytes() == b"photograph"
+    assert not dest.exists()
+
+
+def test_hard_link__existing_destination_raises_file_exists(tmp_path):
+    src = tmp_path / "src.jpg"
+    dest = tmp_path / "dest.jpg"
+    src.write_bytes(b"new")
+    dest.write_bytes(b"old")
+
+    with pytest.raises(FileExistsError):
+        operations._hard_link(str(src), str(dest))
+
+    assert dest.read_bytes() == b"old"
+
+
 def test_list_files__abandoned_copy_is_not_imported(tmp_path):
     """Exclude crash leftovers from later media imports."""
     (tmp_path / ".tmp_copy_abandoned").write_bytes(b"partial")

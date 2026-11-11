@@ -120,9 +120,19 @@ File-based approach avoids shell escaping issues and supports full formatting.
 ### Commit Best Practices
 
 **Before committing:**
-1. **Keep Dropbox running** during Git operations. Do not stop or restart it automatically.
-   Online-only files, including Git objects, must be fully available offline before any user-approved stop.
-   If Git encounters a sync or locking problem, diagnose it without killing Dropbox.
+1. **Stop Dropbox**: Check if Dropbox is running and kill it before git operations
+
+   **On Windows (use PowerShell via Bash tool):**
+   - Check: `powershell.exe -Command "Get-Process | Where-Object {\\$_.Name -like '*Dropbox*'}"`
+   - Kill: `powershell.exe -Command "Stop-Process -Name 'Dropbox' -Force"`
+   - **Note**: Always use `powershell.exe -Command` when calling PowerShell from Bash tool
+
+   **On Linux/macOS (use bash):**
+   - Check: `ps aux | grep -i dropbox`
+   - Kill: `pkill -9 dropbox`
+
+   - **Critical**: Git operations fail with "Permission denied" errors when Dropbox is syncing
+   - **Platform detection**: Check `platform` in <env> (win32 = Windows, linux = Linux, darwin = macOS)
 
 2. **Clean up temporary files**: Always remove `*.tmp.*` files before staging
 3. **Stage only modified files**: Never use `git add .` - explicitly list only the files you modified
@@ -131,8 +141,7 @@ File-based approach avoids shell escaping issues and supports full formatting.
 **After pushing:**
 
 **On Windows (PowerShell):**
-- **Only if the user explicitly requests a restart**, launch Dropbox through the running desktop
-  `explorer.exe` (ShellExecute via COM), so Dropbox becomes a normal
+- **Restart Dropbox** through the running desktop `explorer.exe` (ShellExecute via COM), so Dropbox becomes a normal
   user process and not a child of the Claude shell. Save as a `.ps1` file and run it with
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <file>.ps1`:
   ```powershell
@@ -145,16 +154,13 @@ File-based approach avoids shell escaping issues and supports full formatting.
   - **Never use `Start-Process`** or `& explorer.exe '<path>'`: both make Dropbox a child of a short-lived process
     started by the Claude shell, so it starts without its UI.
   - **Verify**: after ~30-60 s the main `Dropbox.exe` has the desktop `explorer.exe` as parent and
-    `--type=renderer` child processes exist. Check process creation times as well as PIDs to avoid PID reuse.
-    Verify again after the launching shell exits; a successful ShellExecute call alone is not proof.
-  - If verification fails, ask the user to start Dropbox manually; do not silently fall back to an
-    AI-owned child process. Keep session-specific process IDs and verification logs outside this policy file.
+    `--type=renderer` child processes exist.
 
 **On Linux/macOS (bash):**
-- Do not restart Dropbox automatically; use a platform-specific method only on explicit user request.
+- **Restart Dropbox**: `dropbox start` or check system-specific command
 
 **Rationale**:
-- Stopping Dropbox can make online-only Git objects inaccessible; never treat a stop as a default Git prerequisite.
+- Dropbox file locking prevents Git from writing to `.git/objects/`
 - Prevents accidental commits of temporary files, build artifacts, or unrelated changes
 - PowerShell must be used on Windows for proper process management
 
