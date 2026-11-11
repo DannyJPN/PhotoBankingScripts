@@ -140,10 +140,10 @@ def test_get_pond_price__map_override():
 def test_extract_media_properties__basic_fields():
     item = {
         "Soubor": "photo.jpg",
-        "N zev": "Title",
+        "N\u00e1zev": "Title",
         "Popis": "Desc",
-        "Kl¡Ÿov  slova": "cat, dog, cat",
-        "Datum vytvoýen¡": "01.02.2020",
+        "Kl\u00ed\u010dov\u00e1 slova": "cat, dog, cat",
+        "Datum vytvo\u0159en\u00ed": "01.02.2020",
     }
 
     result = banks_logic.extract_media_properties(item, category_maps={})

@@ -64,17 +64,26 @@ def list_files(folder: str, pattern: str | None = None, recursive: bool = True) 
                 matched.append(os.path.join(root, name))
     return matched
 
-def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") -> None:
+def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") -> list[str]:
     """
     Copies files from src to dest folder (recursively).
     Only copies files matching the regex `pattern`. If pattern is empty, all files are copied.
     Shows a progress bar for each file.
+
+    A file whose destination already holds different content is skipped and kept in *src*;
+    the remaining files are still copied.
+
+    :param src: Source folder.
+    :param dest: Destination folder.
+    :param overwrite: Passed to :func:`copy_file`; when False, an existing *dest* folder is skipped entirely.
+    :param pattern: Regex matched against file names; empty copies all files.
+    :return: Source paths that were not copied because of content conflicts.
     """
     logging.debug("Copying folder from %s to %s (overwrite=%s, pattern=%s)", src, dest, overwrite, pattern)
     try:
         if os.path.exists(dest) and not overwrite:
             logging.debug("Destination folder exists and overwrite is disabled, skipping copy.")
-            return
+            return []
 
         files = list_files(src, recursive=True)
         if pattern:
@@ -83,20 +92,23 @@ def copy_folder(src: str, dest: str, overwrite: bool = True, pattern: str = "") 
 
         if not files:
             logging.info("No files to copy from %s to %s", src, dest)
-            return
+            return []
 
-        conflicts = 0
+        conflicts: list[str] = []
         for file_path in tqdm(files, desc="Copying folder", unit="file"):
             rel_path = os.path.relpath(file_path, src)
             dest_path = os.path.join(dest, rel_path)
             try:
                 copy_file(file_path, dest_path, overwrite=overwrite)
             except FileExistsError:
-                conflicts += 1
+                conflicts.append(file_path)
 
         if conflicts:
-            logging.error("%d files from %s were not copied because of content conflicts in %s", conflicts, src, dest)
+            logging.error(
+                "%d files from %s were not copied because of content conflicts in %s", len(conflicts), src, dest
+            )
         logging.info("Copied folder from %s to %s", src, dest)
+        return conflicts
     except Exception as e:
         logging.error("Failed to copy folder from %s to %s: %s", src, dest, e)
         raise

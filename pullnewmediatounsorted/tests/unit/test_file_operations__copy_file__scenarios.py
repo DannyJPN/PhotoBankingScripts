@@ -80,8 +80,9 @@ def test_copy_folder__conflict_is_reported_and_other_files_are_still_copied(tmp_
     (dest / "a.jpg").write_bytes(b"original")
 
     with caplog.at_level("ERROR"):
-        copy_folder(str(src), str(dest))
+        conflicts = copy_folder(str(src), str(dest))
 
+    assert conflicts == [str(src / "a.jpg")]
     assert (dest / "a.jpg").read_bytes() == b"original"
     assert (dest / "b.jpg").read_bytes() == b"fresh"
     assert "1 files from" in caplog.text

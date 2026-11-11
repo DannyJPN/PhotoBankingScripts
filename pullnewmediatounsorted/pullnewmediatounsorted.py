@@ -2,6 +2,7 @@
 import argparse
 import logging
 import re
+import sys
 
 from shared.utils            import get_log_filename
 from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder
@@ -96,13 +97,14 @@ def main():
         )
 
     # 4) Copy media files to target
+    conflicts: list[str] = []
     for folder in sources:
-        copy_folder(folder, args.target)
+        conflicts.extend(copy_folder(folder, args.target))
 
     # 5) Copy screenshot files to target_screen
     pattern = rf"(?:{'|'.join(re.escape(m) for m in SCREENSHOT_MARKERS)})"
     for folder in sources + screen_sources:
-        copy_folder(folder, args.target_screen, pattern=pattern)
+        conflicts.extend(copy_folder(folder, args.target_screen, pattern=pattern))
 
     # 6) Flatten target folder structure (move all files to root level)
     logging.info("Flattening target folder structure")
@@ -113,8 +115,20 @@ def main():
     temp_dir = os.path.join(args.target, "FotoTemp")
     ensure_directory(temp_dir)
 
+    if conflicts:
+        for path in conflicts:
+            logging.error("Not copied (a different file with the same name already exists in the target): %s", path)
+        raise FileExistsError(
+            f"Sync incomplete: {len(conflicts)} files were not copied because a different file with the same name "
+            "already exists in the target; they were left in their source folders"
+        )
+
     logging.info("Sync process completed successfully")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileExistsError as e:
+        logging.error("%s", e)
+        sys.exit(1)
