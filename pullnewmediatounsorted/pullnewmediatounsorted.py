@@ -2,10 +2,12 @@
 import argparse
 import logging
 import re
+import sys
 
 from shared.utils            import get_log_filename
 from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder
 from shared.logging_config  import setup_logging
+from shared.exif_downloader import ensure_exiftool
 
 from pullnewmediatounsortedlib.constants import (
     DEFAULT_RAID_DRIVE,
@@ -47,9 +49,6 @@ def parse_arguments():
     parser.add_argument("--final_target",    type=str, default=DEFAULT_FINAL_TARGET_FOLDER)
     parser.add_argument("--log_dir",         type=str, default=DEFAULT_LOG_DIR)
     parser.add_argument("--debug",           action="store_true")
-    parser.add_argument("--index_prefix",    type=str, default="PICT", help="Prefix for indexed filenames")
-    parser.add_argument("--index_width",     type=int, default=4, help="Width of numeric suffix")
-    parser.add_argument("--index_max",       type=int, default=9999, help="Max index number to scan")
     return parser.parse_args()
 
 
@@ -61,6 +60,8 @@ def main():
     log_file = get_log_filename(args.log_dir)
     setup_logging(debug=args.debug, log_file=log_file)
     logging.info("Starting sync process")
+
+    ensure_exiftool()
 
     # Define source and screenshot folders
     sources = [
@@ -85,32 +86,28 @@ def main():
     # 2) Normalize indexed filenames in target vs final_target
     for prefix in PREFIXES_TO_NORMALIZE:
         normalize_indexed_filenames(
-            source_folder=args.target,
+            source_folders=[args.target],
             reference_folder=args.final_target,
             prefix=prefix,
-            width=args.index_width,
-            max_number=args.index_max,
         )
 
-    # 3) Normalize indexed filenames in sources vs target
-    for folder in sources + screen_sources:
-        for prefix in PREFIXES_TO_NORMALIZE:
-            normalize_indexed_filenames(
-                source_folder=folder,
-                reference_folder=args.target,
-                prefix=prefix,
-                width=args.index_width,
-                max_number=args.index_max,
-            )
+    # 3) Normalize indexed filenames in all sources together vs target
+    for prefix in PREFIXES_TO_NORMALIZE:
+        normalize_indexed_filenames(
+            source_folders=sources + screen_sources,
+            reference_folder=args.target,
+            prefix=prefix,
+        )
 
     # 4) Copy media files to target
+    conflicts: list[str] = []
     for folder in sources:
-        copy_folder(folder, args.target)
+        conflicts.extend(copy_folder(folder, args.target))
 
     # 5) Copy screenshot files to target_screen
     pattern = rf"(?:{'|'.join(re.escape(m) for m in SCREENSHOT_MARKERS)})"
     for folder in sources + screen_sources:
-        copy_folder(folder, args.target_screen, pattern=pattern)
+        conflicts.extend(copy_folder(folder, args.target_screen, pattern=pattern))
 
     # 6) Flatten target folder structure (move all files to root level)
     logging.info("Flattening target folder structure")
@@ -121,8 +118,20 @@ def main():
     temp_dir = os.path.join(args.target, "FotoTemp")
     ensure_directory(temp_dir)
 
+    if conflicts:
+        for path in conflicts:
+            logging.error("Not copied (a different file with the same name already exists in the target): %s", path)
+        raise FileExistsError(
+            f"Sync incomplete: {len(conflicts)} files were not copied because a different file with the same name "
+            "already exists in the target; they were left in their source folders"
+        )
+
     logging.info("Sync process completed successfully")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (FileExistsError, FileNotFoundError) as e:
+        logging.error("%s", e)
+        sys.exit(1)

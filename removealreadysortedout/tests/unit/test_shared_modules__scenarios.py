@@ -23,7 +23,9 @@ def test_hash_utils__md5(tmp_path):
 
 
 def test_logging_config__missing_config_raises(monkeypatch):
-    monkeypatch.setattr(logging_config, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError("missing")))
+    monkeypatch.setattr(
+        logging_config, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError("missing")), raising=False
+    )
     with pytest.raises(Exception):
         logging_config.setup_logging()
 

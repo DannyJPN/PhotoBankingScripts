@@ -72,8 +72,56 @@ def test_export_to_photobanks__batch_split(monkeypatch, tmp_path):
     monkeypatch.setattr(exporters, "load_category_map", lambda *_a, **_k: {})
     monkeypatch.setattr(exporters, "load_pond_prices", lambda *_a, **_k: {})
     monkeypatch.setattr(exporters, "extract_media_properties", lambda *_a, **_k: {"filename": "a.jpg"})
-    monkeypatch.setattr(exporters, "expand_item_with_alternative_formats", lambda item, bank, include_alternatives: [item])
+    monkeypatch.setattr(
+        exporters, "expand_item_with_alternative_formats", lambda item, bank, include_alternatives: [item]
+    )
     monkeypatch.setattr(exporters, "export_mediafile", lambda *_a, **_k: True)
     monkeypatch.setattr(exporters, "PHOTOBANK_BATCH_SIZE_LIMITS", {"X": 1})
 
     exporters.export_to_photobanks(items, ["X"], output_paths, filter_func=None, include_alternative_formats=False)
+
+
+def test_export_to_photobanks__getty_filters_editorial_before_batch_split(monkeypatch, tmp_path):
+    commercial_items = [
+        {
+            "Cesta": str(tmp_path / f"commercial_{idx}.jpg"),
+            "Soubor": f"commercial_{idx}.jpg",
+            "Popis": "Commercial photo",
+        }
+        for idx in range(100)
+    ]
+    editorial_item = {
+        "Cesta": str(tmp_path / "editorial.jpg"),
+        "Soubor": "editorial.jpg",
+        "Popis": "Prague, Czechia - 01 02 2020: Editorial event photo",
+    }
+    output_paths = {"GettyImages": str(tmp_path / "CSV_GettyImages.csv")}
+
+    monkeypatch.setattr(
+        exporters, "load_photobank_headers", lambda _p: {"GettyImages": {"headers": "A", "delimiter": ","}}
+    )
+    monkeypatch.setattr(exporters, "load_category_map", lambda *_a, **_k: {})
+    monkeypatch.setattr(exporters, "load_pond_prices", lambda *_a, **_k: {})
+    monkeypatch.setattr(exporters, "extract_media_properties", lambda item, *_a, **_k: {"filename": item["Soubor"]})
+    monkeypatch.setattr(
+        exporters, "expand_item_with_alternative_formats", lambda item, bank, include_alternatives: [item]
+    )
+    exported_names = []
+
+    def capture_export(bank, record, output_file, formats):
+        exported_names.append(record["filename"])
+        return True
+
+    monkeypatch.setattr(exporters, "export_mediafile", capture_export)
+    monkeypatch.setattr(exporters, "PHOTOBANK_BATCH_SIZE_LIMITS", {"GettyImages": 100})
+
+    exporters.export_to_photobanks(
+        commercial_items + [editorial_item],
+        ["GettyImages"],
+        output_paths,
+        filter_func=None,
+        include_alternative_formats=False,
+    )
+
+    assert {path.name for path in tmp_path.glob("*.csv")} == {"CSV_GettyImages_original_1.csv"}
+    assert exported_names == [item["Soubor"] for item in commercial_items]

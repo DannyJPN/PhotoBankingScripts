@@ -52,7 +52,9 @@ CAMERA_REGEXES = {
     
     # Nikon Z50 - NIK_1797.JPG, NIK_2833.NEF patterns (verified from J: analysis)
     r"^NIK_\d{4}$": "Nikon Z50",
-    
+    # Nikon Z50 - dated names from pullnewmediatounsorted: NIK_20260612_1797.JPG, conflict copy NIK_20260612_1797_B.JPG
+    r"^NIK_\d{8}_\d{4}(?:_[A-Z])?$": "Nikon Z50",
+
     # DJI Drone patterns (from error message: DJI_20250402140705_0008_W.JPG)
     r"^DJI_\d{14}_\d{4}_[WTZN]$": "DJI Drone",
     r"^DJI_\d{4}$": "DJI Drone",
@@ -60,6 +62,8 @@ CAMERA_REGEXES = {
     # Other camera patterns (keeping existing for compatibility)
     # Bunaty Micro 4K - PICT0195.JPG pattern (supports 4-6 digit numbering)
     r"^PICT\d{4,6}$": "Bunaty Micro 4K",
+    # Bunaty Micro 4K - dated names from pullnewmediatounsorted: PICT20260612_0195.JPG, PICT20260612_0195_B.JPG
+    r"^PICT\d{8}_\d{4}(?:_[A-Z])?$": "Bunaty Micro 4K",
     
     # Bunaty WiFi Solar - 20240914051558_IM_01008.JPG (image) and 20241111043058_VD_00882.MP4 (video) patterns
     r"^\d{14}_(IM|VD)_\d{5}$": "Bunaty WiFi Solar",

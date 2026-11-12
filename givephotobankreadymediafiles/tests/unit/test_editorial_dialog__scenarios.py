@@ -175,10 +175,14 @@ def test_is_valid_place_name__ascii_letters_only(field, value, expected):
     assert editorial_dialog.is_valid_place_name(field, value) is expected
 
 
-def test_on_ok__transliterates_city_and_country():
+@pytest.mark.parametrize(
+    "typed_city, expected_city",
+    [("Fr\u00fddek-M\u00edstek", "Frydek-Mistek"), ("Nov\u00e9 M\u011bsto", "Nove Mesto")],
+)
+def test_on_ok__transliterates_city_and_country(typed_city, expected_city):
     dialog = editorial_dialog.EditorialMetadataDialog.__new__(editorial_dialog.EditorialMetadataDialog)
     dialog.entries = {
-        "city": DummyEntry("Frýdek-Místek"),
+        "city": DummyEntry(typed_city),
         "country": DummyEntry("Česko"),
         "date": DummyEntry("15 03 2024"),
     }
@@ -186,7 +190,7 @@ def test_on_ok__transliterates_city_and_country():
     dialog.result = None
 
     dialog.on_ok()
-    assert dialog.result == {"city": "Frydek-Mistek", "country": "Cesko", "date": "15 03 2024"}
+    assert dialog.result == {"city": expected_city, "country": "Cesko", "date": "15 03 2024"}
     assert dialog.dialog.destroyed is True
 
 

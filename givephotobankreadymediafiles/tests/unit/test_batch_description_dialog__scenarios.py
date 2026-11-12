@@ -88,7 +88,7 @@ def test_on_save__too_short(monkeypatch):
 
 def test_on_save__editorial_cancel(monkeypatch):
     dialog = _build_dialog(min_length=1, description="long enough", editorial=True)
-    monkeypatch.setattr(batch_description_dialog, "extract_editorial_metadata_from_exif", lambda _p: ({}, {}))
+    monkeypatch.setattr(batch_description_dialog, "extract_editorial_metadata_from_exif", lambda _p: ({}, {"city": True}))
     monkeypatch.setattr(batch_description_dialog, "get_editorial_metadata", lambda *_a, **_k: None)
 
     dialog._on_save()

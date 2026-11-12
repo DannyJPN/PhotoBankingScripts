@@ -20,4 +20,4 @@ def test_replace_in_filenames_bulk(tmp_path):
 
     replace_in_filenames(str(folder), "_NIK", "NIK_", recursive=True)
 
-    assert (folder / "IMG_1_NIK_.jpg").exists()
+    assert {path.name for path in folder.iterdir()} == {f"IMG_{i}NIK_.jpg" for i in range(50)}
