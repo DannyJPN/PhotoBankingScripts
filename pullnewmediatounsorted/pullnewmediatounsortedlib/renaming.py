@@ -135,7 +135,7 @@ def normalize_indexed_filenames(
         :param path: Media file to inspect.
         :return: Selected date, or the Unix epoch when no date can be read.
         """
-        date = get_best_creation_date(path, tool_path=exiftool_path)
+        date = get_best_creation_date(path, tool_path=exiftool_path) if exiftool_path else None
         if date is None:
             try:
                 date = datetime.fromtimestamp(os.path.getmtime(path))

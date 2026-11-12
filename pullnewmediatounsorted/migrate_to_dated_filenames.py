@@ -95,7 +95,7 @@ def migrate(folder: str, dry_run: bool) -> None:
         :param path: Media file to inspect.
         :return: Selected date, or the Unix epoch if no date is readable.
         """
-        d = get_best_creation_date(path, tool_path=exiftool_path)
+        d = get_best_creation_date(path, tool_path=exiftool_path) if exiftool_path else None
         if d is None:
             try:
                 d = datetime.fromtimestamp(os.path.getmtime(path))
