@@ -86,8 +86,8 @@ def migrate(folder: str, dry_run: bool) -> None:
     try:
         exiftool_path = ensure_exiftool()
     except FileNotFoundError as e:
-        logging.warning("ExifTool not found, will use filesystem dates: %s", e)
-        exiftool_path = None
+        logging.error("ExifTool is required for the migration, nothing was renamed: %s", e)
+        sys.exit(1)
 
     def _date(path: str) -> datetime:
         """Choose a media date with a filesystem fallback.
@@ -95,7 +95,7 @@ def migrate(folder: str, dry_run: bool) -> None:
         :param path: Media file to inspect.
         :return: Selected date, or the Unix epoch if no date is readable.
         """
-        d = get_best_creation_date(path, tool_path=exiftool_path) if exiftool_path else None
+        d = get_best_creation_date(path, tool_path=exiftool_path)
         if d is None:
             try:
                 d = datetime.fromtimestamp(os.path.getmtime(path))

@@ -7,6 +7,7 @@ import sys
 from shared.utils            import get_log_filename
 from shared.file_operations import ensure_directory, unify_duplicate_files, copy_folder, flatten_folder
 from shared.logging_config  import setup_logging
+from shared.exif_downloader import ensure_exiftool
 
 from pullnewmediatounsortedlib.constants import (
     DEFAULT_RAID_DRIVE,
@@ -59,6 +60,8 @@ def main():
     log_file = get_log_filename(args.log_dir)
     setup_logging(debug=args.debug, log_file=log_file)
     logging.info("Starting sync process")
+
+    ensure_exiftool()
 
     # Define source and screenshot folders
     sources = [
@@ -129,6 +132,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except FileExistsError as e:
+    except (FileExistsError, FileNotFoundError) as e:
         logging.error("%s", e)
         sys.exit(1)

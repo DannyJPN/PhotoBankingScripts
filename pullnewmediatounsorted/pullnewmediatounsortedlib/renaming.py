@@ -76,6 +76,8 @@ def normalize_indexed_filenames(
     :param source_folders: Folders whose legacy files are renamed in place.
     :param reference_folder: Folder holding already-final names; it is never modified.
     :param prefix: Camera filename prefix, e.g. ``NIK_`` or ``PICT``.
+    :raises FileNotFoundError: If ExifTool is not installed. Dated names are permanent, so no file
+        is renamed from file-system dates alone.
     """
     logging.info(
         "Normalizing indexed filenames in %d source folders against %s (prefix=%s)",
@@ -122,12 +124,8 @@ def normalize_indexed_filenames(
                 return None
         return known_hash[path]
 
-    try:
-        exiftool_path = ensure_exiftool()
-        logging.debug("ExifTool located at: %s", exiftool_path)
-    except FileNotFoundError as e:
-        logging.warning("ExifTool not found, will use filesystem dates only: %s", e)
-        exiftool_path = None
+    exiftool_path = ensure_exiftool()
+    logging.debug("ExifTool located at: %s", exiftool_path)
 
     def _file_date(path: str) -> datetime:
         """Choose the oldest available media date with a filesystem fallback.
@@ -135,7 +133,7 @@ def normalize_indexed_filenames(
         :param path: Media file to inspect.
         :return: Selected date, or the Unix epoch when no date can be read.
         """
-        date = get_best_creation_date(path, tool_path=exiftool_path) if exiftool_path else None
+        date = get_best_creation_date(path, tool_path=exiftool_path)
         if date is None:
             try:
                 date = datetime.fromtimestamp(os.path.getmtime(path))

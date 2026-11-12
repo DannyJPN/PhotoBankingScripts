@@ -46,15 +46,18 @@ def classify_media_file(file_path: str) -> tuple[str, str, bool, str]:
 def detect_camera_from_filename(filename: str) -> str:
     """
     Detect camera from filename using regex patterns.
-    
+
+    The comparison ignores letter case, because file names are case-insensitive on the
+    target platform (Windows/NTFS).
+
     Args:
         filename: Base filename without extension
-        
+
     Returns:
         Camera name or "Unknown"
     """
     for pattern, camera in CAMERA_REGEXES.items():
-        if re.match(pattern, filename):
+        if re.match(pattern, filename, re.IGNORECASE):
             logging.debug(f"Regex matched '{pattern}' -> '{camera}' for filename '{filename}'")
             return camera
     

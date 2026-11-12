@@ -44,13 +44,32 @@ def test_media_classifier__detect_camera_from_filename__legacy_and_dated_names(n
         "NIK_2026061_1797",
         "NIK_20260612_1797_BB",
         "NIK_20260612_1797_1",
-        "PICT20260612_0195_b",
         "PICT20260612-0195",
     ],
 )
 def test_media_classifier__detect_camera_from_filename__malformed_dated_names_unknown(name: str) -> None:
     """Names that only resemble the dated format are not attributed to a camera."""
     assert media_classifier.detect_camera_from_filename(name) == "Unknown"
+
+
+@pytest.mark.parametrize(
+    ("name", "camera"),
+    [
+        ("nik_1797", "Nikon Z50"),
+        ("Nik_20260612_1797", "Nikon Z50"),
+        ("nik_20260612_1797_b", "Nikon Z50"),
+        ("pict0195", "Bunaty Micro 4K"),
+        ("Pict20260612_0195_B", "Bunaty Micro 4K"),
+        ("dsc00151", "Sony CyberShot W810"),
+        ("img20220423105358", "Realme 8"),
+        ("dji_20250402140705_0008_w", "DJI Drone"),
+        ("win_20180226_07_01_04_pro", "Acer 10"),
+        ("SCREENSHOT_20240101-101010", "Screenshot"),
+    ],
+)
+def test_media_classifier__detect_camera_from_filename__ignores_letter_case(name: str, camera: str) -> None:
+    """Letter case of the file name does not change the detected camera."""
+    assert media_classifier.detect_camera_from_filename(name) == camera
 
 
 def test_media_classifier__detect_camera_from_filename__dated_name_not_samsung() -> None:

@@ -31,7 +31,9 @@ def test_folders():
 
 @pytest.fixture(autouse=True)
 def no_real_exiftool(monkeypatch):
-    monkeypatch.setattr(renaming, "ensure_exiftool", lambda: (_ for _ in ()).throw(FileNotFoundError("no exiftool")))
+    """Let file mtime control the derived date without depending on a real ExifTool installation."""
+    monkeypatch.setattr(renaming, "ensure_exiftool", lambda: "exiftool")
+    monkeypatch.setattr(renaming, "get_best_creation_date", lambda _path, tool_path=None: None)
 
 
 def create_file(directory: str, filename: str, content: str, mtime: datetime) -> str:

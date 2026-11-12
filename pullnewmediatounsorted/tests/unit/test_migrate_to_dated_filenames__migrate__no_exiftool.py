@@ -1,8 +1,7 @@
 """
 Unit tests for migrate_to_dated_filenames.migrate when ExifTool is not installed.
 
-Nothing is mocked except the ExifTool lookup, so the tests cover the real path through
-``get_best_creation_date`` and fail if EXIF extraction is attempted without a tool.
+Dated names are permanent, so the migration must not start without ExifTool.
 """
 
 import os
@@ -29,11 +28,9 @@ def _missing_exiftool() -> str:
 
 
 @pytest.fixture(autouse=True)
-def no_exiftool_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make every ExifTool lookup fail, in the migration script and in the shared EXIF handler."""
-    exif_handler = sys.modules[migrate_module.get_best_creation_date.__module__]
+def no_exiftool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the ExifTool lookup of the migration script fail."""
     monkeypatch.setattr(migrate_module, "ensure_exiftool", _missing_exiftool)
-    monkeypatch.setattr(exif_handler, "ensure_exiftool", _missing_exiftool)
 
 
 def _create_file(folder: Path, name: str) -> Path:
@@ -49,23 +46,16 @@ def _create_file(folder: Path, name: str) -> Path:
     return path
 
 
-def test_migrate_to_dated_filenames__migrate__no_exiftool_uses_file_mtime(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_migrate_to_dated_filenames__migrate__no_exiftool_exits_and_renames_nothing(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, dry_run: bool
 ) -> None:
-    """Without ExifTool the migration completes and names the file by its modification date."""
+    """Without ExifTool the migration and its dry run end with exit code 1 and rename nothing."""
     _create_file(tmp_path, "NIK_0042.JPG")
 
-    with caplog.at_level("WARNING"):
-        migrate_module.migrate(str(tmp_path), dry_run=False)
+    with caplog.at_level("ERROR"), pytest.raises(SystemExit) as exit_info:
+        migrate_module.migrate(str(tmp_path), dry_run=dry_run)
 
-    assert os.listdir(tmp_path) == ["NIK_20260612_0042.JPG"]
-    assert "ExifTool not found" in caplog.text
-
-
-def test_migrate_to_dated_filenames__migrate__no_exiftool_dry_run_completes(tmp_path: Path) -> None:
-    """Without ExifTool the dry run completes and renames nothing."""
-    _create_file(tmp_path, "PICT0007.JPG")
-
-    migrate_module.migrate(str(tmp_path), dry_run=True)
-
-    assert os.listdir(tmp_path) == ["PICT0007.JPG"]
+    assert exit_info.value.code == 1
+    assert os.listdir(tmp_path) == ["NIK_0042.JPG"]
+    assert "ExifTool is required" in caplog.text

@@ -3,7 +3,7 @@ Unit tests for normalize_indexed_filenames in pullnewmediatounsortedlib/renaming
 
 Covers the dated-filename format (NIK_YYYYMMDD_XXXX): hash-match against a reference
 folder, legacy-format migration, idempotency on already-dated files, missing camera
-number handling, and the ExifTool-unavailable fallback to filesystem mtime.
+number handling, and the fallback to filesystem mtime for files without an EXIF date.
 """
 
 import os
@@ -137,12 +137,10 @@ def test_normalize__no_matching_files_is_noop(test_folders):
     assert os.listdir(source_dir) == []
 
 
-def test_normalize__exiftool_unavailable_falls_back_to_filesystem_mtime(test_folders, monkeypatch):
-    """When ExifTool cannot be located, the function must still complete using mtime."""
+def test_normalize__file_without_exif_date_falls_back_to_filesystem_mtime(test_folders):
+    """A file for which ExifTool finds no date is named by its modification time."""
     source_dir, reference_dir = test_folders
     file_date = datetime(2026, 6, 12)
-
-    monkeypatch.setattr(renaming, "ensure_exiftool", lambda: (_ for _ in ()).throw(FileNotFoundError("no exiftool")))
 
     create_test_file(source_dir, "PICT0007.JPG", "content", file_date)
 

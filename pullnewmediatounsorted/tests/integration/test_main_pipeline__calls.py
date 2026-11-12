@@ -40,6 +40,7 @@ def test_main_calls_core_steps(monkeypatch):
     monkeypatch.setattr(pullnewmediatounsorted, "setup_logging", lambda **_k: None)
     monkeypatch.setattr(pullnewmediatounsorted, "ensure_directory", lambda _p: None)
     monkeypatch.setattr(pullnewmediatounsorted, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(pullnewmediatounsorted, "ensure_exiftool", lambda: "exiftool")
     monkeypatch.setattr(
         pullnewmediatounsorted,
         "unify_duplicate_files",
@@ -58,7 +59,7 @@ def test_main_calls_core_steps(monkeypatch):
     monkeypatch.setattr(
         pullnewmediatounsorted,
         "copy_folder",
-        lambda *_a, **_k: calls.__setitem__("copy", calls["copy"] + 1),
+        lambda *_a, **_k: calls.__setitem__("copy", calls["copy"] + 1) or [],
     )
     monkeypatch.setattr(
         pullnewmediatounsorted,

@@ -43,6 +43,7 @@ def test_pattern_escapes_markers(monkeypatch):
     monkeypatch.setattr(pullnewmediatounsorted, "setup_logging", lambda **_k: None)
     monkeypatch.setattr(pullnewmediatounsorted, "ensure_directory", lambda _p: None)
     monkeypatch.setattr(pullnewmediatounsorted, "get_log_filename", lambda _p: "log.txt")
+    monkeypatch.setattr(pullnewmediatounsorted, "ensure_exiftool", lambda: "exiftool")
     monkeypatch.setattr(pullnewmediatounsorted, "unify_duplicate_files", lambda *_a, **_k: None)
     monkeypatch.setattr(pullnewmediatounsorted, "replace_in_filenames", lambda *_a, **_k: None)
     monkeypatch.setattr(pullnewmediatounsorted, "normalize_indexed_filenames", lambda *_a, **_k: None)
@@ -50,6 +51,7 @@ def test_pattern_escapes_markers(monkeypatch):
 
     def capture_copy_folder(_src, _dest, pattern=""):
         captured["pattern"] = pattern
+        return []
 
     monkeypatch.setattr(pullnewmediatounsorted, "copy_folder", capture_copy_folder)
 
